@@ -1,37 +1,57 @@
-export const TokenType = {
-  Command: "Command",
-  WhiteSpace: "WhiteSpace",
-  LineBreak: "LineBreak",
-  BlockComment: "BlockComment",
-  LineComment: "LineComment",
-  Delimiter: "Delimiter",
-  SemiColon: "SemiColon",
-  LeftParen: "LeftParen",
-  RightParen: "RightParen",
-  Number: "Number",
-  HexNumber: "HexNumber",
-  String: "String",
-  BindVariable: "BindVariable",
-  Variable: "Variable",
-  QuotedValue: "QuotedValue",
-  QuotedIdentifier: "QuotedIdentifier",
-  Identifier: "Identifier",
-  Operator: "Operator",
-  Error: "Error",
-} as const
-type TokenType = typeof TokenType[keyof typeof TokenType]
+enum TokenKind {
+  Skip,
+}
 
-export class Reserved {
-  static CREATE = new Reserved("create")
+export class TokenType {
+  static Command = new TokenType("Command")
+  static WhiteSpace = new TokenType("WhiteSpace", TokenKind.Skip)
+  static LineBreak = new TokenType("LineBreak", TokenKind.Skip)
+  static BlockComment = new TokenType("BlockComment", TokenKind.Skip)
+  static LineComment = new TokenType("LineComment", TokenKind.Skip)
+  static Delimiter = new TokenType("Delimiter")
+  static SemiColon = new TokenType("SemiColon")
+  static LeftParen = new TokenType("LeftParen")
+  static RightParen = new TokenType("RightParen")
+  static Number = new TokenType("Number")
+  static HexNumber = new TokenType("HexNumber")
+  static String = new TokenType("String")
+  static BindVariable = new TokenType("BindVariable")
+  static Variable = new TokenType("Variable")
+  static QuotedValue = new TokenType("QuotedValue")
+  static QuotedIdentifier = new TokenType("QuotedIdentifier")
+  static Identifier = new TokenType("Identifier")
+  static Operator = new TokenType("Operator")
+  static Error = new TokenType("Error")
 
-  private static MAP = new Map<string, Reserved>()
-
-  constructor(public name: string) {
-    Reserved.MAP.set(name, this)
+  constructor(
+    public name: string,
+    public kind?: TokenKind,
+  ) {
   }
 
+  toString() {
+    return this.name
+  }
+}
+
+const ReservedMap = new Map<string, Reserved>()
+
+export class Reserved {
+  static Body = new Reserved("body")
+  static Create = new Reserved("create")
+  static Function = new Reserved("function")
+  static Library = new Reserved("library")
+  static Package = new Reserved("package")
+  static Procedure = new Reserved("procedure")
+  static Trigger = new Reserved("trigger")
+  static Type = new Reserved("type")
+
   static valueOf(name: string) {
-    return Reserved.MAP.get(name)
+    return ReservedMap.get(name)
+  }
+
+  constructor(public name: string) {
+    ReservedMap.set(name, this)
   }
 
   toString() {
@@ -55,9 +75,21 @@ class Lexer {
   private patterns: {type: TokenType, re: RegExp}[] = []
   private delimiter = { type: TokenType.Delimiter, re: /;/y }
 
+  private plSqlTargets?: Set<Reserved>
+
   constructor(
     public client: string,
   ) {
+    if (client === "oracledb") {
+      this.plSqlTargets = new Set()
+      this.plSqlTargets.add(Reserved.Function)
+      this.plSqlTargets.add(Reserved.Library)
+      this.plSqlTargets.add(Reserved.Package)
+      this.plSqlTargets.add(Reserved.Procedure)
+      this.plSqlTargets.add(Reserved.Trigger)
+      this.plSqlTargets.add(Reserved.Type)
+    }
+
     if (client === "sqlite3") {
       this.patterns.push({ type: TokenType.BlockComment, re: /\/\*.*?\*\//sy })
       this.patterns.push({ type: TokenType.LineComment, re: /--.*/y })
@@ -147,9 +179,10 @@ class Lexer {
     this.patterns.push({ type: TokenType.Error, re: /./y })
   }
 
-  exec(input: string, options: { [key: string]: any} = {} ): Token[]  {
+  exec(input: string): Token[]  {
     const tokens: Token[] = []
     let pos = 0
+    let plsqlMode = false
 
     if (input.startsWith("\uFEFF")) {
       pos = 1
@@ -183,12 +216,31 @@ class Lexer {
 
       if (token.type === TokenType.Command && token.value[0] === "delimiter" && token.value[1]) {
         this.delimiter.re = new RegExp(token.value[1].replace(/[.*+?^=!:${}()|[\]\/\\]/g, '\\$&'), "y")
-      } else if (
-        token.type !== TokenType.WhiteSpace &&
-        token.type !== TokenType.LineBreak &&
-        token.type !== TokenType.BlockComment &&
-        token.type !== TokenType.LineComment
-      ) {
+      } else if (token.type.kind !== TokenKind.Skip) {
+        if (this.plSqlTargets) {
+          if (plsqlMode) {
+            if (token.type === TokenType.Delimiter) {
+              plsqlMode = false
+            }
+          } else {
+            if (token.type === TokenType.Identifier && this.plSqlTargets.has(token.value)) {
+              for (let i = tokens.length - 1; i >= 0; i--) {
+                const prev = tokens[i]
+                if (prev.type === TokenType.Identifier) {
+                  if (prev.value === Reserved.Create) {
+                    plsqlMode = true
+                  } else {
+                    continue
+                  }
+                }
+                break
+              }
+            } else if (token.type === TokenType.SemiColon) {
+              token.type = TokenType.Delimiter
+            }
+          }
+        }
+
         tokens.push(token)
       }
     }
