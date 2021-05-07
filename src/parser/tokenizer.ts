@@ -1,3 +1,5 @@
+import escapeRegExp from 'lodash.escaperegexp'
+
 enum TokenKind {
   Skip,
 }
@@ -14,6 +16,7 @@ export class TokenType {
   static RightParen = new TokenType("RightParen")
   static Number = new TokenType("Number")
   static HexNumber = new TokenType("HexNumber")
+  static Dot = new TokenType("Dot")
   static String = new TokenType("String")
   static BindVariable = new TokenType("BindVariable")
   static Variable = new TokenType("Variable")
@@ -37,14 +40,33 @@ export class TokenType {
 const ReservedMap = new Map<string, Reserved>()
 
 export class Reserved {
+  static Alter = new Reserved("alter")
+  static As = new Reserved("as")
+  static Attach = new Reserved("attach")
   static Body = new Reserved("body")
   static Create = new Reserved("create")
+  static Drop = new Reserved("drop")
+  static Detach = new Reserved("detach")
+  static Exists = new Reserved("exists")
   static Function = new Reserved("function")
+  static If = new Reserved("if")
+  static Index = new Reserved("index")
   static Library = new Reserved("library")
+  static Not = new Reserved("not")
   static Package = new Reserved("package")
+  static Pragma = new Reserved("pragma")
   static Procedure = new Reserved("procedure")
+  static Rowid = new Reserved("rowid")
+  static Select = new Reserved("select")
+  static Table = new Reserved("table")
+  static Temp = new Reserved("temp")
+  static Temporary = new Reserved("temporary")
   static Trigger = new Reserved("trigger")
   static Type = new Reserved("type")
+  static View = new Reserved("view")
+  static Virtual = new Reserved("virtual")
+  static With = new Reserved("with")
+  static Without = new Reserved("without")
 
   static valueOf(name: string) {
     return ReservedMap.get(name)
@@ -99,7 +121,7 @@ class Lexer {
     } else if (client === "mysql" || client === "mysql2") {
       this.patterns.push({ type: TokenType.BlockComment, re: /\/\*.*?\*\//sy })
       this.patterns.push({ type: TokenType.LineComment, re: /(#.*|--([ \t].*)$)/my })
-      this.patterns.push({ type: TokenType.Command, re: /^[ \t]*delimiter(?:[ \t]+(.*)?$)/imy })
+      this.patterns.push({ type: TokenType.Command, re: /^[ \t]*delimiter(?:[ \t]+.*)?$/imy })
       this.patterns.push({ type: TokenType.WhiteSpace, re: /[ \t]+/y })
       this.patterns.push({ type: TokenType.LineBreak, re: /(?:\r\n?|\n)/y })
       this.patterns.push(this.delimiter)
@@ -129,11 +151,12 @@ class Lexer {
     this.patterns.push({ type: TokenType.RightParen, re: /\(/y })
     this.patterns.push({ type: TokenType.Number, re: /((0|[1-9][0-9]*)(\.[0-9]+)?|(\.[0-9]+))([eE][+-]?[0-9]+)?/y })
     this.patterns.push({ type: TokenType.HexNumber, re : /0x[0-9a-fA-F]+/})
+    this.patterns.push({ type: TokenType.Dot, re: /\./y })
 
     if (client === "sqlite3") {
       this.patterns.push({ type: TokenType.String, re: /'([^']|'')*'/y })
       this.patterns.push({ type: TokenType.QuotedValue, re: /"([^"]|"")*"/y })
-      this.patterns.push({ type: TokenType.QuotedIdentifier, re: /(`([^`]|``)*`|\[([^]]|\]\])*\])/y })
+      this.patterns.push({ type: TokenType.QuotedIdentifier, re: /(`([^`]|``)*`|\[[^\]]*\])/y })
       this.patterns.push({ type: TokenType.BindVariable, re: /\?([1-9][0-9]*)?/y })
       this.patterns.push({ type: TokenType.BindVariable, re: /[:@$][a-zA-Z_\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*/y })
       this.patterns.push({ type: TokenType.Identifier, re: /[a-zA-Z_\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*/y })
@@ -215,8 +238,10 @@ class Lexer {
       }
 
       if (token.type === TokenType.Command && token.value[0] === "delimiter" && token.value[1]) {
-        this.delimiter.re = new RegExp(token.value[1].replace(/[.*+?^=!:${}()|[\]\/\\]/g, '\\$&'), "y")
-      } else if (token.type.kind !== TokenKind.Skip) {
+        this.delimiter.re = new RegExp(escapeRegExp(token.value[1]), "y")
+      }
+
+      if (token.type.kind !== TokenKind.Skip) {
         if (this.plSqlTargets) {
           if (plsqlMode) {
             if (token.type === TokenType.Delimiter) {
