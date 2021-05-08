@@ -14,6 +14,8 @@ export class TokenType {
   static SemiColon = new TokenType("SemiColon")
   static LeftParen = new TokenType("LeftParen")
   static RightParen = new TokenType("RightParen")
+  static LeftBracket = new TokenType("LeftBracket")
+  static RightBracket = new TokenType("RightBracket")
   static Number = new TokenType("Number")
   static HexNumber = new TokenType("HexNumber")
   static Dot = new TokenType("Dot")
@@ -39,20 +41,26 @@ export class TokenType {
 
 const ReservedMap = new Map<string, Reserved>()
 
-export class Reserved {
+export class Reserved extends TokenType {
+  static After = new Reserved("after")
   static Alter = new Reserved("alter")
   static As = new Reserved("as")
   static Attach = new Reserved("attach")
+  static Before = new Reserved("before")
   static Body = new Reserved("body")
   static Create = new Reserved("create")
-  static Drop = new Reserved("drop")
+  static Database = new Reserved("database")
+  static Delete = new Reserved("delete")
   static Detach = new Reserved("detach")
+  static Drop = new Reserved("drop")
   static Exists = new Reserved("exists")
   static Function = new Reserved("function")
   static If = new Reserved("if")
   static Index = new Reserved("index")
+  static Insert = new Reserved("insert")
   static Library = new Reserved("library")
   static Not = new Reserved("not")
+  static On = new Reserved("on")
   static Package = new Reserved("package")
   static Pragma = new Reserved("pragma")
   static Procedure = new Reserved("procedure")
@@ -63,6 +71,9 @@ export class Reserved {
   static Temporary = new Reserved("temporary")
   static Trigger = new Reserved("trigger")
   static Type = new Reserved("type")
+  static Unique = new Reserved("unique")
+  static Update = new Reserved("unique")
+  static Using = new Reserved("using")
   static View = new Reserved("view")
   static Virtual = new Reserved("virtual")
   static With = new Reserved("with")
@@ -72,7 +83,8 @@ export class Reserved {
     return ReservedMap.get(name)
   }
 
-  constructor(public name: string) {
+  constructor(name: string) {
+    super(name)
     ReservedMap.set(name, this)
   }
 
@@ -93,7 +105,6 @@ export class Token {
 }
 
 class Lexer {
-  private reserved = new Map<string, Reserved>()
   private patterns: {type: TokenType, re: RegExp}[] = []
   private delimiter = { type: TokenType.Delimiter, re: /;/y }
 
@@ -117,7 +128,7 @@ class Lexer {
       this.patterns.push({ type: TokenType.LineComment, re: /--.*/y })
       this.patterns.push({ type: TokenType.WhiteSpace, re: /[ \t]+/y })
       this.patterns.push({ type: TokenType.LineBreak, re: /(?:\r\n?|\n)/y })
-      this.patterns.push(this.delimiter)
+      this.patterns.push({ type: TokenType.SemiColon, re: /;/y })
     } else if (client === "mysql" || client === "mysql2") {
       this.patterns.push({ type: TokenType.BlockComment, re: /\/\*.*?\*\//sy })
       this.patterns.push({ type: TokenType.LineComment, re: /(#.*|--([ \t].*)$)/my })
@@ -139,12 +150,13 @@ class Lexer {
       this.patterns.push({ type: TokenType.Delimiter, re: /^[ \t]*[./](?=[ \t]|$)/my })
       this.patterns.push({ type: TokenType.LineBreak, re: /(?:\r\n?|\n)/y })
       this.patterns.push({ type: TokenType.SemiColon, re: /;/y })
+      this.patterns.push({ type: TokenType.Operator, re: /\(\+\)=?/y })
     } else {
       this.patterns.push({ type: TokenType.WhiteSpace, re: /[ \t]+/y })
       this.patterns.push({ type: TokenType.LineBreak, re: /(?:\r\n?|\n)/y })
       this.patterns.push({ type: TokenType.BlockComment, re: /\/\*(?:(?!\/\*|\*\/).)*\*\//sy })
       this.patterns.push({ type: TokenType.LineComment, re: /--.*/y })
-      this.patterns.push(this.delimiter)
+      this.patterns.push({ type: TokenType.SemiColon, re: /;/y })
     }
 
     this.patterns.push({ type: TokenType.LeftParen, re: /\(/y })
@@ -160,7 +172,7 @@ class Lexer {
       this.patterns.push({ type: TokenType.BindVariable, re: /\?([1-9][0-9]*)?/y })
       this.patterns.push({ type: TokenType.BindVariable, re: /[:@$][a-zA-Z_\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*/y })
       this.patterns.push({ type: TokenType.Identifier, re: /[a-zA-Z_\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*/y })
-      this.patterns.push({ type: TokenType.Operator, re: /[*/<>=~!#%^&|+-]+/y })
+      this.patterns.push({ type: TokenType.Operator, re: /\|\||<<|>>|<>|[=<>!]=?|[~&|*/%+-]/y })
     } else if (client === "mysql" || client === "mysql2") {
       this.patterns.push({ type: TokenType.String, re: /([bBnN]|_[a-zA-Z]+)?'([^']|'')*'/y })
       this.patterns.push({ type: TokenType.QuotedValue, re: /([bBnN]|_[a-zA-Z]+)?"([^"]|"")*"/y })
@@ -169,8 +181,10 @@ class Lexer {
       this.patterns.push({ type: TokenType.Variable, re: /@@?[a-zA-Z_$\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_$#\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*/y })
       this.patterns.push({ type: TokenType.Variable, re: /@('([^']|'')*'|"([^"]|"")*")/y })
       this.patterns.push({ type: TokenType.Identifier, re: /[a-zA-Z_$\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_$#\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*/y })
-      this.patterns.push({ type: TokenType.Operator, re: /[*/<>=~!%^&|+-]+/y })
+      this.patterns.push({ type: TokenType.Operator, re: /\|\|&&|<=>|<<|>>|<>|->>?|[=<>!:]=?|[~&|^*/%+-]/y })
     } else if (client === "pg") {
+      this.patterns.push({ type: TokenType.LeftBracket, re: /\[/y })
+      this.patterns.push({ type: TokenType.RightBracket, re: /\]/y })
       this.patterns.push({ type: TokenType.String, re: /([uU]&|[bBxX])?'([^']|'')*'/y })
       this.patterns.push({ type: TokenType.String, re: /\$([^$]+)\$.*\$\1\$/my })
       this.patterns.push({ type: TokenType.String, re: /\$\$.*\$\$/my })
@@ -178,25 +192,25 @@ class Lexer {
       this.patterns.push({ type: TokenType.BindVariable, re: /\$([1-9][0-9]*)?/y })
       this.patterns.push({ type: TokenType.BindVariable, re: /:[a-zA-Z_\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_$\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*/y })
       this.patterns.push({ type: TokenType.Identifier, re: /[a-zA-Z_\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_$\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*/y })
-      this.patterns.push({ type: TokenType.Operator, re: /[*/<>=~!@#%^&|?:`+-]+/y })
+      this.patterns.push({ type: TokenType.Operator, re: /::|[*/<>=~!@#%^&|`?+-]+/y })
     } else if (client === "mssql") {
       this.patterns.push({ type: TokenType.String, re: /'([^']|'')*'/y })
       this.patterns.push({ type: TokenType.QuotedIdentifier, re: /("([^"]|"")*"|\[([^]]|\]\])*\])/y })
       this.patterns.push({ type: TokenType.Variable, re: /@@?[a-zA-Z\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_$\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*/y })
       this.patterns.push({ type: TokenType.Identifier, re: /[a-zA-Z\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_$\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*/y })
-      this.patterns.push({ type: TokenType.Operator, re: /[*/<>=~!%^&|?`+-]+/y })
+      this.patterns.push({ type: TokenType.Operator, re: /::|<<|>>|!<|!>|<>|[=<>!&|^*/%+-]=?|=*|~/y })
     } else if (client === "oracledb") {
       this.patterns.push({ type: TokenType.String, re: /'([^']|'')*'/y })
       this.patterns.push({ type: TokenType.QuotedIdentifier, re: /"([^"]|"")*"/y })
       this.patterns.push({ type: TokenType.BindVariable, re: /:[a-zA-Z\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_$#\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*/y })
       this.patterns.push({ type: TokenType.Identifier, re: /[a-zA-Z\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_$#\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*/y })
-      this.patterns.push({ type: TokenType.Operator, re: /[*/<>=~!@%^&|?`+-]+/y })
+      this.patterns.push({ type: TokenType.Operator, re: /\|\||<<|>>|<>|[=<>!^]=?|[~&|*/+-]/y })
     } else {
-      this.patterns.push({ type: TokenType.String, re: /'([^']|'')*'/y })
+      this.patterns.push({ type: TokenType.String, re: /[BbXxNn]?'([^']|'')*'/y })
       this.patterns.push({ type: TokenType.QuotedIdentifier, re: /"([^"]|"")*"/y })
       this.patterns.push({ type: TokenType.BindVariable, re: /:[a-zA-Z\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*/y })
       this.patterns.push({ type: TokenType.Identifier, re: /[a-zA-Z\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*/y })
-      this.patterns.push({ type: TokenType.Operator, re: /[*/<>=~!@#%^&|?`+-]+/y })
+      this.patterns.push({ type: TokenType.Operator, re: /\|\||<<|>>|<>|[=<>]=?|[*/+-]+/y })
     }
 
     this.patterns.push({ type: TokenType.Error, re: /./y })
@@ -242,30 +256,6 @@ class Lexer {
       }
 
       if (token.type.kind !== TokenKind.Skip) {
-        if (this.plSqlTargets) {
-          if (plsqlMode) {
-            if (token.type === TokenType.Delimiter) {
-              plsqlMode = false
-            }
-          } else {
-            if (token.type === TokenType.Identifier && this.plSqlTargets.has(token.value)) {
-              for (let i = tokens.length - 1; i >= 0; i--) {
-                const prev = tokens[i]
-                if (prev.type === TokenType.Identifier) {
-                  if (prev.value === Reserved.Create) {
-                    plsqlMode = true
-                  } else {
-                    continue
-                  }
-                }
-                break
-              }
-            } else if (token.type === TokenType.SemiColon) {
-              token.type = TokenType.Delimiter
-            }
-          }
-        }
-
         tokens.push(token)
       }
     }
