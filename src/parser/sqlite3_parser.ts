@@ -6,20 +6,20 @@ export class Statement {
 
 export class CreateTableStatement extends Statement {
   public schemaName?: string
-  public objectName?: string
+  public name: string = ""
   public temporary = false
   public virtual = false
   public asSelect = false
   public ifNotExists = false
-  public columns?: TableColumn[]
+  public columns?: ColumnDef[]
   public constraints?: TableConstraint[]
   public body?: Token[]
 }
 
 export class CreateIndexStatement extends Statement {
   public schemaName?: string
-  public objectName?: string
-  public tableName?: string
+  public name: string = ""
+  public tableName: string = ""
   public unique = false
   public ifNotExists = false
   public columns?: IndexColumn[]
@@ -28,44 +28,44 @@ export class CreateIndexStatement extends Statement {
 
 export class CreateViewStatement extends Statement {
   public schemaName?: string
-  public objectName?: string
+  public name: string = ""
   public temporary = false
   public ifNotExists = false
 }
 
 export class CreateTriggerStatement extends Statement {
   public schemaName?: string
-  public objectName?: string
+  public name: string = ""
   public temporary = false
   public ifNotExists = false
 }
 
 export class AlterTableStatement extends Statement {
   public schemaName?: string
-  public objectName?: string
+  public name: string = ""
 }
 
 export class DropTableStatement extends Statement {
   public schemaName?: string
-  public objectName?: string
+  public name: string = ""
   public ifExists = false
 }
 
 export class DropIndexStatement extends Statement {
   public schemaName?: string
-  public objectName?: string
+  public name: string = ""
   public ifExists = false
 }
 
 export class DropViewStatement extends Statement {
   public schemaName?: string
-  public objectName?: string
+  public name: string = ""
   public ifExists = false
 }
 
 export class DropTriggerStatement extends Statement {
   public schemaName?: string
-  public objectName?: string
+  public name: string = ""
   public ifExists = false
 }
 
@@ -78,16 +78,38 @@ export class DetachDatabaseStatement extends Statement {
 export class PragmaStatement extends Statement {
 }
 
-export class TableColumn {
+export class ColumnDef {
+  public name: string = ""
+  public typeName?: string
+  public constraints: ColumnConstraint[] = []
+}
 
+export class ColumnConstraint {
+  public name?: string
 }
 
 export class TableConstraint {
+  public name?: string
+}
+
+export class PrimaryKeyTableConstraint extends TableConstraint {
+
+}
+
+export class UniqueIndexTableConstraint extends TableConstraint {
+
+}
+
+export class CheckTableConstraint extends TableConstraint {
+
+}
+
+export class ForeignKeyTableConstraint extends TableConstraint {
 
 }
 
 export class IndexColumn {
-
+  public name: string = ""
 }
 
 export class Sqlite3Parser {
@@ -95,7 +117,7 @@ export class Sqlite3Parser {
   private tokens: Token[]
 
   constructor(
-    public input: string,
+    private input: string
   ) {
     this.tokens = tokenize(input, "sqlite3")
   }
@@ -149,10 +171,7 @@ export class Sqlite3Parser {
           break
         } else if (this.consumeIf(Reserved.Virtual)) {
           virtual = true
-        } else if (
-          this.consumeIf(Reserved.Temp) ||
-          this.consumeIf(Reserved.Temporary)
-        ) {
+        } else if (this.consumeIf(Reserved.Temp) || this.consumeIf(Reserved.Temporary)) {
           temporary = true
         } else if (this.consumeIf(Reserved.Unique)) {
           unique = true
@@ -168,10 +187,10 @@ export class Sqlite3Parser {
           stmt.ifNotExists = true
         }
 
-        stmt.objectName = this.identifier()
+        stmt.name = this.identifier()
         if (this.consumeIf(TokenType.Dot)) {
-          stmt.schemaName = stmt.objectName
-          stmt.objectName = this.identifier()
+          stmt.schemaName = stmt.name
+          stmt.name = this.identifier()
         }
       }
 
@@ -180,7 +199,7 @@ export class Sqlite3Parser {
           stmt.columns = []
           stmt.constraints = []
           if (this.consumeIf(TokenType.LeftParen)) {
-            stmt.columns.push(this.tableColumn())
+            stmt.columns.push(this.columnDef())
             while (this.consumeIf(TokenType.Comma)) {
               const token = this.tokens[this.pos]
               if (token.value instanceof Reserved) {
@@ -190,7 +209,7 @@ export class Sqlite3Parser {
                 }
                 break
               } else {
-                stmt.columns.push(this.tableColumn())
+                stmt.columns.push(this.columnDef())
               }
             }
             this.consume(TokenType.RightParen)
@@ -245,6 +264,16 @@ export class Sqlite3Parser {
           }
           stmt.where = this.tokens.slice(whereStart, this.pos)
         }
+      } else if (stmt instanceof CreateTriggerStatement) {
+        for (let token; token = this.tokens[this.pos]; token && token.type !== TokenType.SemiColon) {
+          if (this.consumeIf(Reserved.Begin)) {
+            for (let token; token = this.tokens[this.pos]; token && token.value !== Reserved.End) {
+              this.consume()
+            }
+          } else {
+            this.consume()
+          }
+        }
       }
     } else if (this.consumeIf(Reserved.Alter)) {
       for (let token; token = this.tokens[this.pos]; token && token.type !== TokenType.SemiColon) {
@@ -257,10 +286,10 @@ export class Sqlite3Parser {
       }
 
       if (stmt) {
-        stmt.objectName = this.identifier()
+        stmt.name = this.identifier()
         if (this.consumeIf(TokenType.Dot)) {
-          stmt.schemaName = stmt.objectName
-          stmt.objectName = this.identifier()
+          stmt.schemaName = stmt.name
+          stmt.name = this.identifier()
         }
       }
     } else if (this.consumeIf(Reserved.Drop)) {
@@ -288,10 +317,10 @@ export class Sqlite3Parser {
           stmt.ifExists = true
         }
 
-        stmt.objectName = this.identifier()
+        stmt.name = this.identifier()
         if (this.consumeIf(TokenType.Dot)) {
-          stmt.schemaName = stmt.objectName
-          stmt.objectName = this.identifier()
+          stmt.schemaName = stmt.name
+          stmt.name = this.identifier()
         }
       }
     } else if (this.consumeIf(Reserved.Attach)) {
@@ -332,19 +361,72 @@ export class Sqlite3Parser {
     }
   }
 
-  tableColumn() {
+  columnDef() {
+    const columnDef = new ColumnDef()
+    columnDef.name = this.identifier()
+
+    const token = this.tokens[this.pos]
+    if (!(token.value instanceof Reserved)) {
+      columnDef.typeName = this.typeName()
+    }
+
+    for (let token; token = this.tokens[this.pos]; token &&
+      token.type !== TokenType.Comma &&
+      token.type !== TokenType.SemiColon
+    ) {
+      columnDef.constraints.push(this.columnConstraint())
+    }
+
+    return columnDef
+  }
+
+  columnConstraint() {
+    const constraint = new ColumnConstraint()
+    if (this.consumeIf(Reserved.Constraint)) {
+      constraint.name = this.identifier()
+    }
+    // TODO
+    return constraint
+  }
+
+  typeName() {
     //TODO
-    return []
+    return ""
   }
 
   tableConstraint() {
-    //TODO
-    return []
+    const constraint = new TableConstraint()
+    if (this.consumeIf(Reserved.Constraint)) {
+      constraint.name = this.identifier()
+    }
+    if (this.consumeIf(Reserved.Primary)) {
+      this.consume(Reserved.Key)
+      this.consume(Reserved.LeftParen)
+      //TODO
+      this.consume(Reserved.RightParen)
+    } else if (this.consumeIf(Reserved.Unique)) {
+      this.consume(Reserved.LeftParen)
+      //TODO
+      this.consume(Reserved.RightParen)
+    } else if (this.consumeIf(Reserved.Check)) {
+      this.consume(Reserved.LeftParen)
+      //TODO
+      this.consume(Reserved.RightParen)
+    } else {
+      this.consume(Reserved.Foreign)
+      this.consume(Reserved.Key)
+      this.consume(Reserved.LeftParen)
+      //TODO
+      this.consume(Reserved.RightParen)
+    }
+    return constraint
   }
 
   indexColumn() {
+    const column = new IndexColumn()
+    column.name = this.identifier()
     //TODO
-    return []
+    return column
   }
 
   consume(type?: TokenType) {
