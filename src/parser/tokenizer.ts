@@ -8,6 +8,7 @@ export class TokenType {
   static Command = new TokenType("Command")
   static WhiteSpace = new TokenType("WhiteSpace", TokenKind.Skip)
   static LineBreak = new TokenType("LineBreak", TokenKind.Skip)
+  static HintComment = new TokenType("HintComment", TokenKind.Skip)
   static BlockComment = new TokenType("BlockComment", TokenKind.Skip)
   static LineComment = new TokenType("LineComment", TokenKind.Skip)
   static Delimiter = new TokenType("Delimiter")
@@ -16,6 +17,7 @@ export class TokenType {
   static RightParen = new TokenType("RightParen")
   static LeftBracket = new TokenType("LeftBracket")
   static RightBracket = new TokenType("RightBracket")
+  static Comma = new TokenType("Comma")
   static Number = new TokenType("Number")
   static HexNumber = new TokenType("HexNumber")
   static Dot = new TokenType("Dot")
@@ -76,6 +78,7 @@ export class Reserved extends TokenType {
   static Using = new Reserved("using")
   static View = new Reserved("view")
   static Virtual = new Reserved("virtual")
+  static Where =  new Reserved("where")
   static With = new Reserved("with")
   static Without = new Reserved("without")
 
@@ -94,6 +97,8 @@ export class Reserved extends TokenType {
 }
 
 export class Token {
+  public skips:Token[] = []
+
   constructor(
     public type: TokenType,
     public text: string,
@@ -130,6 +135,7 @@ class Lexer {
       this.patterns.push({ type: TokenType.LineBreak, re: /(?:\r\n?|\n)/y })
       this.patterns.push({ type: TokenType.SemiColon, re: /;/y })
     } else if (client === "mysql" || client === "mysql2") {
+      this.patterns.push({ type: TokenType.HintComment, re: /\/\*\+.*?\*\//sy })
       this.patterns.push({ type: TokenType.BlockComment, re: /\/\*.*?\*\//sy })
       this.patterns.push({ type: TokenType.LineComment, re: /(#.*|--([ \t].*)$)/my })
       this.patterns.push({ type: TokenType.Command, re: /^[ \t]*delimiter(?:[ \t]+.*)?$/imy })
@@ -145,6 +151,7 @@ class Lexer {
       this.patterns.push({ type: TokenType.SemiColon, re: /;/y })
     } else if (client === "oracledb") {
       this.patterns.push({ type: TokenType.WhiteSpace, re: /[ \t]+/y })
+      this.patterns.push({ type: TokenType.HintComment, re: /\/\*\+.*?\*\//sy })
       this.patterns.push({ type: TokenType.BlockComment, re: /\/\*.*?\*\//sy })
       this.patterns.push({ type: TokenType.LineComment, re: /--.*/y })
       this.patterns.push({ type: TokenType.Delimiter, re: /^[ \t]*[./](?=[ \t]|$)/my })
@@ -161,6 +168,7 @@ class Lexer {
 
     this.patterns.push({ type: TokenType.LeftParen, re: /\(/y })
     this.patterns.push({ type: TokenType.RightParen, re: /\(/y })
+    this.patterns.push({ type: TokenType.Comma, re: /,/y })
     this.patterns.push({ type: TokenType.Number, re: /((0|[1-9][0-9]*)(\.[0-9]+)?|(\.[0-9]+))([eE][+-]?[0-9]+)?/y })
     this.patterns.push({ type: TokenType.HexNumber, re : /0x[0-9a-fA-F]+/})
     this.patterns.push({ type: TokenType.Dot, re: /\./y })
@@ -255,7 +263,12 @@ class Lexer {
         this.delimiter.re = new RegExp(escapeRegExp(token.value[1]), "y")
       }
 
-      if (token.type.kind !== TokenKind.Skip) {
+      if (token.type.kind === TokenKind.Skip) {
+        const prev = tokens[tokens.length-1]
+        if (prev) {
+          prev.skips.push(token)
+        }
+      } else {
         tokens.push(token)
       }
     }

@@ -9,8 +9,11 @@ export class CreateTableStatement extends Statement {
   public objectName?: string
   public temporary = false
   public virtual = false
+  public asSelect = false
   public ifNotExists = false
-  public selectClause?: string
+  public columns?: TableColumn[]
+  public constraints?: TableConstraint[]
+  public body?: Token[]
 }
 
 export class CreateIndexStatement extends Statement {
@@ -19,10 +22,8 @@ export class CreateIndexStatement extends Statement {
   public tableName?: string
   public unique = false
   public ifNotExists = false
-}
-
-export class IndexColumn {
-
+  public columns?: IndexColumn[]
+  public where?: Token[]
 }
 
 export class CreateViewStatement extends Statement {
@@ -77,6 +78,18 @@ export class DetachDatabaseStatement extends Statement {
 export class PragmaStatement extends Statement {
 }
 
+export class TableColumn {
+
+}
+
+export class TableConstraint {
+
+}
+
+export class IndexColumn {
+
+}
+
 export class Sqlite3Parser {
   private pos = 0
   private tokens: Token[]
@@ -89,59 +102,59 @@ export class Sqlite3Parser {
 
   root() {
     const root = []
-    let stmt
+    let stmt, token
     if (stmt = this.statement()) {
       root.push(stmt)
     }
-    while (true) {
-      this.consume(TokenType.SemiColon)
+    while (this.consumeIf(TokenType.SemiColon)) {
       if (stmt = this.statement()) {
         root.push(stmt)
       }
+    }
+    if (token = this.tokens[this.pos]) {
+      throw new Error(`Unexpected token: ${token.text}`)
     }
     return root
   }
 
   statement() {
-    const token1 = this.token(0)
+    const token1 = this.tokens[this.pos]
     if (!token1) {
       return null
     }
 
     const start = token1.start
 
-    let stmt, token, bodyStart
-    if (this.consumeIfMatch(Reserved.Create)) {
+    let stmt
+    if (this.consumeIf(Reserved.Create)) {
       let temporary = false
       let virtual = false
       let unique = false
-      while (token = this.token(0)) {
-        if (token.type === TokenType.SemiColon) {
-          break
-        } else if (this.consumeIfMatch(Reserved.Table)) {
+      for (let token; token = this.tokens[this.pos]; token && token.type !== TokenType.SemiColon) {
+        if (this.consumeIf(Reserved.Table)) {
           stmt = new CreateTableStatement()
           stmt.temporary = temporary
           stmt.virtual = virtual
           break
-        } else if (this.consumeIfMatch(Reserved.Index)) {
+        } else if (this.consumeIf(Reserved.Index)) {
           stmt = new CreateIndexStatement()
           stmt.unique = unique
           break
-        } else if (this.consumeIfMatch(Reserved.View)) {
+        } else if (this.consumeIf(Reserved.View)) {
           stmt = new CreateViewStatement()
           break
-        } else if (this.consumeIfMatch(Reserved.Trigger)) {
+        } else if (this.consumeIf(Reserved.Trigger)) {
           stmt = new CreateTriggerStatement()
           stmt.temporary = temporary
           break
-        } else if (this.consumeIfMatch(Reserved.Virtual)) {
+        } else if (this.consumeIf(Reserved.Virtual)) {
           virtual = true
         } else if (
-          this.consumeIfMatch(Reserved.Temp) ||
-          this.consumeIfMatch(Reserved.Temporary)
+          this.consumeIf(Reserved.Temp) ||
+          this.consumeIf(Reserved.Temporary)
         ) {
           temporary = true
-        } else if (this.consumeIfMatch(Reserved.Unique)) {
+        } else if (this.consumeIf(Reserved.Unique)) {
           unique = true
         } else {
           this.consume()
@@ -149,54 +162,93 @@ export class Sqlite3Parser {
       }
 
       if (stmt) {
-        if (this.consumeIfMatch(Reserved.If)) {
+        if (this.consumeIf(Reserved.If)) {
           this.consume(Reserved.Not)
           this.consume(Reserved.Exists)
           stmt.ifNotExists = true
         }
 
-        const result = this.objectName()
-        stmt.schemaName = result.schemaName
-        stmt.objectName = result.objectName
+        stmt.objectName = this.identifier()
+        if (this.consumeIf(TokenType.Dot)) {
+          stmt.schemaName = stmt.objectName
+          stmt.objectName = this.identifier()
+        }
       }
 
       if (stmt instanceof CreateTableStatement) {
         if (!stmt.virtual) {
-          if (this.consumeIfMatch(TokenType.LeftParen)) {
-            //TODO
+          stmt.columns = []
+          stmt.constraints = []
+          if (this.consumeIf(TokenType.LeftParen)) {
+            stmt.columns.push(this.tableColumn())
+            while (this.consumeIf(TokenType.Comma)) {
+              const token = this.tokens[this.pos]
+              if (token.value instanceof Reserved) {
+                stmt.constraints.push(this.tableConstraint())
+                while (this.consumeIf(TokenType.Comma)) {
+                  stmt.constraints.push(this.tableConstraint())
+                }
+                break
+              } else {
+                stmt.columns.push(this.tableColumn())
+              }
+            }
             this.consume(TokenType.RightParen)
-            if (this.consumeIfMatch(Reserved.Without)) {
+            if (this.consumeIf(Reserved.Without)) {
               this.consume(Reserved.Rowid)
             }
           } else {
             this.consume(Reserved.As)
-            bodyStart = this.token(0).start
+            stmt.asSelect = true
+            const bodyStart = this.pos
+            for (let token; token = this.tokens[this.pos]; token && token.type !== TokenType.SemiColon) {
+              this.consume()
+            }
+            stmt.body = this.tokens.slice(bodyStart, this.pos)
           }
         } else {
           this.consume(Reserved.Using)
           this.consume(TokenType.LeftParen)
-          // TODO
-          this.consume(TokenType.RightParen)
+          const bodyStart = this.pos
+          for (let token; token = this.tokens[this.pos]; token && token.type !== TokenType.SemiColon) {
+            if (token.type === TokenType.RightParen) {
+              stmt.body = this.tokens.slice(bodyStart, this.pos)
+              this.consume()
+              break;
+            } else {
+              this.consume()
+            }
+          }
         }
       } else if (stmt instanceof CreateIndexStatement) {
         this.consume(Reserved.On)
-        if (token = this.consumeIfMatch(TokenType.QuotedIdentifier)) {
+        let token
+        if (token = this.consumeIf(TokenType.QuotedIdentifier)) {
           stmt.tableName = unescapeIdentifier(token.text)
-        } else if (token = this.consumeIfMatch(TokenType.QuotedValue)) {
+        } else if (token = this.consumeIf(TokenType.QuotedValue)) {
           stmt.tableName = unescapeIdentifier(token.text)
         } else {
           token = this.consume(TokenType.Identifier)
           stmt.tableName = token.text
         }
+        stmt.columns = []
         this.consume(TokenType.LeftParen)
-        // TODO
+        stmt.columns.push(this.indexColumn())
+        while (this.consumeIf(TokenType.Comma)) {
+          stmt.columns.push(this.indexColumn())
+        }
         this.consume(TokenType.RightParen)
+        if (this.consumeIf(Reserved.Where)) {
+          const whereStart = this.pos
+          for (let token; token = this.tokens[this.pos]; token && token.type !== TokenType.SemiColon) {
+            this.consume()
+          }
+          stmt.where = this.tokens.slice(whereStart, this.pos)
+        }
       }
-    } else if (this.consumeIfMatch(Reserved.Alter)) {
-      while (token = this.token(0)) {
-        if (token.type === TokenType.SemiColon) {
-          break
-        } else if (this.consumeIfMatch(Reserved.Table)) {
+    } else if (this.consumeIf(Reserved.Alter)) {
+      for (let token; token = this.tokens[this.pos]; token && token.type !== TokenType.SemiColon) {
+        if (this.consumeIf(Reserved.Table)) {
           stmt = new AlterTableStatement()
           break
         } else {
@@ -205,24 +257,24 @@ export class Sqlite3Parser {
       }
 
       if (stmt) {
-        const result = this.objectName()
-        stmt.schemaName = result.schemaName
-        stmt.objectName = result.objectName
+        stmt.objectName = this.identifier()
+        if (this.consumeIf(TokenType.Dot)) {
+          stmt.schemaName = stmt.objectName
+          stmt.objectName = this.identifier()
+        }
       }
-    } else if (this.consumeIfMatch(Reserved.Drop)) {
-      while (token = this.token(0)) {
-        if (token.type === TokenType.SemiColon) {
-          break
-        } else if (this.consumeIfMatch(Reserved.Table)) {
+    } else if (this.consumeIf(Reserved.Drop)) {
+      for (let token; token = this.tokens[this.pos]; token && token.type !== TokenType.SemiColon) {
+        if (this.consumeIf(Reserved.Table)) {
           stmt = new DropTableStatement()
           break
-        } else if (this.consumeIfMatch(Reserved.Index)) {
+        } else if (this.consumeIf(Reserved.Index)) {
           stmt = new DropIndexStatement()
           break
-        } else if (this.consumeIfMatch(Reserved.View)) {
+        } else if (this.consumeIf(Reserved.View)) {
           stmt = new DropViewStatement()
           break
-        } else if (this.consumeIfMatch(Reserved.Trigger)) {
+        } else if (this.consumeIf(Reserved.Trigger)) {
           stmt = new DropTriggerStatement()
           break
         } else {
@@ -231,24 +283,26 @@ export class Sqlite3Parser {
       }
 
       if (stmt) {
-        if (this.consumeIfMatch(Reserved.If)) {
+        if (this.consumeIf(Reserved.If)) {
           this.consume(Reserved.Exists)
           stmt.ifExists = true
         }
 
-        const result = this.objectName()
-        stmt.schemaName = result.schemaName
-        stmt.objectName = result.objectName
+        stmt.objectName = this.identifier()
+        if (this.consumeIf(TokenType.Dot)) {
+          stmt.schemaName = stmt.objectName
+          stmt.objectName = this.identifier()
+        }
       }
-    } else if (this.consumeIfMatch(Reserved.Attach)) {
-      if (this.consumeIfMatch(Reserved.Database)) {
+    } else if (this.consumeIf(Reserved.Attach)) {
+      if (this.consumeIf(Reserved.Database)) {
         stmt = new AttachDatabaseStatement()
       }
-    } else if (this.consumeIfMatch(Reserved.Detach)) {
-      if (this.consumeIfMatch(Reserved.Database)) {
+    } else if (this.consumeIf(Reserved.Detach)) {
+      if (this.consumeIf(Reserved.Database)) {
         stmt = new DetachDatabaseStatement()
       }
-    } else if (this.consumeIfMatch(Reserved.Pragma)) {
+    } else if (this.consumeIf(Reserved.Pragma)) {
       stmt = new PragmaStatement()
     }
 
@@ -256,53 +310,41 @@ export class Sqlite3Parser {
       stmt = new Statement()
     }
 
-    while (token = this.token(0)) {
-      if (token.type === TokenType.SemiColon) {
-        break
-      }
+    for (let token; token = this.tokens[this.pos]; token && token.type !== TokenType.SemiColon) {
       this.consume()
     }
-    const end = this.token(-1).end
-    stmt.text = this.input.substring(start, end)
 
-    if (bodyStart) {
-      if (stmt instanceof CreateTableStatement) {
-        stmt.selectClause = this.input.substring(bodyStart, end)
-      }
-    }
+    const end = this.tokens[this.pos - 1].end
+    stmt.text = this.input.substring(start, end)
 
     return stmt
   }
 
-  objectName() {
-    const result: {schemaName?: string, objectName?: string} = {}
-
+  identifier() {
     let token
-    if (token = this.consumeIfMatch(TokenType.QuotedIdentifier)) {
-      result.objectName = unescapeIdentifier(token.text)
-    } else if (token = this.consumeIfMatch(TokenType.QuotedValue)) {
-      result.objectName = unescapeIdentifier(token.text)
+    if (token = this.consumeIf(TokenType.QuotedIdentifier)) {
+      return unescapeIdentifier(token.text)
+    } else if (token = this.consumeIf(TokenType.QuotedValue)) {
+      return unescapeIdentifier(token.text)
     } else {
       token = this.consume(TokenType.Identifier)
-      result.objectName = token.text
+      return token.text
     }
-    if (this.consumeIfMatch(TokenType.Dot)) {
-      result.schemaName = result.objectName
-      if (token = this.consumeIfMatch(TokenType.QuotedIdentifier)) {
-        result.objectName = unescapeIdentifier(token.text)
-      } else if (token = this.consumeIfMatch(TokenType.QuotedValue)) {
-        result.objectName = unescapeIdentifier(token.text)
-      } else {
-        token = this.consume(TokenType.Identifier)
-        result.objectName = token.text
-      }
-    }
-
-    return result
   }
 
-  token(pos: number) {
-    return this.tokens[this.pos + pos]
+  tableColumn() {
+    //TODO
+    return []
+  }
+
+  tableConstraint() {
+    //TODO
+    return []
+  }
+
+  indexColumn() {
+    //TODO
+    return []
   }
 
   consume(type?: TokenType) {
@@ -323,7 +365,7 @@ export class Sqlite3Parser {
     return token
   }
 
-  consumeIfMatch(type: TokenType) {
+  consumeIf(type: TokenType) {
     const token = this.tokens[this.pos]
     if (!token) {
       return null
