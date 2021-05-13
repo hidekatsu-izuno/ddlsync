@@ -24,18 +24,22 @@
     "node": ">=8.0.0"
   },
   "dependencies": {
+    "big.js": "^6.1.1",
     "cac": "^6.7.3",
     "enquirer": "^2.3.6",
     "fast-glob": "^3.2.5",
     "knex": "^0.95.4",
     "lodash.escaperegexp": "^4.1.2",
+    "semver": "^7.3.5",
     "sqlite3": "^5.0.2",
     "tslib": "^2.2.0"
   },
   "devDependencies": {
+    "@types/big.js": "^6.0.2",
     "@types/jest": "^26.0.23",
     "@types/lodash.escaperegexp": "^4.1.6",
     "@types/node": "^15.0.2",
+    "@types/semver": "^7.3.5",
     "@typescript-eslint/eslint-plugin": "^4.22.1",
     "@typescript-eslint/parser": "^4.22.1",
     "eslint": "^7.25.0",

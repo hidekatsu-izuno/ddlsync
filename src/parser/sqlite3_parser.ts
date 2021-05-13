@@ -1,379 +1,512 @@
-import { TokenType, Reserved, Token, tokenize } from "./tokenizer"
+import {
+  TokenType,
+  Token,
+  Lexer,
+  Parser,
+  Expression,
+  Idnetifier,
+  StringValue,
+  NumberValue,
+  IExpression,
+} from "./common"
+import {
+  Reserved,
+  SortOrder,
+  ConflictAction,
+  IndexedColumn,
+  StoreType,
+  AlterTableAction,
+  TransactionBehavior,
+  ExplainStatement,
+  AttachDatabaseStatement,
+  DetachDatabaseStatement,
+  CreateTableStatement,
+  CreateVirtualTableStatement,
+  CreateIndexStatement,
+  CreateViewStatement,
+  CreateTriggerStatement,
+  AlterTableStatement,
+  DropTableStatement,
+  DropIndexStatement,
+  DropViewStatement,
+  DropTriggerStatement,
+  BeginTransactionStatement,
+  SavepointStatement,
+  ReleaseSavepointStatement,
+  CommitTransactionStatement,
+  RollbackTransactionStatement,
+  AnalyzeStatement,
+  VacuumStatement,
+  ReindexStatement,
+  PragmaStatement,
+  InsertStatement,
+  UpdateStatement,
+  DeleteStatement,
+  SelectStatement,
+  ColumnDef,
+  PrimaryKeyTableConstraint,
+  UniqueTableConstraint,
+  CheckTableConstraint,
+  ForeignKeyTableConstraint,
+  PrimaryKeyColumnConstraint,
+  NotNullColumnConstraint,
+  UniqueColumnConstraint,
+  CheckColumnConstraint,
+  DefaultColumnConstraint,
+  CollateColumnConstraint,
+  ReferencesKeyColumnConstraint,
+  GeneratedColumnConstraint,
+} from "./sqlite3_models"
 
-export class Statement {
-  public text?: string
+export class Sqlite3Lexer extends Lexer {
+  constructor() {
+    super([
+      { type: TokenType.BlockComment, re: /\/\*.*?\*\//sy },
+      { type: TokenType.LineComment, re: /--.*/y },
+      { type: TokenType.WhiteSpace, re: /[ \t]+/y },
+      { type: TokenType.LineBreak, re: /(?:\r\n?|\n)/y },
+      { type: TokenType.SemiColon, re: /;/y },
+      { type: TokenType.LeftParen, re: /\(/y },
+      { type: TokenType.RightParen, re: /\(/y },
+      { type: TokenType.Comma, re: /,/y },
+      { type: TokenType.Number, re: /0[xX][0-9a-fA-F]+|((0|[1-9][0-9]*)(\.[0-9]+)?|(\.[0-9]+))([eE][+-]?[0-9]+)?/y },
+      { type: TokenType.Dot, re: /\./y },
+      { type: TokenType.String, re: /[Xx]'([^']|'')*'/y },
+      { type: TokenType.QuotedValue, re: /"([^"]|"")*"/y },
+      { type: TokenType.QuotedIdentifier, re: /(`([^`]|``)*`|\[[^\]]*\])/y },
+      { type: TokenType.BindVariable, re: /\?([1-9][0-9]*)?/y },
+      { type: TokenType.BindVariable, re: /[$@:#][a-zA-Z_\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*/y },
+      { type: TokenType.Identifier, re: /[a-zA-Z_\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*/y },
+      { type: TokenType.Operator, re: /\|\||<<|>>|<>|[=<>!]=?|[~&|*/%+-]/y },
+      { type: TokenType.Error, re: /./y },
+    ])
+  }
+
+  process(token: Token) {
+    if (token.type === TokenType.Identifier) {
+      const reserved = Reserved.valueOf(token.text.toUpperCase())
+      if (reserved) {
+        token.type = reserved
+      }
+    }
+    return token
+  }
 }
 
-export class CreateTableStatement extends Statement {
-  public schemaName?: string
-  public name: string = ""
-  public temporary = false
-  public virtual = false
-  public asSelect = false
-  public ifNotExists = false
-  public columns?: ColumnDef[]
-  public constraints?: TableConstraint[]
-  public body?: Token[]
-}
-
-export class CreateIndexStatement extends Statement {
-  public schemaName?: string
-  public name: string = ""
-  public tableName: string = ""
-  public unique = false
-  public ifNotExists = false
-  public columns?: IndexColumn[]
-  public where?: Token[]
-}
-
-export class CreateViewStatement extends Statement {
-  public schemaName?: string
-  public name: string = ""
-  public temporary = false
-  public ifNotExists = false
-}
-
-export class CreateTriggerStatement extends Statement {
-  public schemaName?: string
-  public name: string = ""
-  public temporary = false
-  public ifNotExists = false
-}
-
-export class AlterTableStatement extends Statement {
-  public schemaName?: string
-  public name: string = ""
-}
-
-export class DropTableStatement extends Statement {
-  public schemaName?: string
-  public name: string = ""
-  public ifExists = false
-}
-
-export class DropIndexStatement extends Statement {
-  public schemaName?: string
-  public name: string = ""
-  public ifExists = false
-}
-
-export class DropViewStatement extends Statement {
-  public schemaName?: string
-  public name: string = ""
-  public ifExists = false
-}
-
-export class DropTriggerStatement extends Statement {
-  public schemaName?: string
-  public name: string = ""
-  public ifExists = false
-}
-
-export class AttachDatabaseStatement extends Statement {
-}
-
-export class DetachDatabaseStatement extends Statement {
-}
-
-export class PragmaStatement extends Statement {
-}
-
-export class ColumnDef {
-  public name: string = ""
-  public typeName?: string
-  public constraints: ColumnConstraint[] = []
-}
-
-export class ColumnConstraint {
-  public name?: string
-}
-
-export class TableConstraint {
-  public name?: string
-}
-
-export class PrimaryKeyTableConstraint extends TableConstraint {
-
-}
-
-export class UniqueIndexTableConstraint extends TableConstraint {
-
-}
-
-export class CheckTableConstraint extends TableConstraint {
-
-}
-
-export class ForeignKeyTableConstraint extends TableConstraint {
-
-}
-
-export class IndexColumn {
-  public name: string = ""
-}
-
-export class Sqlite3Parser {
-  private pos = 0
-  private tokens: Token[]
-
+export class Sqlite3Parser extends Parser {
   constructor(
-    private input: string
+    private input: string,
+    private options: { [key: string]: any} = {}
   ) {
-    this.tokens = tokenize(input, "sqlite3")
+    super(new Sqlite3Lexer().lex(input))
   }
 
   root() {
     const root = []
-    let stmt, token
-    if (stmt = this.statement()) {
-      root.push(stmt)
+    if (this.peek() && !this.peekIf(TokenType.SemiColon)) {
+      root.push(this.statement())
     }
     while (this.consumeIf(TokenType.SemiColon)) {
-      if (stmt = this.statement()) {
-        root.push(stmt)
+      if (this.peek() && !this.peekIf(TokenType.SemiColon)) {
+        root.push(this.statement())
       }
     }
-    if (token = this.tokens[this.pos]) {
-      throw new Error(`Unexpected token: ${token.text}`)
+    if (this.peek() != null) {
+      throw this.createParseError()
     }
     return root
   }
 
   statement() {
-    const token1 = this.tokens[this.pos]
-    if (!token1) {
-      return null
-    }
-
+    const token1 = this.peek()
     const start = token1.start
 
+    let explain = false
+    if (this.consumeIf(Reserved.EXPLAIN)) {
+      if (this.consumeIf(Reserved.QUERY)) {
+        this.consume(Reserved.PLAN)
+      }
+      explain = true
+    }
+
     let stmt
-    if (this.consumeIf(Reserved.Create)) {
-      let temporary = false
-      let virtual = false
-      let unique = false
-      for (let token; token = this.tokens[this.pos]; token && token.type !== TokenType.SemiColon) {
-        if (this.consumeIf(Reserved.Table)) {
+    if (this.consumeIf(Reserved.CREATE)) {
+      if (this.consumeIf(Reserved.TEMP) || this.consumeIf(Reserved.TEMPORARY)) {
+        if (this.consumeIf(Reserved.TABLE)) {
           stmt = new CreateTableStatement()
-          stmt.temporary = temporary
-          stmt.virtual = virtual
-          break
-        } else if (this.consumeIf(Reserved.Index)) {
-          stmt = new CreateIndexStatement()
-          stmt.unique = unique
-          break
-        } else if (this.consumeIf(Reserved.View)) {
+          stmt.temporary = true
+        } else if (this.consumeIf(Reserved.VIEW)) {
           stmt = new CreateViewStatement()
-          break
-        } else if (this.consumeIf(Reserved.Trigger)) {
+          stmt.temporary = true
+        } else if (this.consumeIf(Reserved.TRIGGER)) {
           stmt = new CreateTriggerStatement()
-          stmt.temporary = temporary
-          break
-        } else if (this.consumeIf(Reserved.Virtual)) {
-          virtual = true
-        } else if (this.consumeIf(Reserved.Temp) || this.consumeIf(Reserved.Temporary)) {
-          temporary = true
-        } else if (this.consumeIf(Reserved.Unique)) {
-          unique = true
+          stmt.temporary = true
         } else {
-          this.consume()
+          throw this.createParseError()
         }
+      } else if (this.consumeIf(Reserved.VIRTUAL)) {
+        this.consume(Reserved.TABLE)
+        stmt = new CreateVirtualTableStatement()
+      } else if (this.consumeIf(Reserved.TABLE)) {
+        stmt = new CreateTableStatement()
+      } else if (this.consumeIf(Reserved.VIEW)) {
+        stmt = new CreateViewStatement()
+      } else if (this.consumeIf(Reserved.TRIGGER)) {
+        stmt = new CreateTriggerStatement()
+      } else if (this.consumeIf(Reserved.INDEX)) {
+        stmt = new CreateIndexStatement()
+      } else if (this.consumeIf(Reserved.UNIQUE)) {
+        this.consume(Reserved.INDEX)
+        stmt = new CreateIndexStatement()
+        stmt.unique = true
+      } else {
+        throw this.createParseError()
       }
 
-      if (stmt) {
-        if (this.consumeIf(Reserved.If)) {
-          this.consume(Reserved.Not)
-          this.consume(Reserved.Exists)
-          stmt.ifNotExists = true
-        }
+      if (this.consumeIf(Reserved.IF)) {
+        this.consume(Reserved.NOT)
+        this.consume(Reserved.EXISTS)
+        stmt.ifNotExists = true
+      }
 
+      stmt.name = this.identifier()
+      if (this.consumeIf(TokenType.Dot)) {
+        stmt.schemaName = stmt.name
         stmt.name = this.identifier()
-        if (this.consumeIf(TokenType.Dot)) {
-          stmt.schemaName = stmt.name
-          stmt.name = this.identifier()
-        }
       }
 
       if (stmt instanceof CreateTableStatement) {
-        if (!stmt.virtual) {
-          stmt.columns = []
-          stmt.constraints = []
-          if (this.consumeIf(TokenType.LeftParen)) {
-            stmt.columns.push(this.columnDef())
-            while (this.consumeIf(TokenType.Comma)) {
-              const token = this.tokens[this.pos]
-              if (token.value instanceof Reserved) {
+        stmt.columns = []
+        stmt.constraints = []
+        if (this.consumeIf(TokenType.LeftParen)) {
+          stmt.columns.push(this.columnDef())
+          while (this.consumeIf(TokenType.Comma)) {
+            const token = this.peek()
+            if (token.type instanceof Reserved) {
+              stmt.constraints.push(this.tableConstraint())
+              while (this.consumeIf(TokenType.Comma)) {
                 stmt.constraints.push(this.tableConstraint())
-                while (this.consumeIf(TokenType.Comma)) {
-                  stmt.constraints.push(this.tableConstraint())
-                }
-                break
-              } else {
-                stmt.columns.push(this.columnDef())
               }
+              break
+            } else {
+              stmt.columns.push(this.columnDef())
             }
-            this.consume(TokenType.RightParen)
-            if (this.consumeIf(Reserved.Without)) {
-              this.consume(Reserved.Rowid)
+          }
+          this.consume(TokenType.RightParen)
+          if (this.consumeIf(Reserved.WITHOUT)) {
+            if (this.consume(Reserved.Identifier, /^ROWID$/i)) {
+              stmt.withoutRowid = true
             }
-          } else {
-            this.consume(Reserved.As)
-            stmt.asSelect = true
-            const bodyStart = this.pos
-            for (let token; token = this.tokens[this.pos]; token && token.type !== TokenType.SemiColon) {
-              this.consume()
-            }
-            stmt.body = this.tokens.slice(bodyStart, this.pos)
           }
         } else {
-          this.consume(Reserved.Using)
-          this.consume(TokenType.LeftParen)
-          const bodyStart = this.pos
-          for (let token; token = this.tokens[this.pos]; token && token.type !== TokenType.SemiColon) {
-            if (token.type === TokenType.RightParen) {
-              stmt.body = this.tokens.slice(bodyStart, this.pos)
-              this.consume()
-              break;
-            } else {
+          this.consume(Reserved.AS)
+          stmt.select = this.selectClause()
+        }
+      } else if (stmt instanceof CreateVirtualTableStatement) {
+        this.consume(Reserved.USING)
+        stmt.moduleName = this.identifier()
+        if (this.consumeIf(TokenType.LeftParen)) {
+          stmt.moduleArgs = []
+          for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+            stmt.moduleArgs.push(this.moduleArgument())
+          }
+          this.consume(TokenType.RightParen)
+        }
+      } else if (stmt instanceof CreateViewStatement) {
+        stmt.select = this.selectClause()
+      } else if (stmt instanceof CreateTriggerStatement) {
+        while (this.peek() && !this.peekIf(TokenType.SemiColon)) {
+          if (this.consumeIf(Reserved.BEGIN)) {
+            while (this.peek() && !this.peekIf(Reserved.END)) {
               this.consume()
             }
+          } else {
+            this.consume()
           }
         }
       } else if (stmt instanceof CreateIndexStatement) {
-        this.consume(Reserved.On)
-        let token
-        if (token = this.consumeIf(TokenType.QuotedIdentifier)) {
-          stmt.tableName = unescapeIdentifier(token.text)
-        } else if (token = this.consumeIf(TokenType.QuotedValue)) {
-          stmt.tableName = unescapeIdentifier(token.text)
-        } else {
-          token = this.consume(TokenType.Identifier)
-          stmt.tableName = token.text
-        }
-        stmt.columns = []
+        this.consume(Reserved.ON)
+        stmt.tableName = this.identifier()
         this.consume(TokenType.LeftParen)
-        stmt.columns.push(this.indexColumn())
+        stmt.columns.push(this.indexedColumn())
         while (this.consumeIf(TokenType.Comma)) {
-          stmt.columns.push(this.indexColumn())
+          stmt.columns.push(this.indexedColumn())
         }
         this.consume(TokenType.RightParen)
-        if (this.consumeIf(Reserved.Where)) {
-          const whereStart = this.pos
-          for (let token; token = this.tokens[this.pos]; token && token.type !== TokenType.SemiColon) {
-            this.consume()
-          }
-          stmt.where = this.tokens.slice(whereStart, this.pos)
-        }
-      } else if (stmt instanceof CreateTriggerStatement) {
-        for (let token; token = this.tokens[this.pos]; token && token.type !== TokenType.SemiColon) {
-          if (this.consumeIf(Reserved.Begin)) {
-            for (let token; token = this.tokens[this.pos]; token && token.value !== Reserved.End) {
-              this.consume()
-            }
-          } else {
-            this.consume()
+        if (this.consumeIf(Reserved.WHERE)) {
+          stmt.where = []
+          while (this.peek() && !this.peekIf(TokenType.SemiColon)) {
+            stmt.where.push(this.consume())
           }
         }
       }
-    } else if (this.consumeIf(Reserved.Alter)) {
-      for (let token; token = this.tokens[this.pos]; token && token.type !== TokenType.SemiColon) {
-        if (this.consumeIf(Reserved.Table)) {
-          stmt = new AlterTableStatement()
-          break
-        } else {
-          this.consume()
-        }
-      }
-
-      if (stmt) {
+    } else if (this.consumeIf(Reserved.ALTER)) {
+      this.consume(Reserved.TABLE)
+      stmt = new AlterTableStatement()
+      stmt.name = this.identifier()
+      if (this.consumeIf(TokenType.Dot)) {
+        stmt.schemaName = stmt.name
         stmt.name = this.identifier()
-        if (this.consumeIf(TokenType.Dot)) {
-          stmt.schemaName = stmt.name
-          stmt.name = this.identifier()
-        }
       }
-    } else if (this.consumeIf(Reserved.Drop)) {
-      for (let token; token = this.tokens[this.pos]; token && token.type !== TokenType.SemiColon) {
-        if (this.consumeIf(Reserved.Table)) {
-          stmt = new DropTableStatement()
-          break
-        } else if (this.consumeIf(Reserved.Index)) {
-          stmt = new DropIndexStatement()
-          break
-        } else if (this.consumeIf(Reserved.View)) {
-          stmt = new DropViewStatement()
-          break
-        } else if (this.consumeIf(Reserved.Trigger)) {
-          stmt = new DropTriggerStatement()
-          break
+      if (this.consumeIf(Reserved.RENAME)) {
+        if (this.consumeIf(Reserved.TO)) {
+          stmt.alterTableAction = AlterTableAction.RENAME_TABLE
+          stmt.newTableName = this.identifier()
         } else {
-          this.consume()
+          this.consumeIf(Reserved.COLUMN)
+          stmt.alterTableAction = AlterTableAction.RENAME_COLUMN
+          stmt.columnName = this.identifier()
+          this.consume(Reserved.TO)
+          stmt.newColumnName = this.identifier()
         }
+      } else if (this.consumeIf(Reserved.ADD)) {
+        this.consumeIf(Reserved.COLUMN)
+        stmt.alterTableAction = AlterTableAction.ADD_COLUMN
+        stmt.newColumn = this.columnDef()
+      } else if (this.consumeIf(Reserved.DROP)) {
+        this.consumeIf(Reserved.COLUMN)
+        stmt.alterTableAction = AlterTableAction.DROP_COLUMN
+        stmt.columnName = this.identifier()
+      } else {
+        throw this.createParseError()
+      }
+    } else if (this.consumeIf(Reserved.DROP)) {
+      if (this.consumeIf(Reserved.TABLE)) {
+        stmt = new DropTableStatement()
+      } else if (this.consumeIf(Reserved.INDEX)) {
+        stmt = new DropIndexStatement()
+      } else if (this.consumeIf(Reserved.VIEW)) {
+        stmt = new DropViewStatement()
+      } else if (this.consumeIf(Reserved.TRIGGER)) {
+        stmt = new DropTriggerStatement()
+      } else {
+        throw this.createParseError()
       }
 
-      if (stmt) {
-        if (this.consumeIf(Reserved.If)) {
-          this.consume(Reserved.Exists)
-          stmt.ifExists = true
-        }
+      if (this.consumeIf(Reserved.IF)) {
+        this.consume(Reserved.EXISTS)
+        stmt.ifExists = true
+      }
 
+      stmt.name = this.identifier()
+      if (this.consumeIf(TokenType.Dot)) {
+        stmt.schemaName = stmt.name
         stmt.name = this.identifier()
-        if (this.consumeIf(TokenType.Dot)) {
-          stmt.schemaName = stmt.name
-          stmt.name = this.identifier()
-        }
       }
-    } else if (this.consumeIf(Reserved.Attach)) {
-      if (this.consumeIf(Reserved.Database)) {
-        stmt = new AttachDatabaseStatement()
+    } else if (this.consumeIf(Reserved.ATTACH)) {
+      this.consumeIf(Reserved.DATABASE)
+      stmt = new AttachDatabaseStatement()
+      stmt.expression = this.expression()
+      this.consume(Reserved.AS)
+      stmt.name = this.identifier()
+    } else if (this.consumeIf(Reserved.DETACH)) {
+      this.consumeIf(Reserved.DATABASE)
+      stmt = new DetachDatabaseStatement()
+      stmt.name = this.identifier()
+    } else if (this.consumeIf(Reserved.BEGIN)) {
+      stmt = new BeginTransactionStatement()
+      if (this.consumeIf(Reserved.DEFERRED)) {
+        stmt.transactionBehavior = TransactionBehavior.DEFERRED
+      } else if (this.consumeIf(Reserved.IMMEDIATE)) {
+        stmt.transactionBehavior = TransactionBehavior.IMMEDIATE
+      } else if (this.consumeIf(Reserved.EXCLUSIVE)) {
+        stmt.transactionBehavior = TransactionBehavior.EXCLUSIVE
       }
-    } else if (this.consumeIf(Reserved.Detach)) {
-      if (this.consumeIf(Reserved.Database)) {
-        stmt = new DetachDatabaseStatement()
+      this.consume(Reserved.TRANSACTION)
+    } else if (this.consumeIf(Reserved.SAVEPOINT)) {
+      stmt = new SavepointStatement()
+      stmt.name = this.identifier()
+    } else if (this.consumeIf(Reserved.RELEASE)) {
+      stmt = new ReleaseSavepointStatement()
+      this.consumeIf(Reserved.SAVEPOINT)
+      stmt.savePointName = this.identifier()
+    } else if (this.consumeIf(Reserved.COMMIT) || this.consumeIf(Reserved.END)) {
+      stmt = new CommitTransactionStatement()
+      this.consumeIf(Reserved.TRANSACTION)
+    } else if (this.consumeIf(Reserved.ROLLBACK)) {
+      stmt = new RollbackTransactionStatement()
+      this.consumeIf(Reserved.TRANSACTION)
+      if (this.consumeIf(Reserved.TO)) {
+        this.consumeIf(Reserved.SAVEPOINT)
+        stmt.savePointName = this.identifier()
       }
-    } else if (this.consumeIf(Reserved.Pragma)) {
+    } else if (this.consumeIf(Reserved.ANALYZE)) {
+      stmt = new AnalyzeStatement()
+      stmt.name = this.identifier()
+      if (this.consumeIf(TokenType.Dot)) {
+        stmt.schemaName = stmt.name
+        stmt.name = this.identifier()
+      }
+    } else if (this.consumeIf(Reserved.REINDEX)) {
+      stmt = new ReindexStatement()
+      stmt.name = this.identifier()
+      if (this.consumeIf(TokenType.Dot)) {
+        stmt.schemaName = stmt.name
+        stmt.name = this.identifier()
+      }
+    } else if (this.consumeIf(Reserved.VACUUM)) {
+      stmt = new VacuumStatement()
+      if (
+        this.peekIf(TokenType.QuotedIdentifier) ||
+        this.peekIf(TokenType.Identifier) ||
+        this.peekIf(TokenType.QuotedValue)
+      ) {
+        stmt.schemaName = this.identifier()
+      }
+      if (this.consumeIf(Reserved.TO)) {
+        stmt.fileName = this.stringValue()
+      }
+    } else if (this.consumeIf(Reserved.PRAGMA)) {
       stmt = new PragmaStatement()
+      stmt.name = this.identifier()
+      if (this.consumeIf(TokenType.Dot)) {
+        stmt.schemaName = stmt.name
+        stmt.name = this.identifier()
+        if (this.consumeIf(TokenType.Operator, /^=$/)) {
+          stmt.value = this.pragmaValue()
+        } else if (this.consumeIf(TokenType.LeftParen)) {
+          stmt.value = this.pragmaValue()
+          this.consume(TokenType.RightParen)
+        }
+      }
+    } else {
+      let withClause
+      if (this.peekIf(Reserved.WITH)) {
+        withClause = this.withClause()
+      }
+      if (this.peekIf(Reserved.INSERT) || this.peekIf(Reserved.REPLACE)) {
+        stmt = new InsertStatement()
+        stmt.withClause = withClause
+        if (this.consumeIf(Reserved.REPLACE)) {
+          stmt.conflictAction = ConflictAction.REPLACE
+        } else {
+          this.consume(Reserved.INSERT)
+          if (this.consumeIf(Reserved.OR)) {
+            stmt.conflictAction = this.conflictAction()
+          }
+        }
+        this.consume(Reserved.INTO)
+        stmt.name = this.identifier()
+        if (this.consumeIf(TokenType.Dot)) {
+          stmt.schemaName = stmt.name
+          stmt.name = this.identifier()
+        }
+        while (this.peek() && !this.peekIf(TokenType.SemiColon)) {
+          stmt.body.push(this.consume())
+        }
+      } else if (this.consumeIf(Reserved.UPDATE)) {
+        stmt = new UpdateStatement()
+        stmt.withClause = withClause
+        if (this.consumeIf(Reserved.OR)) {
+          stmt.conflictAction = this.conflictAction()
+        }
+        stmt.name = this.identifier()
+        if (this.consumeIf(TokenType.Dot)) {
+          stmt.schemaName = stmt.name
+          stmt.name = this.identifier()
+        }
+        while (this.peek() && !this.peekIf(TokenType.SemiColon)) {
+          stmt.body.push(this.consume())
+        }
+      } else if (this.consumeIf(Reserved.DELETE)) {
+        this.consume(Reserved.FROM)
+        stmt = new DeleteStatement()
+        stmt.withClause = withClause
+        stmt.name = this.identifier()
+        if (this.consumeIf(TokenType.Dot)) {
+          stmt.schemaName = stmt.name
+          stmt.name = this.identifier()
+        }
+        while (this.peek() && !this.peekIf(TokenType.SemiColon)) {
+          stmt.body.push(this.consume())
+        }
+      } else if (this.peekIf(Reserved.SELECT)) {
+        stmt = new SelectStatement()
+        if (withClause) {
+          for (let token of withClause) {
+            stmt.body.push(token)
+          }
+        }
+        for (let token of this.selectClause()) {
+          stmt.body.push(token)
+        }
+      } else {
+        throw this.createParseError()
+      }
     }
 
-    if (!stmt) {
-      stmt = new Statement()
+    if (explain) {
+      stmt = new ExplainStatement(stmt)
     }
 
-    for (let token; token = this.tokens[this.pos]; token && token.type !== TokenType.SemiColon) {
-      this.consume()
-    }
-
-    const end = this.tokens[this.pos - 1].end
+    const end = this.peek(-1).end
     stmt.text = this.input.substring(start, end)
 
     return stmt
   }
 
-  identifier() {
-    let token
-    if (token = this.consumeIf(TokenType.QuotedIdentifier)) {
-      return unescapeIdentifier(token.text)
-    } else if (token = this.consumeIf(TokenType.QuotedValue)) {
-      return unescapeIdentifier(token.text)
-    } else {
-      token = this.consume(TokenType.Identifier)
-      return token.text
+  selectClause() {
+    const start = this.pos
+    if (this.peekIf(Reserved.WITH)) {
+      this.withClause()
     }
+    this.consume(Reserved.SELECT)
+    let depth = 0
+    while (this.peek() &&
+      !this.peekIf(TokenType.SemiColon) &&
+      (depth == 0 && !this.peekIf(TokenType.RightParen))
+    ) {
+      if (this.consumeIf(TokenType.LeftParen)) {
+        depth++
+      } else if (this.consumeIf(TokenType.RightParen)) {
+        depth--
+      } else {
+        this.consume()
+      }
+    }
+    return this.tokens.slice(start, this.pos)
+  }
+
+  withClause() {
+    const start = this.pos
+    this.consume(Reserved.WITH)
+    this.consumeIf(Reserved.RECURSIVE)
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      this.identifier()
+      this.consume(Reserved.AS)
+      if (this.consumeIf(Reserved.NOT)) {
+        this.consume(Reserved.MATERIALIZED)
+      } else {
+        this.consumeIf(Reserved.MATERIALIZED)
+      }
+      this.consume(TokenType.LeftParen)
+      this.selectClause()
+      this.consume(TokenType.RightParen)
+    }
+    return this.tokens.slice(start, this.pos)
   }
 
   columnDef() {
     const columnDef = new ColumnDef()
     columnDef.name = this.identifier()
 
-    const token = this.tokens[this.pos]
-    if (!(token.value instanceof Reserved)) {
+    if (
+      this.peekIf(TokenType.QuotedIdentifier) ||
+      this.peekIf(TokenType.Identifier) ||
+      this.peekIf(TokenType.QuotedValue)
+    ) {
       columnDef.typeName = this.typeName()
     }
 
-    for (let token; token = this.tokens[this.pos]; token &&
-      token.type !== TokenType.Comma &&
-      token.type !== TokenType.SemiColon
-    ) {
+    if (this.consumeIf(TokenType.LeftParen)) {
+      columnDef.length = this.numberValue()
+      if (this.consumeIf(TokenType.Comma)) {
+        columnDef.scale = this.numberValue()
+      }
+      this.consume(TokenType.RightParen)
+    }
+
+    while (this.peek() && !this.peekIf(TokenType.SemiColon) && !this.peekIf(TokenType.Comma)) {
       columnDef.constraints.push(this.columnConstraint())
     }
 
@@ -381,88 +514,287 @@ export class Sqlite3Parser {
   }
 
   columnConstraint() {
-    const constraint = new ColumnConstraint()
-    if (this.consumeIf(Reserved.Constraint)) {
-      constraint.name = this.identifier()
+    let constraint, name;
+    if (this.consumeIf(Reserved.CONSTRAINT)) {
+      name = this.identifier()
     }
-    // TODO
+    if (this.consumeIf(Reserved.PRIMARY)) {
+      this.consume(Reserved.KEY)
+      constraint = new PrimaryKeyColumnConstraint()
+      constraint.name = name
+      if (this.consumeIf(Reserved.ASC)) {
+        constraint.sortOrder = SortOrder.ASC
+      } else if (this.consumeIf(Reserved.DESC)) {
+        constraint.sortOrder = SortOrder.DESC
+      }
+      if (this.consumeIf(Reserved.ON)) {
+        this.consume(Reserved.CONFLICT)
+        constraint.conflictAction = this.conflictAction()
+      }
+      if (this.consumeIf(Reserved.AUTOINCREMENT)) {
+        constraint.autoIncrement = false
+      }
+    } else if (this.consumeIf(Reserved.NOT)) {
+      this.consume(Reserved.NULL)
+      constraint = new NotNullColumnConstraint()
+      constraint.name = name
+      if (this.consumeIf(Reserved.ON)) {
+        this.consume(Reserved.CONFLICT)
+        constraint.conflictAction = this.conflictAction()
+      }
+    } else if (this.consumeIf(Reserved.UNIQUE)) {
+      constraint = new UniqueColumnConstraint()
+      constraint.name = name
+      if (this.consumeIf(Reserved.ON)) {
+        this.consume(Reserved.CONFLICT)
+        constraint.conflictAction = this.conflictAction()
+      }
+    } else if (this.consumeIf(Reserved.CHECK)) {
+      constraint = new CheckColumnConstraint()
+      constraint.name = name
+      this.consume(TokenType.LeftParen)
+      while (this.peek() && !this.peekIf(TokenType.RightParen)) {
+        constraint.conditions.push(this.consume())
+      }
+      this.consume(TokenType.RightParen)
+    } else if (this.consumeIf(Reserved.DEFAULT)) {
+      constraint = new DefaultColumnConstraint()
+      constraint.name = name
+      let token
+      if (this.consumeIf(TokenType.LeftParen)) {
+        constraint.expression = this.expression()
+        this.consume(TokenType.RightParen)
+      } else if (token = this.consumeIf(Reserved.NULL)) {
+        constraint.expression = Idnetifier.NULL
+      } else if (token = this.consumeIf(TokenType.Identifier, /^(TRUE|FALSE|CURRENT_(DATE|TIME|TIMESTAMP))$/i)) {
+        constraint.expression = new Idnetifier(token.text)
+      } else if (token = this.consumeIf(TokenType.String)) {
+        constraint.expression = new StringValue(dequote(token.text))
+      } else if (token = this.peekIf(Reserved.Operator, /^[+-]$/) || this.peekIf(TokenType.Number)) {
+        constraint.expression = this.numberValue()
+      } else {
+        throw this.createParseError()
+      }
+    } else if (this.consumeIf(Reserved.COLLATE)) {
+      constraint = new CollateColumnConstraint()
+      constraint.name = name
+      constraint.collationName = this.identifier()
+    } else if (this.consumeIf(Reserved.REFERENCES)) {
+      constraint = new ReferencesKeyColumnConstraint()
+      constraint.name = name
+      constraint.tableName = this.identifier()
+      this.consume(TokenType.LeftParen)
+      for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+        constraint.columnNames.push(this.identifier())
+      }
+      this.consume(TokenType.RightParen)
+    } else if (this.consumeIf(Reserved.GENERATED) || this.consumeIf(Reserved.AS)) {
+      if (this.peek().type === Reserved.GENERATED) {
+        this.consume(Reserved.ALWAYS)
+        this.consume(Reserved.AS)
+      }
+      constraint = new GeneratedColumnConstraint()
+      constraint.name = name
+      this.consume(TokenType.LeftParen)
+      constraint.expression = this.expression()
+      this.consume(TokenType.RightParen)
+      if (this.consumeIf(TokenType.Identifier)) {
+        constraint.storeType = StoreType.STORED
+      } else if (this.consumeIf(Reserved.VIRTUAL)) {
+        constraint.storeType = StoreType.VIRTUAL
+      }
+    } else {
+      throw this.createParseError()
+    }
+    return constraint
+  }
+
+  tableConstraint() {
+    let constraint, name;
+    if (this.consumeIf(Reserved.CONSTRAINT)) {
+      name = this.identifier()
+    }
+    if (this.consumeIf(Reserved.PRIMARY)) {
+      this.consume(Reserved.KEY)
+      constraint = new PrimaryKeyTableConstraint()
+      constraint.name = name
+      this.consume(TokenType.LeftParen)
+      constraint.columns.push(this.indexedColumn())
+      while (this.consumeIf(TokenType.Comma)) {
+        constraint.columns.push(this.indexedColumn())
+      }
+      this.consume(TokenType.RightParen)
+      if (this.consumeIf(Reserved.ON)) {
+        this.consume(Reserved.CONFLICT)
+        constraint.conflictAction = this.conflictAction()
+      }
+    } else if (this.consumeIf(Reserved.UNIQUE)) {
+      constraint = new UniqueTableConstraint()
+      constraint.name = name
+      this.consume(TokenType.LeftParen)
+      for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+        constraint.columns.push(this.indexedColumn())
+      }
+      this.consume(TokenType.RightParen)
+      if (this.consumeIf(Reserved.ON)) {
+        this.consume(Reserved.CONFLICT)
+        constraint.conflictAction = this.conflictAction()
+      }
+    } else if (this.consumeIf(Reserved.CHECK)) {
+      constraint = new CheckTableConstraint()
+      constraint.name = name
+      this.consume(TokenType.LeftParen)
+      while (this.peek() && !this.peekIf(TokenType.RightParen)) {
+        constraint.conditions.push(this.consume())
+      }
+      this.consume(TokenType.RightParen)
+    } else if (this.consumeIf(Reserved.FOREIGN)) {
+      this.consume(Reserved.KEY)
+      constraint = new ForeignKeyTableConstraint()
+      constraint.name = name
+      this.consume(TokenType.LeftParen)
+      constraint.columnNames.push(this.identifier())
+      while (this.consumeIf(TokenType.Comma)) {
+        constraint.columnNames.push(this.identifier())
+      }
+      this.consume(TokenType.RightParen)
+    } else {
+      throw this.createParseError()
+    }
     return constraint
   }
 
   typeName() {
-    //TODO
-    return ""
+    const typeNames = []
+    typeNames.push(this.identifier())
+    while (
+      this.peekIf(TokenType.QuotedIdentifier) ||
+      this.peekIf(TokenType.QuotedValue) ||
+      this.peekIf(TokenType.Identifier)
+    ) {
+      typeNames.push(this.identifier())
+    }
+    return typeNames.join(" ")
   }
 
-  tableConstraint() {
-    const constraint = new TableConstraint()
-    if (this.consumeIf(Reserved.Constraint)) {
-      constraint.name = this.identifier()
-    }
-    if (this.consumeIf(Reserved.Primary)) {
-      this.consume(Reserved.Key)
-      this.consume(Reserved.LeftParen)
-      //TODO
-      this.consume(Reserved.RightParen)
-    } else if (this.consumeIf(Reserved.Unique)) {
-      this.consume(Reserved.LeftParen)
-      //TODO
-      this.consume(Reserved.RightParen)
-    } else if (this.consumeIf(Reserved.Check)) {
-      this.consume(Reserved.LeftParen)
-      //TODO
-      this.consume(Reserved.RightParen)
+  conflictAction() {
+    if (this.consumeIf(Reserved.ROLLBACK)) {
+      return ConflictAction.ROLLBACK
+    } else if (this.consumeIf(Reserved.ABORT)) {
+      return ConflictAction.ABORT
+    } else if (this.consumeIf(Reserved.FAIL)) {
+      return ConflictAction.FAIL
+    } else if (this.consumeIf(Reserved.IGNORE)) {
+      return ConflictAction.IGNORE
+    } else if (this.consumeIf(Reserved.REPLACE)) {
+      return ConflictAction.REPLACE
     } else {
-      this.consume(Reserved.Foreign)
-      this.consume(Reserved.Key)
-      this.consume(Reserved.LeftParen)
-      //TODO
-      this.consume(Reserved.RightParen)
+      throw this.createParseError()
     }
-    return constraint
   }
 
-  indexColumn() {
-    const column = new IndexColumn()
-    column.name = this.identifier()
-    //TODO
+  moduleArgument() {
+    let tokens: Token[] = []
+    while (this.peek() && !this.peekIf(TokenType.Comma) && !this.peekIf(TokenType.LeftParen)) {
+      if (tokens[tokens.length-1] && tokens[tokens.length-1].skips) {
+        for (let token of tokens[tokens.length-1].skips) {
+          tokens.push(token)
+        }
+      }
+      tokens.push(this.consume())
+    }
+    return tokens.map(token => token.text).join();
+  }
+
+  indexedColumn() {
+    const column = new IndexedColumn()
+    column.expression = this.expression()
+    if (this.consumeIf(Reserved.ASC)) {
+      column.sortOrder = SortOrder.ASC
+    } else if (this.consumeIf(Reserved.DESC)) {
+      column.sortOrder = SortOrder.DESC
+    }
     return column
   }
 
-  consume(type?: TokenType) {
-    const token = this.tokens[this.pos]
-    if (!token) {
-      throw new Error(`Unexpected token: EOF`)
-    } else if (type instanceof Reserved) {
-      if (token.value !== type) {
-        throw new Error(`Unexpected token: ${token.text}`)
-      }
-    } else if (type instanceof TokenType) {
-      if (token.type !== type) {
-        throw new Error(`Unexpected token: ${token.text}`)
-      }
+  pragmaValue() {
+    let value: IExpression, token
+    if (this.peekIf(TokenType.Operator, /^[+-]$/) || this.peekIf(TokenType.Number)) {
+      value = this.numberValue()
+    } else if (token = this.consumeIf(TokenType.String) || this.consumeIf(TokenType.QuotedValue)) {
+      value = new StringValue(dequote(token.text))
+    } else if (token = this.consumeIf(TokenType.Identifier)) {
+      value = new Idnetifier(token.text)
+    } else {
+      throw this.createParseError()
     }
-
-    this.pos++
-    return token
+    return value
   }
 
-  consumeIf(type: TokenType) {
-    const token = this.tokens[this.pos]
-    if (!token) {
-      return null
-    } else if (type instanceof Reserved) {
-      if (token.value !== type) {
-        return null
-      }
-    } else if (type instanceof TokenType) {
-      if (token.type !== type) {
-        return null
+  identifier() {
+    let token, text
+    if (token = this.consumeIf(TokenType.QuotedIdentifier)) {
+      text = dequote(token.text)
+    } else if (token = this.consumeIf(TokenType.QuotedValue)) {
+      text = dequote(token.text)
+    } else if (token = this.consumeIf(TokenType.Identifier)) {
+      text = token.text
+    } else {
+      throw this.createParseError()
+    }
+    return text
+  }
+
+  stringValue() {
+    let token, text
+    if (token = this.consumeIf(TokenType.String)) {
+      text = dequote(token.text)
+    } else if (token = this.consumeIf(TokenType.QuotedValue)) {
+      text = dequote(token.text)
+    } else {
+      throw this.createParseError()
+    }
+    return text
+  }
+
+  numberValue() {
+    let token, value = ""
+    if (token = this.consumeIf(Reserved.Operator, /^[+-]$/)) {
+      if (token.text === "-") {
+        value += token.text
       }
     }
+    token = this.consume(TokenType.Number)
+    if (/^0[Xx]/.test(token.text)) {
+      value += BigInt(token.text).toString(10)
+    } else if (token.text.startsWith(".")) {
+      value += "0" + token.text
+    } else {
+      value += token.text
+    }
+    return new NumberValue(value)
+  }
 
-    this.pos++
-    return token
+  expression() {
+    let start = this.pos
+    let depth = 0
+    while (this.peek() &&
+      (depth == 0 && !this.peekIf(TokenType.Comma)) &&
+      (depth == 0 && !this.peekIf(TokenType.RightParen)) &&
+      (depth == 0 && !this.peekIf(Reserved.AS)) &&
+      (depth == 0 && !this.peekIf(Reserved.ASC)) &&
+      (depth == 0 && !this.peekIf(Reserved.DESC)) &&
+      !this.peekIf(TokenType.SemiColon)
+    ) {
+      if (this.consumeIf(TokenType.LeftParen)) {
+        depth++
+      } else if (this.consumeIf(TokenType.RightParen)) {
+        depth--
+      } else {
+        this.consume()
+      }
+    }
+    return new Expression(this.tokens.slice(start, this.pos))
   }
 }
 
@@ -473,7 +805,7 @@ const ReplaceReMap: {[key: string]: RegExp} = {
   "]": /\]\]/g,
 }
 
-function unescapeIdentifier(text: string) {
+function dequote(text: string) {
   if (text.length >= 2) {
     let value = text.substring(1, text.length - 1)
     const c = text.charAt(text.length - 1)

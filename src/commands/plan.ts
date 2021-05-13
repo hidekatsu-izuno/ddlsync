@@ -1,7 +1,19 @@
 import { CAC } from 'cac'
 import fg from 'fast-glob'
 import {promises as fs} from 'fs'
-import {parseSql} from '../utils/sql_parser'
+import { MysqlParser } from '../parser/mysql_parser'
+import { Sqlite3Parser } from '../parser/sqlite3_parser'
+
+function parseSql(client: string, input: string) {
+  let parser
+  if (client === "sqlite3") {
+    parser = new Sqlite3Parser(input, {})
+  } else if (client === "mysql" || client === "mysql2") {
+    parser = new MysqlParser(input, {})
+  } else {
+    throw new Error(`Unsupported client type: ${client}`)
+  }
+}
 
 export default (cli: CAC) => {
   cli.command('plan', 'Build given files')
