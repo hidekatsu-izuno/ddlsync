@@ -11,10 +11,11 @@ import {
 } from "./common"
 import { Reserved } from "./mysql_models"
 import semver from "semver"
+import escapeRegExp from "lodash.escaperegexp"
 
 export class MysqlLexer extends Lexer {
   private delimiter = /;/y
-  private reservedMap;
+  private reservedMap
 
   constructor(
     private options: { [key: string]: any } = {}
@@ -50,6 +51,11 @@ export class MysqlLexer extends Lexer {
       const reserved = this.reservedMap.get(token.text.toUpperCase())
       if (reserved) {
         token.type = reserved
+      }
+    } else if (token.type === TokenType.Command) {
+      const args = token.text.trim().split(/[ \t]+/g)
+      if (/^delimiter$/i.test(args[0]) && args[1]) {
+        this.delimiter = new RegExp(escapeRegExp(args[1]), "y")
       }
     }
     return token

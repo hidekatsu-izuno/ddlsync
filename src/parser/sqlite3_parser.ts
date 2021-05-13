@@ -59,7 +59,11 @@ import {
 } from "./sqlite3_models"
 
 export class Sqlite3Lexer extends Lexer {
-  constructor() {
+  private reservedMap
+
+  constructor(
+    private options: { [key: string]: any } = {}
+  ) {
     super([
       { type: TokenType.BlockComment, re: /\/\*.*?\*\//sy },
       { type: TokenType.LineComment, re: /--.*/y },
@@ -80,11 +84,13 @@ export class Sqlite3Lexer extends Lexer {
       { type: TokenType.Operator, re: /\|\||<<|>>|<>|[=<>!]=?|[~&|*/%+-]/y },
       { type: TokenType.Error, re: /./y },
     ])
+
+    this.reservedMap = Reserved.toMap(options.version)
   }
 
   process(token: Token) {
     if (token.type === TokenType.Identifier) {
-      const reserved = Reserved.valueOf(token.text.toUpperCase())
+      const reserved = this.reservedMap.get(token.text.toUpperCase())
       if (reserved) {
         token.type = reserved
       }

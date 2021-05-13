@@ -1,4 +1,5 @@
 import { TokenType, Token, Statement, TableConstraint, ColumnConstraint, IExpression, Idnetifier, NumberValue } from "./common"
+import semver from "semver"
 
 export class Reserved extends TokenType {
   static ABORT = new Reserved("ABORT")
@@ -151,13 +152,28 @@ export class Reserved extends TokenType {
 
   private static ReservedMap = new Map<string, Reserved>()
 
-  private constructor(name: string) {
+  constructor(
+    name: string,
+    public options: {
+      version?: string
+    } = {}
+  ) {
     super(name)
     Reserved.ReservedMap.set(name, this)
   }
 
-  static valueOf(name: string) {
-    return Reserved.ReservedMap.get(name)
+  static toMap(version: string) {
+    if (!version) {
+      return Reserved.ReservedMap
+    }
+
+    const newMap = new Map<string, Reserved>()
+    Reserved.ReservedMap.forEach((value, key) => {
+      if (!value.options.version || semver.satisfies(version, value.options.version)) {
+        newMap.set(key, value)
+      }
+    })
+    return newMap
   }
 }
 
