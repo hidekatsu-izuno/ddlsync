@@ -67,14 +67,17 @@ export class MysqlParser extends Parser {
     input: string,
     options: { [key: string]: any} = {}
   ) {
-    super(new MysqlLexer().lex(input.replace(/\/\*!(0|[0-9][1-9]*)?(.*?)\*\//g, (m, p1, p2) => {
-      if (options.version && p1) {
-        if (semver.lt(options.version, MysqlParser.toSemverString(p1))) {
-          return m
+    super(new MysqlLexer(options).lex(input.replace(
+      /\/\*!(0|[0-9][1-9]*)?(.*?)\*\//g,
+      (m, p1, p2) => {
+        if (options.version && p1) {
+          if (semver.lt(options.version, MysqlParser.toSemverString(p1))) {
+            return m
+          }
         }
+        return " ".repeat((p1 ? p1.length : 0) + 2) + p2 + "  "
       }
-      return " ".repeat((p1 ? p1.length : 0) + 2) + p2 + "  "
-    })))
+    )))
   }
 
   root() {

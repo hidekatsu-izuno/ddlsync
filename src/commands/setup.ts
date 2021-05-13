@@ -6,11 +6,13 @@ import { MysqlParser } from '../parser/mysql_parser'
 import { Sqlite3Parser } from '../parser/sqlite3_parser'
 
 export default (program: Command) => {
-  program.command('plan', 'plan sql')
+  program.command('setup', 'execute all statements.')
     .action(process)
 }
 
 async function process(args: any[]) {
+
+
   const list = await fg('ddl/**/*.sql')
   for (const filename of list) {
     const contents = await fs.readFile(filename, 'utf-8')

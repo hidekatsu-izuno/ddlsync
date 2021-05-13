@@ -62,3 +62,16 @@ export class OracleLexer extends Lexer {
     return token
   }
 }
+
+export class OracleParser extends Parser {
+  constructor(
+    private input: string,
+    private options: { [key: string]: any} = {}
+  ) {
+    super(new OracleLexer(options).lex(input))
+  }
+
+  root() {
+    return []
+  }
+}

@@ -1,8 +1,10 @@
-import { CAC } from 'cac'
+import { Command } from 'commander';
 
-export default (cli: CAC) => {
-  cli.command('apply', 'Build given files')
-    .action(args => {
+export default (program: Command) => {
+  program.command('apply', 'apply changes.')
+    .action(process)
+}
 
-    })
+function process(args: any[]) {
+
 }

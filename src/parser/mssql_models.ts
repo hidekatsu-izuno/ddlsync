@@ -1,6 +1,7 @@
 import { TokenType, Token, Statement, TableConstraint, ColumnConstraint, IExpression, Idnetifier, NumberValue } from "./common"
 import semver from "semver"
 
+const ReservedMap = new Map<string, Reserved>()
 export class Reserved extends TokenType {
   static ADD = new Reserved("ADD")
   static ALL = new Reserved("ALL")
@@ -188,8 +189,6 @@ export class Reserved extends TokenType {
   static WITHIN = new Reserved("WITHIN")
   static WRITETEXT = new Reserved("WRITETEXT")
 
-  private static ReservedMap = new Map<string, Reserved>()
-
   constructor(
     name: string,
     public options: {
@@ -198,16 +197,16 @@ export class Reserved extends TokenType {
     } = {}
   ) {
     super(name)
-    Reserved.ReservedMap.set(name, this)
+    ReservedMap.set(name, this)
   }
 
   static toMap(version: string) {
     if (!version) {
-      return Reserved.ReservedMap
+      return ReservedMap
     }
 
     const newMap = new Map<string, Reserved>()
-    Reserved.ReservedMap.forEach((value, key) => {
+    ReservedMap.forEach((value, key) => {
       if (!value.options.version || semver.satisfies(version, value.options.version)) {
         newMap.set(key, value)
       }

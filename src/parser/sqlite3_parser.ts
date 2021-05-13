@@ -104,7 +104,7 @@ export class Sqlite3Parser extends Parser {
     private input: string,
     private options: { [key: string]: any} = {}
   ) {
-    super(new Sqlite3Lexer().lex(input))
+    super(new Sqlite3Lexer(options).lex(input))
   }
 
   root() {

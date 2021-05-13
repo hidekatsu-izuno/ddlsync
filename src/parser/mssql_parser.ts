@@ -51,3 +51,16 @@ export class MssqlLexer extends Lexer {
     return token
   }
 }
+
+export class MssqlParser extends Parser {
+  constructor(
+    private input: string,
+    private options: { [key: string]: any} = {}
+  ) {
+    super(new MssqlLexer(options).lex(input))
+  }
+
+  root() {
+    return []
+  }
+}

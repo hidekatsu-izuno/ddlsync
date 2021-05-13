@@ -55,3 +55,16 @@ export class PgLexer extends Lexer {
     return token
   }
 }
+
+export class PgParser extends Parser {
+  constructor(
+    private input: string,
+    private options: { [key: string]: any} = {}
+  ) {
+    super(new PgLexer(options).lex(input))
+  }
+
+  root() {
+    return []
+  }
+}
