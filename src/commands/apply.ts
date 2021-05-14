@@ -1,10 +1,17 @@
 import { Command } from 'commander';
 
 export default (program: Command) => {
-  program.command('apply', 'apply changes.')
-    .action(process)
+  program.command('apply')
+    .description("apply changes.")
+    .action(async function (options) {
+      await process([], { ...program.opts(), ...options })
+    })
 }
 
-function process(args: any[]) {
+async function process(
+  args: string[],
+  options: { [key: string]: any }
+) {
+  console.log(args, options)
 
 }

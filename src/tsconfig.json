@@ -4,14 +4,15 @@
     "importHelpers": true,
     "module": "commonjs",
     "rootDir": ".",
-    "outDir": "lib",
+    "outDir": "../lib",
     "strict": true,
     "target": "es2018",
     "resolveJsonModule": true,
-    "esModuleInterop": true,
-    "composite": true
+    "esModuleInterop": true
   },
-  "include": [
-    "package.json"
+  "references": [
+    {
+      "path": "../"
+    }
   ]
 }

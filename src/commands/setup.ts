@@ -4,14 +4,21 @@ import {promises as fs} from 'fs'
 import { Parser } from '../parser/common'
 import { MysqlParser } from '../parser/mysql_parser'
 import { Sqlite3Parser } from '../parser/sqlite3_parser'
+import { initKnex } from '../util/config'
 
 export default (program: Command) => {
-  program.command('setup', 'execute all statements.')
-    .action(process)
+  program.command('setup')
+    .description('execute all statements.')
+    .action(async function (options) {
+      await process([], { ...program.opts(), ...options })
+    })
 }
 
-async function process(args: any[]) {
-
+async function process(
+  args: string[],
+  options: { [key: string]: any }
+) {
+  let config = await initKnex(args, options)
 
   const list = await fg('ddl/**/*.sql')
   for (const filename of list) {
