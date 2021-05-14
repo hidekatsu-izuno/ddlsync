@@ -1,4 +1,3 @@
-import { knex } from 'knex'
 import path from "path"
 import rechoir from "rechoir"
 import interpret from "interpret"
@@ -7,7 +6,7 @@ import io from "../util/io"
 
 const Extensions = ["ts", "js", "coffee", "eg", "ls"]
 
-export async function initKnex(args: string[], options: { [key: string]: any }) {
+export async function initConfig(args: string[], options: { [key: string]: any }) {
   let cwd = process.cwd()
   let configPath = null
   if (options.knexfile) {
@@ -48,7 +47,32 @@ export async function initKnex(args: string[], options: { [key: string]: any }) 
     );
   }
 
-  const config = require(configPath)
-  console.log(config)
-  return knex(config);
+  let config = require(configPath)
+  if (config && config.default) {
+    config = config.default;
+  }
+  if (typeof config === 'function') {
+    config = await config();
+  }
+
+  const env = options.env || process.env.NODE_ENV || 'development';
+  console.log(env)
+  if (config[env]) {
+    console.log('Using environment:', colorette.magenta(env));
+  }
+
+  config = config[env] || config;
+  if (!config) {
+    console.log(colorette.red('Warning: unable to read knexfile config'));
+    process.exit(1);
+  }
+
+  if (!config.ddlsync) {
+    config.ddlsync = {}
+  }
+  if (!config.ddlsync.include) {
+    config.ddlsync.include = "./ddl/**/*.sql"
+  }
+
+  return config;
 }

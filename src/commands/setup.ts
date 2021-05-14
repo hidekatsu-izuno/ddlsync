@@ -1,29 +1,32 @@
 import { Command } from 'commander';
 import fg from 'fast-glob'
 import {promises as fs} from 'fs'
+import { knex } from 'knex'
 import { Parser } from '../parser/common'
 import { MysqlParser } from '../parser/mysql_parser'
 import { Sqlite3Parser } from '../parser/sqlite3_parser'
-import { initKnex } from '../util/config'
+import { initConfig } from '../util/config'
 
 export default (program: Command) => {
   program.command('setup')
     .description('execute all statements.')
     .action(async function (options) {
-      await process([], { ...program.opts(), ...options })
+      await main([], { ...program.opts(), ...options })
     })
 }
 
-async function process(
+async function main(
   args: string[],
   options: { [key: string]: any }
 ) {
-  let config = await initKnex(args, options)
+  const config = await initConfig(args, options)
+  const con = await knex(config)
 
-  const list = await fg('ddl/**/*.sql')
+  const list = await fg(config.ddlsync.include)
   for (const filename of list) {
+    console.log(filename)
     const contents = await fs.readFile(filename, 'utf-8')
-    const root = parseSql('sqlite3', contents)
+    const root = parseSql(config.client, contents)
     console.log(root)
   }
 }
@@ -37,4 +40,5 @@ function parseSql(client: string, input: string) {
   } else {
     throw new Error(`Unsupported client type: ${client}`)
   }
+  return parser.root()
 }

@@ -9,9 +9,11 @@
     "target": "es2018",
     "resolveJsonModule": true,
     "esModuleInterop": true,
-    "composite": true
+    "composite": true,
+    "sourceMap": true
   },
   "include": [
+    "src/**/*",
     "package.json"
   ]
 }

@@ -7,7 +7,7 @@
   "types": "lib/cli.d.ts",
   "scripts": {
     "dev": "ts-node --files src/cli.ts",
-    "build": "tsc --build src",
+    "build": "tsc --build",
     "test": "jest"
   },
   "repository": {

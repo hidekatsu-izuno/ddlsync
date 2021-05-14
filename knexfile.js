@@ -1,3 +1,11 @@
-export default {
-	client: "sqlite3"
+module.exports = {
+  development: {
+    client: "sqlite3",
+    connection: {
+      client: "./sqlite3.db"
+    },
+    ddlsync: {
+      include: "ddl/**/*.sql"
+    }
+  }
 }
