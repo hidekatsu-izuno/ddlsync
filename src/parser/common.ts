@@ -254,7 +254,7 @@ export abstract class Parser {
     return this.tokens[this.pos + pos]
   }
 
-  peekIf(type?: TokenType | Keyword, text?: RegExp) {
+  peekIf(type?: TokenType | Keyword) {
     const token = this.peek()
     if (!token) {
       return null
@@ -264,23 +264,19 @@ export abstract class Parser {
       return null
     }
 
-    if (text && !text.test(token.text)) {
-      return null
-    }
-
     return token
   }
 
-  consumeIf(type?: TokenType | Keyword, text?: RegExp) {
-    const token = this.peekIf(type, text)
+  consumeIf(type?: TokenType | Keyword) {
+    const token = this.peekIf(type)
     if (token) {
       this.pos++
     }
     return token
   }
 
-  consume(type?: TokenType | Keyword, text?: RegExp) {
-    const token = this.consumeIf(type, text)
+  consume(type?: TokenType | Keyword) {
+    const token = this.consumeIf(type)
     if (token == null) {
       throw this.createParseError()
     }

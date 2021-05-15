@@ -366,7 +366,7 @@ export class Sqlite3Parser extends Parser {
       if (this.consumeIf(TokenType.Dot)) {
         stmt.schemaName = stmt.name
         stmt.name = this.identifier()
-        if (this.consumeIf(TokenType.Operator, /^=$/)) {
+        if (this.consumeIf(Operator.EQ)) {
           stmt.value = this.pragmaValue()
         } else if (this.consumeIf(TokenType.LeftParen)) {
           stmt.value = this.pragmaValue()
