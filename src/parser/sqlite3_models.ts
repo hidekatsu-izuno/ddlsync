@@ -404,6 +404,10 @@ export class NotNullColumnConstraint extends ColumnConstraint {
   public conflictAction = ConflictAction.ABORT
 }
 
+export class NullColumnConstraint extends ColumnConstraint {
+  public conflictAction = ConflictAction.ABORT
+}
+
 export class UniqueColumnConstraint extends ColumnConstraint {
   public conflictAction = ConflictAction.ABORT
 }

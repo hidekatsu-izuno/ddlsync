@@ -50,6 +50,7 @@ import {
   ForeignKeyTableConstraint,
   PrimaryKeyColumnConstraint,
   NotNullColumnConstraint,
+  NullColumnConstraint,
   UniqueColumnConstraint,
   CheckColumnConstraint,
   DefaultColumnConstraint,
@@ -71,7 +72,7 @@ export class Sqlite3Lexer extends Lexer {
       { type: TokenType.LineBreak, re: /(?:\r\n?|\n)/y },
       { type: TokenType.SemiColon, re: /;/y },
       { type: TokenType.LeftParen, re: /\(/y },
-      { type: TokenType.RightParen, re: /\(/y },
+      { type: TokenType.RightParen, re: /\)/y },
       { type: TokenType.Comma, re: /,/y },
       { type: TokenType.Number, re: /0[xX][0-9a-fA-F]+|((0|[1-9][0-9]*)(\.[0-9]+)?|(\.[0-9]+))([eE][+-]?[0-9]+)?/y },
       { type: TokenType.Dot, re: /\./y },
@@ -101,10 +102,10 @@ export class Sqlite3Lexer extends Lexer {
 
 export class Sqlite3Parser extends Parser {
   constructor(
-    private input: string,
+    input: string,
     private options: { [key: string]: any} = {}
   ) {
-    super(new Sqlite3Lexer(options).lex(input))
+    super(input, new Sqlite3Lexer(options))
   }
 
   root() {
@@ -512,7 +513,10 @@ export class Sqlite3Parser extends Parser {
       this.consume(TokenType.RightParen)
     }
 
-    while (this.peek() && !this.peekIf(TokenType.SemiColon) && !this.peekIf(TokenType.Comma)) {
+    while (this.peek() &&
+      !this.peekIf(TokenType.SemiColon) &&
+      !this.peekIf(TokenType.RightParen) &&
+      !this.peekIf(TokenType.Comma)) {
       columnDef.constraints.push(this.columnConstraint())
     }
 
@@ -540,9 +544,13 @@ export class Sqlite3Parser extends Parser {
       if (this.consumeIf(Reserved.AUTOINCREMENT)) {
         constraint.autoIncrement = false
       }
-    } else if (this.consumeIf(Reserved.NOT)) {
+    } else if (this.peekIf(Reserved.NOT) || this.peekIf(Reserved.NULL)) {
+      if (this.consumeIf(Reserved.NOT)) {
+        constraint = new NotNullColumnConstraint()
+      } else {
+        constraint = new NullColumnConstraint()
+      }
       this.consume(Reserved.NULL)
-      constraint = new NotNullColumnConstraint()
       constraint.name = name
       if (this.consumeIf(Reserved.ON)) {
         this.consume(Reserved.CONFLICT)

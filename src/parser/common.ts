@@ -102,11 +102,14 @@ export abstract class Lexer {
 }
 
 export abstract class Parser {
+  protected tokens: Token[]
   protected pos = 0
 
   constructor(
-    protected tokens: Token[]
+    protected input: string,
+    lexer: Lexer
   ) {
+    this.tokens = lexer.lex(input)
   }
 
   abstract root(): Statement[]
@@ -129,7 +132,9 @@ export abstract class Parser {
 
   consumeIf(type?: TokenType, text?: RegExp) {
     const token = this.peekIf(type, text)
-    this.pos++
+    if (token) {
+      this.pos++
+    }
     return token
   }
 
@@ -143,7 +148,15 @@ export abstract class Parser {
 
   createParseError() {
     const token = this.peek()
-    return new Error(`Unexpected token: ${token.text}`)
+    const lines = this.input.substring(0, token.start).split(/\r\n?|\n/g)
+    let last = lines[lines.length-1]
+    const rows = lines.length + 1
+    const cols = last.length
+    if (!last && lines.length - 2 >= 0) {
+      const last2 = lines[lines.length-2].replace(/^[ \t]+/, "").substr(-16)
+      last = `${last2}\u21B5 ${last}`
+    }
+    return new Error(`[${rows},${cols}] Unexpected token: ${last}"${token.text}"`)
   }
 }
 

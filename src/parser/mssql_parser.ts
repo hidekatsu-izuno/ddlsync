@@ -26,7 +26,7 @@ export class MssqlLexer extends Lexer {
       { type: TokenType.LineBreak, re: /(?:\r\n?|\n)/y },
       { type: TokenType.SemiColon, re: /;/y },
       { type: TokenType.LeftParen, re: /\(/y },
-      { type: TokenType.RightParen, re: /\(/y },
+      { type: TokenType.RightParen, re: /\)/y },
       { type: TokenType.Comma, re: /,/y },
       { type: TokenType.Number, re: /0[xX][0-9a-fA-F]+|((0|[1-9][0-9]*)(\.[0-9]+)?|(\.[0-9]+))([eE][+-]?[0-9]+)?/y },
       { type: TokenType.Dot, re: /\./y },
@@ -54,10 +54,10 @@ export class MssqlLexer extends Lexer {
 
 export class MssqlParser extends Parser {
   constructor(
-    private input: string,
+    input: string,
     private options: { [key: string]: any} = {}
   ) {
-    super(new MssqlLexer(options).lex(input))
+    super(input, new MssqlLexer(options))
   }
 
   root() {

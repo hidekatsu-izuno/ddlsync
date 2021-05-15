@@ -29,7 +29,7 @@ export class MysqlLexer extends Lexer {
       { type: TokenType.LineBreak, re: /(?:\r\n?|\n)/y },
       { type: TokenType.Delimiter, re: () => this.delimiter },
       { type: TokenType.LeftParen, re: /\(/y },
-      { type: TokenType.RightParen, re: /\(/y },
+      { type: TokenType.RightParen, re: /\)/y },
       { type: TokenType.Comma, re: /,/y },
       { type: TokenType.Number, re: /0[xX][0-9a-fA-F]+|((0|[1-9][0-9]*)(\.[0-9]+)?|(\.[0-9]+))([eE][+-]?[0-9]+)?/y },
       { type: TokenType.Dot, re: /\./y },
@@ -65,9 +65,9 @@ export class MysqlLexer extends Lexer {
 export class MysqlParser extends Parser {
   constructor(
     input: string,
-    options: { [key: string]: any} = {}
+    private options: { [key: string]: any} = {}
   ) {
-    super(new MysqlLexer(options).lex(input.replace(
+    super(input.replace(
       /\/\*!(0|[0-9][1-9]*)?(.*?)\*\//g,
       (m, p1, p2) => {
         if (options.version && p1) {
@@ -77,7 +77,7 @@ export class MysqlParser extends Parser {
         }
         return " ".repeat((p1 ? p1.length : 0) + 2) + p2 + "  "
       }
-    )))
+    ), new MysqlLexer(options))
   }
 
   root() {
