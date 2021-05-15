@@ -2,7 +2,7 @@ module.exports = {
   development: {
     client: "sqlite3",
     connection: {
-      client: "./sqlite3.db"
+      filename: "./sqlite3.db"
     },
     ddlsync: {
       include: "ddl/**/*.sql"

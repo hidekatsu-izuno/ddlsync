@@ -24,11 +24,14 @@ async function main(
 
   const list = await fg(config.ddlsync.include)
   for (const filename of list) {
-    console.log(filename)
     const contents = await fs.readFile(filename, 'utf-8')
     const root = parseSql(config.client, contents)
-    console.log(root)
+    for (let stmt of root) {
+      await con.raw(stmt.text)
+    }
   }
+
+  await con.destroy()
 }
 
 function parseSql(client: string, input: string) {

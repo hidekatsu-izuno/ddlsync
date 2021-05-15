@@ -302,7 +302,7 @@ export class Document {
 }
 
 export abstract class Statement {
-  public text?: string
+  public text: string = ""
 }
 
 export abstract class TableConstraint {
