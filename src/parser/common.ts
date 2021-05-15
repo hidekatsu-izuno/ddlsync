@@ -1,31 +1,31 @@
 export class TokenType {
   static Delimiter = new TokenType("Delimiter")
   static Command = new TokenType("Command")
-  static WhiteSpace = new TokenType("WhiteSpace", true)
-  static LineBreak = new TokenType("LineBreak", true)
-  static HintComment = new TokenType("HintComment", true)
-  static BlockComment = new TokenType("BlockComment", true)
-  static LineComment = new TokenType("LineComment", true)
+  static WhiteSpace = new TokenType("WhiteSpace", { skip: true })
+  static LineBreak = new TokenType("LineBreak", { skip: true })
+  static HintComment = new TokenType("HintComment", { skip: true })
+  static BlockComment = new TokenType("BlockComment", { skip: true })
+  static LineComment = new TokenType("LineComment", { skip: true })
   static SemiColon = new TokenType("SemiColon")
   static LeftParen = new TokenType("LeftParen")
   static RightParen = new TokenType("RightParen")
   static LeftBracket = new TokenType("LeftBracket")
   static RightBracket = new TokenType("RightBracket")
   static Comma = new TokenType("Comma")
-  static Number = new TokenType("Number")
   static Dot = new TokenType("Dot")
+  static Operator = new TokenType("Operator")
+  static Number = new TokenType("Number")
   static String = new TokenType("String")
   static BindVariable = new TokenType("BindVariable")
   static Variable = new TokenType("Variable")
   static QuotedValue = new TokenType("QuotedValue")
   static QuotedIdentifier = new TokenType("QuotedIdentifier")
   static Identifier = new TokenType("Identifier")
-  static Operator = new TokenType("Operator")
   static Error = new TokenType("Error")
 
   constructor(
     public name: string,
-    public skip = false,
+    public options: { [key: string]: any } = {}
   ) {}
 
   toString() {
@@ -34,7 +34,8 @@ export class TokenType {
 }
 
 export class Token {
-  public skips:Token[] = []
+  public before: Token[] = []
+  public after: Token[] = []
 
   constructor(
     public type: TokenType,
@@ -67,6 +68,7 @@ export abstract class Lexer {
       pos = 1
     }
 
+    const before = new Array<Token>()
     while (pos < input.length) {
       let token
       for (let pattern of this.patterns) {
@@ -88,15 +90,23 @@ export abstract class Lexer {
 
       this.process(token)
 
-      if (token.type.skip) {
-        const prev = tokens[tokens.length-1]
+      const prev = tokens[tokens.length - 1]
+      if (token.type.options.skip) {
         if (prev) {
-          prev.skips.push(token)
+          prev.after.push(token)
+        } else {
+          before.push(token)
         }
       } else {
+        if (prev) {
+          token.before = prev.after
+        } else {
+          token.before = before
+        }
         tokens.push(token)
       }
     }
+
     return tokens
   }
 }
@@ -160,6 +170,9 @@ export abstract class Parser {
   }
 }
 
+export class Document {
+
+}
 
 export abstract class Statement {
   public text?: string

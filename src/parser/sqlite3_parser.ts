@@ -710,8 +710,8 @@ export class Sqlite3Parser extends Parser {
   moduleArgument() {
     let tokens: Token[] = []
     while (this.peek() && !this.peekIf(TokenType.Comma) && !this.peekIf(TokenType.LeftParen)) {
-      if (tokens[tokens.length-1] && tokens[tokens.length-1].skips) {
-        for (let token of tokens[tokens.length-1].skips) {
+      if (tokens[tokens.length-1] && tokens[tokens.length-1].after) {
+        for (let token of tokens[tokens.length-1].after) {
           tokens.push(token)
         }
       }

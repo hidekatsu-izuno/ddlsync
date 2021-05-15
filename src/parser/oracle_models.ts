@@ -140,12 +140,9 @@ export class Reserved extends TokenType {
 
   constructor(
     name: string,
-    public options: {
-      version?: string,
-      partial?: boolean,
-    } = {}
+    options: { [key: string]: any } = {}
   ) {
-    super(name)
+    super(name, options)
     ReservedMap.set(name, this)
   }
 
