@@ -16,15 +16,15 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     return await parser.root()
   }
 
-  async execute(srcDb: VdbDatabase, stmt: Statement) {
+  async execute(vdb: VdbDatabase, stmt: Statement) {
     throw new Error("Method not implemented.")
   }
 
-  async plan(srcDb: VdbDatabase): Promise<ChangePlan[]> {
+  async plan(vdb: VdbDatabase): Promise<ChangePlan[]> {
     throw new Error("Method not implemented.")
   }
 
-  async apply(changeInfo: ChangePlan) {
+  async apply(changePlan: ChangePlan) {
     throw new Error("Method not implemented.")
   }
 }

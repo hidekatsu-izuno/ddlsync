@@ -31,21 +31,21 @@ async function main(
     }
 
     // Test flight
-    const db = new VdbDatabase()
     let changes
+    const vdb = new VdbDatabase()
     try {
       for (const stmt of stmts) {
-        await processor.execute(db, stmt)
+        await processor.execute(vdb, stmt)
       }
 
-      changes = await processor.plan(db)
+      changes = await processor.plan(vdb)
     } finally {
-      await db.destroy()
+      await vdb.destroy()
     }
 
-    // Show changeset
-    for (const change of changes) {
-      console.log(change)
+    // Show change plans
+    for (const [i, change] of changes.entries()) {
+      console.log(`${i+1}: ${change.summary}`)
     }
   } finally {
     await processor.destroy()

@@ -32,18 +32,34 @@ async function main(
     }
 
     // Test flight
-    const db = new VdbDatabase()
+    let changes
+    const vdb = new VdbDatabase()
     try {
       for (const stmt of stmts) {
-        await processor.execute(db, stmt)
+        await processor.execute(vdb, stmt)
       }
+
+      changes = await processor.plan(vdb)
     } finally {
-      await db.destroy()
+      await vdb.destroy()
+    }
+
+    // Check changes
+    for (const change of changes) {
+      if (
+        change.type !== ChangeType.CREATE_OBJECT &&
+        change.type !== ChangeType.CHANGE_STATE &&
+        change.type !== ChangeType.OTHER
+      ) {
+        throw new Error("Unexpected changes are found.")
+      }
     }
 
     // Execute actually
-    for (const stmt of stmts) {
-      await processor.apply(new ChangePlan(stmt.summary(), [stmt]))
+    for (const [i, stmt] of stmts.entries()) {
+      const change = new ChangePlan(ChangeType.OTHER, stmt.summary(), [stmt])
+      console.log(`${i+1}: ${change.summary}`)
+      await processor.apply(change)
     }
   } finally {
     await processor.destroy()

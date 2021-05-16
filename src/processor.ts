@@ -20,9 +20,9 @@ export abstract class DdlSyncProcessor {
 
   abstract parse(input: string, options: { [key: string]: any}): Promise<Statement[]>
 
-  abstract execute(db: VdbDatabase, stmt: Statement): Promise<void>
+  abstract execute(vdb: VdbDatabase, stmt: Statement): Promise<void>
 
-  abstract plan(db: VdbDatabase): Promise<ChangePlan[]>
+  abstract plan(vdb: VdbDatabase): Promise<ChangePlan[]>
 
   abstract apply(changeInfo: ChangePlan): Promise<void>
 
@@ -34,14 +34,18 @@ export abstract class DdlSyncProcessor {
 }
 
 export enum ChangeType {
-  CREATE,
-  ALTER,
-  DROP,
-  OTHER
+  CREATE_OBJECT,
+  ALTER_OBJECT,
+  ADD_COLUMN,
+  DROP_COLUMN,
+  DROP_OBJECT,
+  CHANGE_STATE,
+  OTHER,
 }
 
 export class ChangePlan {
   constructor(
+    public type: ChangeType,
     public summary: string,
     public stmts: Statement[]
   ) {
