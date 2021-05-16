@@ -8,7 +8,7 @@ import {
   StringValue,
   NumberValue,
   IExpression,
-} from "./common"
+} from "../parser"
 import { Reserved } from "./mysql_models"
 import semver from "semver"
 import escapeRegExp from "lodash.escaperegexp"

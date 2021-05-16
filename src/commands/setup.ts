@@ -1,11 +1,9 @@
 import { Command } from 'commander';
 import fg from 'fast-glob'
 import {promises as fs} from 'fs'
-import { knex } from 'knex'
-import { Parser } from '../parser/common'
-import { MysqlParser } from '../parser/mysql_parser'
-import { Sqlite3Parser } from '../parser/sqlite3_parser'
-import { initConfig } from '../util/config'
+import { ChangePlan, ChangeType } from '../processor';
+import { createDddlSyncProcessor } from '../util/config'
+import { VdbDatabase } from '../vdb';
 
 export default (program: Command) => {
   program.command('setup')
@@ -19,29 +17,35 @@ async function main(
   args: string[],
   options: { [key: string]: any }
 ) {
-  const config = await initConfig(args, options)
-  const con = await knex(config)
+  const processor = await createDddlSyncProcessor(args, options)
+  try {
+    const files = await fg(processor.config.ddlsync.include)
 
-  const list = await fg(config.ddlsync.include)
-  for (const filename of list) {
-    const contents = await fs.readFile(filename, 'utf-8')
-    const root = parseSql(config.client, contents)
-    for (let stmt of root) {
-      await con.raw(stmt.text)
+    const stmts = []
+    for (const filename of files) {
+      const contents = await fs.readFile(filename, 'utf-8')
+      for (const stmt of await processor.parse(contents, {
+        filename
+      })) {
+        stmts.push(stmt)
+      }
     }
-  }
 
-  await con.destroy()
-}
+    // Test flight
+    const db = new VdbDatabase()
+    try {
+      for (const stmt of stmts) {
+        await processor.execute(db, stmt)
+      }
+    } finally {
+      await db.destroy()
+    }
 
-function parseSql(client: string, input: string) {
-  let parser
-  if (client === "sqlite3") {
-    parser = new Sqlite3Parser(input, {})
-  } else if (client === "mysql" || client === "mysql2") {
-    parser = new MysqlParser(input, {})
-  } else {
-    throw new Error(`Unsupported client type: ${client}`)
+    // Execute actually
+    for (const stmt of stmts) {
+      await processor.apply(new ChangePlan(stmt.summary(), [stmt]))
+    }
+  } finally {
+    await processor.destroy()
   }
-  return parser.root()
 }

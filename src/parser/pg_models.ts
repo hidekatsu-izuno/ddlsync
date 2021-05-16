@@ -1,4 +1,4 @@
-import { TokenType, Token, Statement, TableConstraint, ColumnConstraint, IExpression, Idnetifier, NumberValue } from "./common"
+import { TokenType, Token, Statement, TableConstraint, ColumnConstraint, IExpression, Idnetifier, NumberValue } from "../parser"
 import semver from "semver"
 
 const ReservedMap = new Map<string, Reserved>()

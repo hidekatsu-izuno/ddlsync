@@ -302,15 +302,18 @@ export class Document {
 }
 
 export abstract class Statement {
-  public text: string = ""
+  filename?: string
+  text: string = ""
+
+  abstract summary(): string
 }
 
 export abstract class TableConstraint {
-  public name?: string
+  name?: string
 }
 
 export abstract class ColumnConstraint {
-  public name?: string
+  name?: string
 }
 
 export interface IExpression {
@@ -357,232 +360,389 @@ export class ExplainStatement extends Statement {
   constructor(public statement: Statement) {
     super()
   }
+
+  summary() {
+    return "EXPLAIN"
+  }
 }
 
 export class CreateTableStatement extends Statement {
-  public schemaName?: string
-  public name: string = ""
-  public temporary = false
-  public ifNotExists = false
-  public withoutRowid = false
-  public columns?: ColumnDef[]
-  public constraints?: TableConstraint[]
-  public select?: Token[]
+  schemaName?: string
+  name: string = ""
+  temporary = false
+  ifNotExists = false
+  withoutRowid = false
+  columns?: ColumnDef[]
+  constraints?: TableConstraint[]
+  select?: Token[]
+
+  summary() {
+    return "CREATE " +
+      (this.temporary ? "TEMPORARY " : "") +
+      "TABLE " +
+      (this.schemaName ? this.schemaName + "." : "") +
+      this.name
+  }
 }
 
 export class CreateVirtualTableStatement extends Statement {
-  public schemaName?: string
-  public name: string = ""
-  public ifNotExists = false
-  public moduleName: string = ""
-  public moduleArgs?: string[]
+  schemaName?: string
+  name: string = ""
+  ifNotExists = false
+  moduleName: string = ""
+  moduleArgs?: string[]
+
+  summary() {
+    return "CREATE VIRTUAL TABLE" +
+      (this.schemaName ? this.schemaName + "." : "") +
+      this.name
+  }
 }
 
 export class CreateIndexStatement extends Statement {
-  public schemaName?: string
-  public name = ""
-  public tableName = ""
-  public unique = false
-  public ifNotExists = false
-  public columns = new Array<IndexedColumn>()
-  public where?: Token[]
+  schemaName?: string
+  name = ""
+  tableName = ""
+  unique = false
+  ifNotExists = false
+  columns = new Array<IndexedColumn>()
+  where?: Token[]
+
+  summary() {
+    return "CREATE " +
+      (this.unique ? "UNIQUE " : "") +
+      "INDEX " +
+      (this.schemaName ? this.schemaName + "." : "") +
+      this.name + " " +
+      "ON " + this.tableName
+  }
 }
 
 export class CreateViewStatement extends Statement {
-  public schemaName?: string
-  public name = ""
-  public temporary = false
-  public ifNotExists = false
-  public select = new Array<Token>()
+  schemaName?: string
+  name = ""
+  temporary = false
+  ifNotExists = false
+  select = new Array<Token>()
+
+  summary() {
+    return "CREATE " +
+      (this.temporary ? "TEMPORARY " : "") +
+      "VIEW " +
+      (this.schemaName ? this.schemaName + "." : "") +
+      this.name + " "
+  }
 }
 
 export class CreateTriggerStatement extends Statement {
-  public schemaName?: string
-  public name = ""
-  public temporary = false
-  public ifNotExists = false
-  public body = new Array<Token>()
+  schemaName?: string
+  name = ""
+  temporary = false
+  ifNotExists = false
+  body = new Array<Token>()
+
+  summary() {
+    return "CREATE " +
+      (this.temporary ? "TEMPORARY " : "") +
+      "TRIGGER " +
+      (this.schemaName ? this.schemaName + "." : "") +
+      this.name + " "
+  }
 }
 
 export class AlterTableStatement extends Statement {
-  public schemaName?: string
-  public name = ""
-  public alterTableAction = AlterTableAction.RENAME_TABLE
-  public newTableName?: string
-  public columnName?: string
-  public newColumnName?: string
-  public newColumn?: ColumnDef
+  schemaName?: string
+  name = ""
+  alterTableAction = AlterTableAction.RENAME_TABLE
+  newTableName?: string
+  columnName?: string
+  newColumnName?: string
+  newColumn?: ColumnDef
+
+  summary() {
+    return "ALTER TABLE " +
+      (this.schemaName ? this.schemaName + "." : "") +
+      this.name + " " +
+      (
+        this.alterTableAction === AlterTableAction.ADD_COLUMN ? "ADD COLUMN" :
+        this.alterTableAction === AlterTableAction.RENAME_COLUMN ? "RENAME COLUMN" :
+        this.alterTableAction === AlterTableAction.DROP_COLUMN ? "DROP COLUMN" :
+        "RENAME TO " + this.newTableName
+      )
+  }
 }
 
 export class DropTableStatement extends Statement {
-  public schemaName?: string
-  public name: string = ""
-  public ifExists = false
+  schemaName?: string
+  name: string = ""
+  ifExists = false
+
+  summary() {
+    return "DROP TABLE " +
+      (this.schemaName ? this.schemaName + "." : "") +
+      this.name
+  }
 }
 
 export class DropIndexStatement extends Statement {
-  public schemaName?: string
-  public name = ""
-  public ifExists = false
+  schemaName?: string
+  name = ""
+  ifExists = false
+
+  summary() {
+    return "DROP INDEX " +
+      (this.schemaName ? this.schemaName + "." : "") +
+      this.name
+  }
 }
 
 export class DropViewStatement extends Statement {
-  public schemaName?: string
-  public name = ""
-  public ifExists = false
+  schemaName?: string
+  name = ""
+  ifExists = false
+
+  summary() {
+    return "DROP VIEW " +
+      (this.schemaName ? this.schemaName + "." : "") +
+      this.name
+  }
 }
 
 export class DropTriggerStatement extends Statement {
-  public schemaName?: string
-  public name = ""
-  public ifExists = false
+  schemaName?: string
+  name = ""
+  ifExists = false
+
+  summary() {
+    return "DROP TRIGGER " +
+      (this.schemaName ? this.schemaName + "." : "") +
+      this.name
+  }
 }
 
 export class ReindexStatement extends Statement {
-  public schemaName?: string
-  public name = ""
+  schemaName?: string
+  name = ""
+
+  summary() {
+    return "REINDEX " +
+      (this.schemaName ? this.schemaName + "." : "") +
+      this.name
+  }
 }
 
 export class AnalyzeStatement extends Statement {
-  public schemaName?: string
-  public name = ""
+  schemaName?: string
+  name = ""
+
+  summary() {
+    return "ANALYZE " +
+      (this.schemaName ? this.schemaName + "." : "") +
+      this.name
+  }
 }
 
 export class AttachDatabaseStatement extends Statement {
-  public name = ""
-  public expression: IExpression = Reserved.NULL
+  name = ""
+  expression: IExpression = Reserved.NULL
+
+  summary() {
+    return "ATTACHE DATABASE " +
+      this.name
+  }
 }
 
 export class DetachDatabaseStatement extends Statement {
-  public name = ""
+  name = ""
+
+  summary() {
+    return "DETACHE DATABASE " +
+      this.name
+  }
 }
 
 export class BeginTransactionStatement extends Statement {
-  public transactionBehavior = TransactionBehavior.DEFERRED
+  transactionBehavior = TransactionBehavior.DEFERRED
+
+  summary() {
+    return "BEGIN TRANSACTION"
+  }
 }
 
 export class SavepointStatement extends Statement {
-  public name: string = ""
+  name: string = ""
+
+  summary() {
+    return "SAVEPOINT " +
+      this.name
+  }
 }
 
 export class ReleaseSavepointStatement extends Statement {
-  public savePointName = ""
+  savePointName = ""
+
+  summary() {
+    return "RELEASE SAVEPOINT " +
+      this.savePointName
+  }
 }
 
 export class CommitTransactionStatement extends Statement {
+  summary() {
+    return "COMMIT TRANSACTION"
+  }
 }
 
 export class RollbackTransactionStatement extends Statement {
-  public savePointName?: string
+  savePointName?: string
+
+  summary() {
+    return "ROLLBACK TRANSACTION" +
+      (this.savePointName ? " TO SAVEPOINT " + this.savePointName : "")
+  }
 }
 
 export class VacuumStatement extends Statement {
-  public schemaName?: string
-  public fileName?: string
+  schemaName?: string
+  fileName?: string
+
+  summary() {
+    return "VACUUM" +
+      (this.schemaName ? " " + this.schemaName : "")
+  }
 }
 
 export class PragmaStatement extends Statement {
-  public schemaName?: string
-  public name = ""
-  public value: IExpression = Reserved.NULL
+  schemaName?: string
+  name = ""
+  value?: IExpression
+
+  summary() {
+    return (this.value ? " SET" : " GET") +
+      " PRAGMA " +
+      (this.schemaName ? this.schemaName + "." : "") +
+      this.name
+  }
 }
 
 export class InsertStatement extends Statement {
-  public schemaName?: string
-  public name = ""
-  public conflictAction = ConflictAction.ABORT
-  public withClause?: Token[]
-  public body = new Array<Token>()
+  schemaName?: string
+  name = ""
+  conflictAction = ConflictAction.ABORT
+  withClause?: Token[]
+  body = new Array<Token>()
+
+  summary() {
+    return "INSERT INTO " +
+      (this.schemaName ? this.schemaName + "." : "") +
+      this.name
+  }
 }
 
 export class UpdateStatement extends Statement {
-  public schemaName?: string
-  public name = ""
-  public conflictAction = ConflictAction.ABORT
-  public withClause?: Token[]
-  public body = new Array<Token>()
+  schemaName?: string
+  name = ""
+  conflictAction = ConflictAction.ABORT
+  withClause?: Token[]
+  body = new Array<Token>()
+
+  summary() {
+    return "UPDATE " +
+      (this.schemaName ? this.schemaName + "." : "") +
+      this.name
+  }
 }
 
 export class DeleteStatement extends Statement {
-  public schemaName?: string
-  public name = ""
-  public withClause?: Token[]
-  public body = new Array<Token>()
+  schemaName?: string
+  name = ""
+  withClause?: Token[]
+  body = new Array<Token>()
+
+  summary() {
+    return "DELETE FROM " +
+      (this.schemaName ? this.schemaName + "." : "") +
+      this.name
+  }
 }
 
 export class SelectStatement extends Statement {
-  public body = new Array<Token>()
+  body = new Array<Token>()
+
+  summary() {
+    return "SELECT"
+  }
 }
 
 export class ColumnDef {
-  public name = ""
-  public typeName = "TEXT"
-  public length?: NumberValue
-  public scale?: NumberValue
-  public constraints = new Array<ColumnConstraint>()
+  name = ""
+  typeName = "TEXT"
+  length?: NumberValue
+  scale?: NumberValue
+  constraints = new Array<ColumnConstraint>()
 }
 
 export class IndexedColumn {
-  public expression: IExpression = Reserved.NULL
-  public sortOrder = SortOrder.ASC
+  expression: IExpression = Reserved.NULL
+  sortOrder = SortOrder.ASC
 }
 
 export class PrimaryKeyTableConstraint extends TableConstraint {
-  public columns = new Array<IndexedColumn>()
-  public conflictAction = ConflictAction.ABORT
+  columns = new Array<IndexedColumn>()
+  conflictAction = ConflictAction.ABORT
 }
 
 export class UniqueTableConstraint extends TableConstraint {
-  public columns = new Array<IndexedColumn>()
-  public conflictAction = ConflictAction.ABORT
+  columns = new Array<IndexedColumn>()
+  conflictAction = ConflictAction.ABORT
 }
 
 export class CheckTableConstraint extends TableConstraint {
-  public conditions = new Array<Token>()
+  conditions = new Array<Token>()
 }
 
 export class ForeignKeyTableConstraint extends TableConstraint {
-  public columnNames = new Array<string>()
+  columnNames = new Array<string>()
 }
 
 export class PrimaryKeyColumnConstraint extends ColumnConstraint {
-  public sortOrder = SortOrder.ASC
-  public conflictAction = ConflictAction.ABORT
-  public autoIncrement = false
+  sortOrder = SortOrder.ASC
+  conflictAction = ConflictAction.ABORT
+  autoIncrement = false
 }
 
 export class NotNullColumnConstraint extends ColumnConstraint {
-  public conflictAction = ConflictAction.ABORT
+  conflictAction = ConflictAction.ABORT
 }
 
 export class NullColumnConstraint extends ColumnConstraint {
-  public conflictAction = ConflictAction.ABORT
+  conflictAction = ConflictAction.ABORT
 }
 
 export class UniqueColumnConstraint extends ColumnConstraint {
-  public conflictAction = ConflictAction.ABORT
+  conflictAction = ConflictAction.ABORT
 }
 
 export class CheckColumnConstraint extends ColumnConstraint {
-  public conditions = new Array<Token>()
+  conditions = new Array<Token>()
 }
 
 export class DefaultColumnConstraint extends ColumnConstraint {
-  public expression: IExpression = Reserved.NULL
+  expression: IExpression = Reserved.NULL
 }
 
 export class CollateColumnConstraint extends ColumnConstraint {
-  public collationName = ""
+  collationName = ""
 }
 
 export class ReferencesKeyColumnConstraint extends ColumnConstraint {
-  public tableName = ""
-  public columnNames = new Array<string>()
+  tableName = ""
+  columnNames = new Array<string>()
 }
 
 export class GeneratedColumnConstraint extends ColumnConstraint {
-  public expression: IExpression = Reserved.NULL
-  public storeType = StoreType.VIRTUAL
+  expression: IExpression = Reserved.NULL
+  storeType = StoreType.VIRTUAL
 }
 
 export class Expression implements IExpression {

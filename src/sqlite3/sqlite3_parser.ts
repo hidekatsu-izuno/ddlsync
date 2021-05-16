@@ -57,7 +57,7 @@ import {
   GeneratedColumnConstraint,
   Reserved,
   Operator,
-} from "./common"
+} from "../parser"
 
 export class Sqlite3Lexer extends Lexer {
   constructor(
@@ -325,11 +325,11 @@ export class Sqlite3Parser extends Parser {
       this.consumeIf(Keyword.SAVEPOINT)
       stmt.savePointName = this.identifier()
     } else if (this.consumeIf(Keyword.COMMIT) || this.consumeIf(Keyword.END)) {
+      this.consumeIf(Keyword.TRANSACTION)
       stmt = new CommitTransactionStatement()
-      this.consumeIf(Keyword.TRANSACTION)
     } else if (this.consumeIf(Keyword.ROLLBACK)) {
-      stmt = new RollbackTransactionStatement()
       this.consumeIf(Keyword.TRANSACTION)
+      stmt = new RollbackTransactionStatement()
       if (this.consumeIf(Keyword.TO)) {
         this.consumeIf(Keyword.SAVEPOINT)
         stmt.savePointName = this.identifier()
@@ -366,14 +366,14 @@ export class Sqlite3Parser extends Parser {
       if (this.consumeIf(TokenType.Dot)) {
         stmt.schemaName = stmt.name
         stmt.name = this.identifier()
-        if (this.consumeIf(Operator.EQ)) {
-          stmt.value = this.pragmaValue()
-        } else if (this.consumeIf(TokenType.LeftParen)) {
-          stmt.value = this.pragmaValue()
-          this.consume(TokenType.RightParen)
-        }
       }
-    } else {
+      if (this.consumeIf(Operator.EQ)) {
+        stmt.value = this.pragmaValue()
+      } else if (this.consumeIf(TokenType.LeftParen)) {
+        stmt.value = this.pragmaValue()
+        this.consume(TokenType.RightParen)
+      }
+  } else {
       let withClause
       if (this.peekIf(Keyword.WITH)) {
         withClause = this.withClause()
@@ -441,6 +441,10 @@ export class Sqlite3Parser extends Parser {
 
     if (explain) {
       stmt = new ExplainStatement(stmt)
+    }
+
+    if (typeof this.options.filename === "string") {
+      stmt.filename = this.options.filename
     }
 
     const end = this.peek(-1).end

@@ -8,7 +8,7 @@ import {
   StringValue,
   NumberValue,
   IExpression,
-} from "./common"
+} from "../parser"
 import { Reserved } from "./mssql_models"
 import semver from "semver"
 

@@ -8,7 +8,7 @@ import {
   StringValue,
   NumberValue,
   IExpression,
-} from "./common"
+} from "../parser"
 import { Reserved } from "./oracle_models"
 import semver from "semver"
 

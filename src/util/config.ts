@@ -2,11 +2,21 @@ import path from "path"
 import rechoir from "rechoir"
 import interpret from "interpret"
 import colorette from "colorette"
+import { knex } from 'knex'
 import io from "../util/io"
+import Sqlite3Processor from "../sqlite3/sqlite3_processor"
 
 const Extensions = ["ts", "js", "coffee", "eg", "ls"]
 
-export async function initConfig(args: string[], options: { [key: string]: any }) {
+export async function createDddlSyncProcessor(args: string[], options: { [key: string]: any }) {
+  const config = await initConfig(args, options)
+  if (config.client === "sqlite3") {
+    return new Sqlite3Processor(config)
+  }
+  throw new Error(`Unsupported client: ${config.client}`)
+}
+
+async function initConfig(args: string[], options: { [key: string]: any }) {
   let cwd = process.cwd()
   let configPath = null
   if (options.knexfile) {

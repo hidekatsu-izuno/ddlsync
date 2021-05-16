@@ -1,17 +1,53 @@
-import { Command } from 'commander';
+import { Command } from 'commander'
+import fg from 'fast-glob'
+import {promises as fs} from 'fs'
+import { createDddlSyncProcessor } from '../util/config'
+import { VdbDatabase } from '../vdb'
 
 export default (program: Command) => {
   program.command('apply')
     .description("apply changes.")
     .action(async function (options) {
-      await process([], { ...program.opts(), ...options })
+      await main([], { ...program.opts(), ...options })
     })
 }
 
-async function process(
+async function main(
   args: string[],
   options: { [key: string]: any }
 ) {
-  console.log(args, options)
+  const processor = await createDddlSyncProcessor(args, options)
+  try {
+    const files = await fg(processor.config.ddlsync.include)
 
+    const stmts = []
+    for (const filename of files) {
+      const contents = await fs.readFile(filename, 'utf-8')
+      for (const stmt of await processor.parse(contents, {
+        filename
+      })) {
+        stmts.push(stmt)
+      }
+    }
+
+    // Test flight
+    const db = new VdbDatabase()
+    let changes
+    try {
+      for (const stmt of stmts) {
+        await processor.execute(db, stmt)
+      }
+
+      changes = await processor.plan(db)
+    } finally {
+      await db.destroy()
+    }
+
+    // Execute actually
+    for (const change of changes) {
+      await processor.apply(change)
+    }
+  } finally {
+    await processor.destroy()
+  }
 }
