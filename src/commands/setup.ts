@@ -35,6 +35,8 @@ async function main(
     let changes
     const vdb = new VdbDatabase()
     try {
+      await vdb.init()
+
       for (const stmt of stmts) {
         await processor.execute(vdb, stmt)
       }
@@ -61,6 +63,8 @@ async function main(
       console.log(`${i+1}: ${change.summary}`)
       await processor.apply(change)
     }
+  } catch (e) {
+    console.error(e)
   } finally {
     await processor.destroy()
   }

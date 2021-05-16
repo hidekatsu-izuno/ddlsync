@@ -370,30 +370,20 @@ export class CreateTableStatement extends Statement {
   schemaName?: string
   name: string = ""
   temporary = false
+  virtual = false
   ifNotExists = false
   withoutRowid = false
   columns?: ColumnDef[]
   constraints?: TableConstraint[]
   select?: Token[]
+  moduleName?: string = ""
+  moduleArgs?: string[]
 
   summary() {
     return "CREATE " +
       (this.temporary ? "TEMPORARY " : "") +
+      (this.virtual ? "VIRTUAL " : "") +
       "TABLE " +
-      (this.schemaName ? this.schemaName + "." : "") +
-      this.name
-  }
-}
-
-export class CreateVirtualTableStatement extends Statement {
-  schemaName?: string
-  name: string = ""
-  ifNotExists = false
-  moduleName: string = ""
-  moduleArgs?: string[]
-
-  summary() {
-    return "CREATE VIRTUAL TABLE" +
       (this.schemaName ? this.schemaName + "." : "") +
       this.name
   }

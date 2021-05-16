@@ -34,6 +34,8 @@ async function main(
     let changes
     const vdb = new VdbDatabase()
     try {
+      await vdb.init()
+
       for (const stmt of stmts) {
         await processor.execute(vdb, stmt)
       }

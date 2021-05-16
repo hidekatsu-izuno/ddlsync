@@ -18,7 +18,6 @@ import {
   AttachDatabaseStatement,
   DetachDatabaseStatement,
   CreateTableStatement,
-  CreateVirtualTableStatement,
   CreateIndexStatement,
   CreateViewStatement,
   CreateTriggerStatement,
@@ -96,12 +95,13 @@ export class Sqlite3Parser extends Parser {
 
   root() {
     const root = []
-    if (this.peek() && !this.peekIf(TokenType.SemiColon)) {
-      root.push(this.statement())
-    }
-    while (this.consumeIf(TokenType.SemiColon)) {
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.SemiColon); i++) {
       if (this.peek() && !this.peekIf(TokenType.SemiColon)) {
-        root.push(this.statement())
+        const stmt = this.statement()
+        if ((stmt as any).schemaName && (stmt as any).temporary) {
+          throw new Error("temporary table name must be unqualified")
+        }
+        root.push(stmt)
       }
     }
     if (this.peek() != null) {
@@ -139,7 +139,8 @@ export class Sqlite3Parser extends Parser {
         }
       } else if (this.consumeIf(Keyword.VIRTUAL)) {
         this.consume(Keyword.TABLE)
-        stmt = new CreateVirtualTableStatement()
+        stmt = new CreateTableStatement()
+        stmt.virtual = true
       } else if (this.consumeIf(Keyword.TABLE)) {
         stmt = new CreateTableStatement()
       } else if (this.consumeIf(Keyword.VIEW)) {
@@ -163,58 +164,56 @@ export class Sqlite3Parser extends Parser {
       }
 
       stmt.name = this.identifier()
-      if (this.consumeIf(TokenType.Dot)) {
-        stmt.schemaName = stmt.name
-        stmt.name = this.identifier()
-      }
 
       if (stmt instanceof CreateTableStatement) {
-        stmt.columns = []
-        stmt.constraints = []
-        if (this.consumeIf(TokenType.LeftParen)) {
-          stmt.columns.push(this.columnDef())
-          while (this.consumeIf(TokenType.Comma)) {
-            if (
-              this.peekIf(Keyword.CONSTRAINT) ||
-              this.peekIf(Keyword.PRIMARY) ||
-              this.peekIf(Keyword.NOT) ||
-              this.peekIf(Keyword.NULL) ||
-              this.peekIf(Keyword.UNIQUE) ||
-              this.peekIf(Keyword.CHECK) ||
-              this.peekIf(Keyword.DEFAULT) ||
-              this.peekIf(Keyword.COLLATE) ||
-              this.peekIf(Keyword.REFERENCES) ||
-              this.peekIf(Keyword.GENERATED) ||
-              this.peekIf(Keyword.AS)
-            ) {
-              stmt.constraints.push(this.tableConstraint())
-              while (this.consumeIf(TokenType.Comma)) {
-                stmt.constraints.push(this.tableConstraint())
-              }
-              break
-            } else {
-              stmt.columns.push(this.columnDef())
+        if (stmt.virtual) {
+          this.consume(Keyword.USING)
+          stmt.moduleName = this.identifier()
+          if (this.consumeIf(TokenType.LeftParen)) {
+            stmt.moduleArgs = []
+            for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+              stmt.moduleArgs.push(this.moduleArgument())
             }
-          }
-          this.consume(TokenType.RightParen)
-          if (this.consumeIf(Keyword.WITHOUT)) {
-            if (this.consume(Keyword.ROWID)) {
-              stmt.withoutRowid = true
-            }
+            this.consume(TokenType.RightParen)
           }
         } else {
-          this.consume(Keyword.AS)
-          stmt.select = this.selectClause()
-        }
-      } else if (stmt instanceof CreateVirtualTableStatement) {
-        this.consume(Keyword.USING)
-        stmt.moduleName = this.identifier()
-        if (this.consumeIf(TokenType.LeftParen)) {
-          stmt.moduleArgs = []
-          for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-            stmt.moduleArgs.push(this.moduleArgument())
+          stmt.columns = []
+          stmt.constraints = []
+          if (this.consumeIf(TokenType.LeftParen)) {
+            stmt.columns.push(this.columnDef())
+            while (this.consumeIf(TokenType.Comma)) {
+              if (
+                this.peekIf(Keyword.CONSTRAINT) ||
+                this.peekIf(Keyword.PRIMARY) ||
+                this.peekIf(Keyword.NOT) ||
+                this.peekIf(Keyword.NULL) ||
+                this.peekIf(Keyword.UNIQUE) ||
+                this.peekIf(Keyword.CHECK) ||
+                this.peekIf(Keyword.DEFAULT) ||
+                this.peekIf(Keyword.COLLATE) ||
+                this.peekIf(Keyword.REFERENCES) ||
+                this.peekIf(Keyword.GENERATED) ||
+                this.peekIf(Keyword.AS)
+              ) {
+                stmt.constraints.push(this.tableConstraint())
+                while (this.consumeIf(TokenType.Comma)) {
+                  stmt.constraints.push(this.tableConstraint())
+                }
+                break
+              } else {
+                stmt.columns.push(this.columnDef())
+              }
+            }
+            this.consume(TokenType.RightParen)
+            if (this.consumeIf(Keyword.WITHOUT)) {
+              if (this.consume(Keyword.ROWID)) {
+                stmt.withoutRowid = true
+              }
+            }
+          } else {
+            this.consume(Keyword.AS)
+            stmt.select = this.selectClause()
           }
-          this.consume(TokenType.RightParen)
         }
       } else if (stmt instanceof CreateViewStatement) {
         stmt.select = this.selectClause()

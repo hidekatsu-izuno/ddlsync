@@ -3,19 +3,10 @@ import { Statement } from "./parser";
 import { VdbDatabase } from "./vdb";
 
 export abstract class DdlSyncProcessor {
-  private con?: Knex
+  protected con: Knex
 
-  constructor(
-    public name: string,
-    public config: { [key: string]: any }
-  ) {
-  }
-
-  public async connection() {
-    if (!this.con) {
-      this.con = await knex(this.config)
-    }
-    return this.con
+  protected constructor(public name: string, public config: { [key: string]: any }) {
+    this.con = knex(config)
   }
 
   abstract parse(input: string, options: { [key: string]: any}): Promise<Statement[]>
@@ -27,9 +18,7 @@ export abstract class DdlSyncProcessor {
   abstract apply(changeInfo: ChangePlan): Promise<void>
 
   async destroy() {
-    if (this.con) {
-      this.con.destroy()
-    }
+    await this.con.destroy()
   }
 }
 
