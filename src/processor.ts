@@ -1,6 +1,5 @@
 import { knex, Knex } from "knex";
 import { Statement } from "./parser";
-import { VdbDatabase } from "./vdb";
 
 export abstract class DdlSyncProcessor {
   protected con: Knex
@@ -11,9 +10,7 @@ export abstract class DdlSyncProcessor {
 
   abstract parse(input: string, options: { [key: string]: any}): Promise<Statement[]>
 
-  abstract execute(vdb: VdbDatabase, stmt: Statement): Promise<void>
-
-  abstract plan(vdb: VdbDatabase): Promise<ChangePlan[]>
+  abstract plan(stmts: Statement[]): Promise<ChangePlan[]>
 
   abstract apply(changeInfo: ChangePlan): Promise<void>
 

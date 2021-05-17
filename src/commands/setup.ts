@@ -3,7 +3,6 @@ import fg from 'fast-glob'
 import {promises as fs} from 'fs'
 import { ChangePlan, ChangeType } from '../processor';
 import { createDddlSyncProcessor } from '../util/config'
-import { VdbDatabase } from '../vdb';
 
 export default (program: Command) => {
   program.command('setup')
@@ -32,19 +31,7 @@ async function main(
     }
 
     // Test flight
-    let changes
-    const vdb = new VdbDatabase()
-    try {
-      await vdb.init()
-
-      for (const stmt of stmts) {
-        await processor.execute(vdb, stmt)
-      }
-
-      changes = await processor.plan(vdb)
-    } finally {
-      await vdb.destroy()
-    }
+    const changes = await processor.plan(stmts)
 
     // Check changes
     for (const change of changes) {
