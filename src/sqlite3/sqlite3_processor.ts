@@ -1,7 +1,8 @@
 import { knex } from "knex";
-import { AlterTableAction, AlterTableStatement, AttachDatabaseStatement, ConflictAction, CreateIndexStatement, CreateTableStatement, CreateTriggerStatement, CreateViewStatement, DetachDatabaseStatement, DropIndexStatement, DropTableStatement, DropTriggerStatement, DropViewStatement, NotNullColumnConstraint, PrimaryKeyColumnConstraint, PrimaryKeyTableConstraint, SortOrder, Statement, UniqueColumnConstraint, UniqueTableConstraint } from "../parser";
-import { ChangePlan, DdlSyncProcessor } from "../processor";
-import { Sqlite3Parser } from "./sqlite3_parser";
+import { Statement } from "../parser"
+import { AlterTableAction, AlterTableStatement, AttachDatabaseStatement, ConflictAction, CreateIndexStatement, CreateTableStatement, CreateTriggerStatement, CreateViewStatement, DetachDatabaseStatement, DropIndexStatement, DropTableStatement, DropTriggerStatement, DropViewStatement, NotNullColumnConstraint, PrimaryKeyColumnConstraint, PrimaryKeyTableConstraint, SortOrder, UniqueColumnConstraint, UniqueTableConstraint } from "./sqlite3_models";
+import { ChangePlan, DdlSyncProcessor } from "../processor"
+import { Sqlite3Parser } from "./sqlite3_parser"
 
 export default class Sqlite3Processor extends DdlSyncProcessor {
   constructor(config: { [key: string]: any }) {
