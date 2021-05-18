@@ -317,7 +317,7 @@ export abstract class ColumnConstraint {
 }
 
 export interface IExpression {
-
+  elements(): string[]
 }
 
 
@@ -738,6 +738,10 @@ export class GeneratedColumnConstraint extends ColumnConstraint {
 export class Expression implements IExpression {
   constructor(public value: Token[]) {
   }
+
+  elements() {
+    return this.value.map(token => token.text)
+  }
 }
 
 export class Reserved implements IExpression {
@@ -750,19 +754,35 @@ export class Reserved implements IExpression {
 
   constructor(public value: string) {
   }
+
+  elements() {
+    return [ this.value ]
+  }
 }
 
 export class Idnetifier implements IExpression {
   constructor(public value: string) {
+  }
+
+  elements() {
+    return [ this.value ]
   }
 }
 
 export class StringValue implements IExpression {
   constructor(public value: string) {
   }
+
+  elements() {
+    return [ `'${this.value.replace(/'/g, "''")}'` ]
+  }
 }
 
 export class NumberValue implements IExpression {
   constructor(public value: string) {
+  }
+
+  elements() {
+    return [ this.value ]
   }
 }

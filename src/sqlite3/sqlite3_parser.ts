@@ -97,11 +97,7 @@ export class Sqlite3Parser extends Parser {
     const root = []
     for (let i = 0; i === 0 || this.consumeIf(TokenType.SemiColon); i++) {
       if (this.peek() && !this.peekIf(TokenType.SemiColon)) {
-        const stmt = this.statement()
-        if ((stmt as any).schemaName && (stmt as any).temporary) {
-          throw new Error("temporary table name must be unqualified")
-        }
-        root.push(stmt)
+        root.push(this.statement())
       }
     }
     if (this.peek() != null) {

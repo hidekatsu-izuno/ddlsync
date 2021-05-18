@@ -1,7 +1,5 @@
 import { Command } from "commander"
 import pkg from "../package.json"
-
-import setupCommand from "./commands/setup"
 import planCommand from "./commands/plan"
 import applyCommand from "./commands/apply"
 import { exit } from "process"
@@ -13,7 +11,6 @@ import { exit } from "process"
     .option("--knexfile [path]", "specify the knexfile path.")
     .option("--ddl-directory [path]", "set ddl directory without a knexfile.")
 
-  setupCommand(program)
   planCommand(program)
   applyCommand(program)
 
