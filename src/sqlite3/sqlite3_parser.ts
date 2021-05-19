@@ -7,6 +7,8 @@ import {
   Lexer,
   Parser,
   Operator,
+  ParseError,
+  AggregateParseError,
 } from "../parser"
 import { AlterTableAction, AlterTableStatement, AnalyzeStatement, AttachDatabaseStatement, BeginTransactionStatement, CheckColumnConstraint, CheckTableConstraint, CollateColumnConstraint, ColumnDef, CommitTransactionStatement, ConflictAction, CreateIndexStatement, CreateTableStatement, CreateTriggerStatement, CreateViewStatement, DefaultColumnConstraint, DeleteStatement, DetachDatabaseStatement, DropIndexStatement, DropTableStatement, DropTriggerStatement, DropViewStatement, ExplainStatement, ForeignKeyTableConstraint, GeneratedColumnConstraint, IndexedColumn, InsertStatement, NotNullColumnConstraint, NullColumnConstraint, PragmaStatement, PrimaryKeyColumnConstraint, PrimaryKeyTableConstraint, ReferencesKeyColumnConstraint, ReindexStatement, ReleaseSavepointStatement, RollbackTransactionStatement, SavepointStatement, SelectStatement, SortOrder, StoreType, TransactionBehavior, UniqueColumnConstraint, UniqueTableConstraint, UpdateStatement, VacuumStatement } from "./sqlite3_models"
 
@@ -40,23 +42,51 @@ export class Sqlite3Lexer extends Lexer {
 export class Sqlite3Parser extends Parser {
   constructor(
     input: string,
-    private options: { [key: string]: any} = {}
+    options: { [key: string]: any},
   ) {
-    super(input, new Sqlite3Lexer(options))
+    super(input, new Sqlite3Lexer(options), options)
   }
 
   root() {
     const root = []
+    const errors = []
     for (let i = 0; i === 0 || this.consumeIf(TokenType.SemiColon); i++) {
       if (this.peek() && !this.peekIf(TokenType.SemiColon)) {
-        const stmt = this.statement()
-        stmt.validate()
-        root.push(stmt)
+        try {
+          const stmt = this.statement()
+          stmt.validate()
+          root.push(stmt)
+        } catch (e) {
+          if (e instanceof ParseError) {
+            errors.push(e)
+
+            // skip tokens
+            while (this.peek() && !this.peekIf(TokenType.SemiColon)) {
+              this.consume()
+            }
+          } else {
+            throw e
+          }
+        }
       }
     }
+
     if (this.peek() != null) {
-      throw this.createParseError()
+      try {
+        throw this.createParseError()
+      } catch (e) {
+        if (e instanceof ParseError) {
+          errors.push(e)
+        } else {
+          throw e
+        }
+      }
     }
+
+    if (errors.length) {
+      throw new AggregateParseError(errors, `${errors.length} error found`)
+    }
+
     return root
   }
 

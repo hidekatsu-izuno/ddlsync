@@ -20,10 +20,10 @@ async function main(
     const files = await fg(processor.config.ddlsync.include)
 
     const stmts = []
-    for (const filename of files) {
-      const contents = await fs.readFile(filename, 'utf-8')
+    for (const fileName of files) {
+      const contents = await fs.readFile(fileName, 'utf-8')
       for (const stmt of await processor.parse(contents, {
-        filename
+        fileName
       })) {
         stmts.push(stmt)
       }

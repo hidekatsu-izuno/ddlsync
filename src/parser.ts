@@ -243,7 +243,8 @@ export abstract class Parser {
 
   constructor(
     protected input: string,
-    lexer: Lexer
+    lexer: Lexer,
+    protected options: { [key: string]: any} = {},
   ) {
     this.tokens = lexer.lex(input)
   }
@@ -283,7 +284,7 @@ export abstract class Parser {
     return token
   }
 
-  createParseError() {
+  createParseError(message?: string) {
     const token = this.peek()
     const lines = this.input.substring(0, token.start).split(/\r\n?|\n/g)
     let last = lines[lines.length-1]
@@ -293,7 +294,34 @@ export abstract class Parser {
       const last2 = lines[lines.length-2].replace(/^[ \t]+/, "").substr(-16)
       last = `${last2}\u21B5 ${last}`
     }
-    return new Error(`[${rows},${cols}] Unexpected token: ${last}"${token.text}"`)
+    const fileName = this.options.fileName || ""
+    const text = message || `Unexpected token: ${last}"${token.text}"`
+    return new ParseError(
+      `${fileName}[${rows},${cols}] ${text}`,
+      fileName,
+      rows,
+      cols
+    )
+  }
+}
+
+export class AggregateParseError extends Error {
+  constructor(
+    public errors: Error[],
+    message: string
+  ) {
+    super(message)
+  }
+}
+
+export class ParseError extends Error {
+  constructor(
+    public message: string,
+    public fileName: string,
+    public lineNumber: number,
+    public columnNumber: number,
+  ) {
+    super(message)
   }
 }
 

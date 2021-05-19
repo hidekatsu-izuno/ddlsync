@@ -9,7 +9,7 @@ import { exit } from "process"
   program.name("ddlsync")
     .version(`v${pkg.version}`)
     .option("--knexfile [path]", "specify the knexfile path.")
-    .option("--ddl-directory [path]", "set ddl directory without a knexfile.")
+    .option("--ddldir [path]", "set ddl directory without a knexfile.")
 
   planCommand(program)
   applyCommand(program)
