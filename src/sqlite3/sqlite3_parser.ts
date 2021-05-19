@@ -121,16 +121,10 @@ export class Sqlite3Parser extends Parser {
         stmt.ifNotExists = true
       }
 
-      stmt.parts.get("name").start = this.pos - start
       stmt.name = this.identifier()
-      stmt.parts.get("name").end = this.pos - start
-
       if (this.consumeIf(TokenType.Dot)) {
         stmt.schemaName = stmt.name
-
-        stmt.parts.get("name").start = this.pos - start
         stmt.name = this.identifier()
-        stmt.parts.get("name").end = this.pos - start
       }
 
       if (stmt instanceof CreateTableStatement) {
@@ -149,12 +143,8 @@ export class Sqlite3Parser extends Parser {
             stmt.columns = []
             stmt.constraints = []
 
-            stmt.parts.get("column.0").start = this.pos - start
             stmt.columns.push(this.columnDef())
-            stmt.parts.get("column.0").end = this.pos - start
-
             while (this.consumeIf(TokenType.Comma)) {
-              stmt.parts.get("column." + (stmt.columns.length - 1)).end = this.pos - start
               if (
                 !this.peekIf(Keyword.CONSTRAINT) &&
                 !this.peekIf(Keyword.PRIMARY) &&
@@ -168,9 +158,7 @@ export class Sqlite3Parser extends Parser {
                 !this.peekIf(Keyword.GENERATED) &&
                 !this.peekIf(Keyword.AS)
               ) {
-                stmt.parts.get("column." + (stmt.columns.length)).start = this.pos - start
                 stmt.columns.push(this.columnDef())
-                stmt.parts.get("column." + (stmt.columns.length - 1)).end = this.pos - start
               } else {
                 stmt.constraints.push(this.tableConstraint())
                 while (this.consumeIf(TokenType.Comma)) {
@@ -188,9 +176,7 @@ export class Sqlite3Parser extends Parser {
             }
           } else if (this.consumeIf(Keyword.AS)) {
             stmt.asSelect = true
-            stmt.parts.get("select").start = this.pos - start
             this.selectClause()
-            stmt.parts.get("select").end = this.pos - start
           } else {
             throw this.createParseError()
           }
@@ -204,9 +190,7 @@ export class Sqlite3Parser extends Parser {
           }
           this.consume(TokenType.RightParen)
         }
-        stmt.parts.get("select").start = this.pos - start
         this.selectClause()
-        stmt.parts.get("select").end = this.pos - start
       } else if (stmt instanceof CreateTriggerStatement) {
         while (this.peek() && !this.peekIf(TokenType.SemiColon)) {
           if (this.consumeIf(Keyword.BEGIN)) {
@@ -235,16 +219,10 @@ export class Sqlite3Parser extends Parser {
       this.consume(Keyword.TABLE)
       stmt = new AlterTableStatement()
 
-      stmt.parts.get("name").start = this.pos - start
       stmt.name = this.identifier()
-      stmt.parts.get("name").end = this.pos - start
-
       if (this.consumeIf(TokenType.Dot)) {
         stmt.schemaName = stmt.name
-
-        stmt.parts.get("name").start = this.pos - start
         stmt.name = this.identifier()
-        stmt.parts.get("name").end = this.pos - start
       }
 
       if (this.consumeIf(Keyword.RENAME)) {
@@ -430,7 +408,7 @@ export class Sqlite3Parser extends Parser {
     if (typeof this.options.filename === "string") {
       stmt.filename = this.options.filename
     }
-    (stmt.parts as any).token = this.tokens.slice(start, this.pos)
+    stmt.tokens = this.tokens.slice(start, this.pos)
 
     return stmt
   }
@@ -487,9 +465,9 @@ export class Sqlite3Parser extends Parser {
     }
 
     if (this.consumeIf(TokenType.LeftParen)) {
-      columnDef.length = toNumberValue(this.numberValue())
+      columnDef.length = this.numberValue()
       if (this.consumeIf(TokenType.Comma)) {
-        columnDef.scale = toNumberValue(this.numberValue())
+        columnDef.scale = this.numberValue()
       }
       this.consume(TokenType.RightParen)
     }
@@ -574,7 +552,9 @@ export class Sqlite3Parser extends Parser {
           this.peekIf(Operator.MINUS) ||
           this.peekIf(TokenType.Number)
       ) {
-        constraint.expression = this.numberValue()
+        const start = this.pos
+        this.numberValue()
+        constraint.expression = this.tokens.slice(start, this.pos)
       } else {
         throw this.createParseError()
       }
@@ -736,9 +716,9 @@ export class Sqlite3Parser extends Parser {
   identifier() {
     let token, text
     if (token = this.consumeIf(TokenType.QuotedIdentifier)) {
-      text = dequote(token)
+      text = toStringValue(token)
     } else if (token = this.consumeIf(TokenType.QuotedValue)) {
-      text = dequote(token)
+      text = toStringValue(token)
     } else if (token = this.consumeIf(TokenType.Identifier)) {
       text = token.text
     } else {
@@ -750,9 +730,9 @@ export class Sqlite3Parser extends Parser {
   stringValue() {
     let token, text
     if (token = this.consumeIf(TokenType.String)) {
-      text = dequote(token)
+      text = toStringValue(token)
     } else if (token = this.consumeIf(TokenType.QuotedValue)) {
-      text = dequote(token)
+      text = toStringValue(token)
     } else {
       throw this.createParseError()
     }
@@ -760,13 +740,14 @@ export class Sqlite3Parser extends Parser {
   }
 
   numberValue() {
-    const start = this.pos
-    if (this.consumeIf(Operator.PLUS) || this.consumeIf(Operator.MINUS)) {
-      this.consume(TokenType.Number)
+    let token, text
+    if (token = (this.consumeIf(Operator.PLUS) || this.consumeIf(Operator.MINUS))) {
+      text = token.text
+      text += this.consume(TokenType.Number).text
     } else {
-      this.consume(TokenType.Number)
+      text = this.consume(TokenType.Number).text
     }
-    return this.tokens.slice(start, this.pos)
+    return new Decimal(text).toString()
   }
 
   expression() {
@@ -798,7 +779,7 @@ const ReplaceReMap: {[key: string]: RegExp} = {
   "`": /``/g,
 }
 
-function dequote(token: Token) {
+function toStringValue(token: Token) {
   let text = token.text
   if (text.length >= 2) {
     const c = text.charAt(0)
@@ -810,8 +791,4 @@ function dequote(token: Token) {
     return value
   }
   return text
-}
-
-function toNumberValue(tokens: Token[]) {
-  return new Decimal(tokens.map(token => token.text).join("")).toString()
 }

@@ -299,50 +299,9 @@ export abstract class Parser {
 
 export abstract class Statement {
   filename?: string
-  parts = new Parts()
+  tokens = new Array<Token>()
 
   abstract validate(): void
 
   abstract summary(): string
-}
-
-export class Parts {
-  private tokens = new Array<Token>()
-  private map: {[key:string]: {
-    start: number,
-    end: number,
-  }} = {}
-
-  get(key: string) {
-    let part = this.map[key]
-    if (!part) {
-      part = { start: 0, end: 0 }
-      this.map[key] = part
-    }
-    return part
-  }
-
-  concat(key: string, options: {
-    left?: boolean,
-    between?: boolean
-    right?: boolean,
-  } = {}) {
-    const part = this.map[key]
-    let text = ""
-    for (let i = part.start; i < part.end; i++) {
-      const token = this.tokens[i]
-      if (options.left || (options.between && i > 0)) {
-        for (const ws of token.before) {
-          text += ws.text
-        }
-      }
-      text += token.text
-      if (options.right && i === part.end - 1) {
-        for (const ws of token.after) {
-          text += ws.text
-        }
-      }
-    }
-    return text
-  }
 }

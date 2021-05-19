@@ -84,22 +84,16 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
       throw new Error(`[plan] ${schema[stmt.name].type} ${stmt.name} already exists`)
     }
 
+    if (stmt.asSelect) {
+      throw Error(`[plan] create table as select statement is not supported`)
+    }
+
     const table = {
       index,
       type: "table",
       name: stmt.name,
       virtual: !!stmt.virtual,
       columns: stmt.columns?.map(column => column.name),
-
-      parts: {
-        name: stmt.parts.concat("name", { between: true }),
-        first: stmt.parts.concat("first", { left: true, between: true }),
-        columns: (stmt.columns?.map((column, index) => {
-          return stmt.parts.concat("column" + index, { left: true, between: true })
-        })),
-        last: stmt.parts.concat("last", { left: true, between: true }),
-      },
-
       dropped: false,
     }
     schema.objects[lc(table.name)] = table
@@ -107,30 +101,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
   }
 
   private handleAlterTableStatement(index: number, stmt: AlterTableStatement, vdb: any) {
-    const schemaName = stmt.schemaName || (vdb.temp[lc(stmt.name)] && !vdb.temp[lc(stmt.name)].dropped ? "temp" : "main")
-    const schema = vdb.schemas[lc(schemaName)]
-    if (!schema) {
-      throw new Error(`[plan] unknown database ${schemaName}.${stmt.name}`)
-    }
-
-    const object = schema.objects[lc(stmt.name)]
-    if (!object || object.dropped || object.type !== "table") {
-      throw new Error(`[plan] no such table: ${schemaName}.${stmt.name}`)
-    }
-
-    const table = object
-    if (stmt.alterTableAction === AlterTableAction.RENAME_TABLE) {
-      table.name = stmt.newTableName
-    } else if (stmt.alterTableAction === AlterTableAction.ADD_COLUMN) {
-
-    } else if (stmt.alterTableAction === AlterTableAction.RENAME_COLUMN) {
-
-    } else if (stmt.alterTableAction === AlterTableAction.DROP_COLUMN) {
-
-    } else {
-      throw Error(`[plan] unrecognized alter action: ${schemaName}.${stmt.name}`)
-    }
-    return table
+    throw Error(`[plan] alter table statement is not supported`)
   }
 
   private handleDropTableStatement(index: number, stmt: DropTableStatement, vdb: any) {
@@ -141,17 +112,19 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     }
 
     const object = schema.objects[lc(stmt.name)]
-    if ((!object || object.dropped) && stmt.ifExists) {
-      const table = {
-        index,
-        type: "table",
-        name: stmt.name,
-        dropped: true,
+    if (!object || object.dropped) {
+      if (stmt.ifExists) {
+        const table = {
+          index,
+          type: "table",
+          name: stmt.name,
+          dropped: true,
+        }
+        schema.objects[lc(stmt.name)] = table
+        return table
       }
-      schema.objects[lc(stmt.name)] = table
-      return table
-    }
-    if (!object || object.dropped || object.type !== "table") {
+      throw new Error(`[plan] no such table: ${stmt.name}`)
+    } else if (object.type !== "table") {
       throw new Error(`[plan] no such table: ${stmt.name}`)
     }
 
@@ -193,17 +166,19 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     }
 
     const object = schema.objects[lc(stmt.name)]
-    if ((!object || object.dropped) && stmt.ifExists) {
-      const view = {
-        index,
-        type: "view",
-        name: stmt.name,
-        dropped: true,
+    if (!object || object.dropped) {
+      if (stmt.ifExists) {
+        const table = {
+          index,
+          type: "view",
+          name: stmt.name,
+          dropped: true,
+        }
+        schema.objects[lc(stmt.name)] = table
+        return table
       }
-      schema.objects[lc(stmt.name)] = view
-      return view
-    }
-    if (!object || object.dropped || object.type !== "view") {
+      throw new Error(`[plan] no such view: ${stmt.name}`)
+    } else if (object.type !== "view") {
       throw new Error(`[plan] no such view: ${stmt.name}`)
     }
 
@@ -245,17 +220,19 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     }
 
     const object = schema.objects[lc(stmt.name)]
-    if ((!object || object.dropped) && stmt.ifExists) {
-      const trigger = {
-        index,
-        type: "trigger",
-        name: stmt.name,
-        dropped: true,
+    if (!object || object.dropped) {
+      if (stmt.ifExists) {
+        const table = {
+          index,
+          type: "trigger",
+          name: stmt.name,
+          dropped: true,
+        }
+        schema.objects[lc(stmt.name)] = table
+        return table
       }
-      schema.objects[lc(stmt.name)] = trigger
-      return trigger
-    }
-    if (!object || object.dropped || object.type !== "trigger") {
+      throw new Error(`[plan] no such trigger: ${stmt.name}`)
+    } else if (object.type !== "trigger") {
       throw new Error(`[plan] no such trigger: ${stmt.name}`)
     }
 
