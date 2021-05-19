@@ -8,11 +8,6 @@ export abstract class ColumnConstraint {
   name?: string
 }
 
-export interface IExpression {
-  elements(): string[]
-}
-
-
 export enum AlterTableAction {
   RENAME_TABLE = "RENAME_TABLE",
   RENAME_COLUMN = "RENAME_COLUMN",
@@ -49,6 +44,9 @@ export class ExplainStatement extends Statement {
     super()
   }
 
+  validate() {
+  }
+
   summary() {
     return "EXPLAIN"
   }
@@ -60,12 +58,36 @@ export class CreateTableStatement extends Statement {
   temporary = false
   virtual = false
   ifNotExists = false
+  asSelect = false
   withoutRowid = false
   columns?: ColumnDef[]
   constraints?: TableConstraint[]
-  select?: Token[]
-  moduleName?: string = ""
+  moduleName?: string
   moduleArgs?: string[]
+
+  validate() {
+    if (this.temporary && this.schemaName) {
+      throw new Error("temporary table name must be unqualified")
+    }
+
+    let pkeyCount = 0
+    this.columns?.forEach(column => column.constraints?.forEach(constraint => {
+      if (constraint instanceof PrimaryKeyColumnConstraint) {
+        pkeyCount++
+      }
+    }))
+    this.constraints?.forEach(constraint => {
+      if (constraint instanceof PrimaryKeyTableConstraint) {
+        pkeyCount++
+      }
+    })
+    if (pkeyCount > 1) {
+      throw new Error(`Table ${this.name} has has more than one primary key`)
+    }
+    if (this.withoutRowid && pkeyCount === 0) {
+      throw new Error(`PRIMARY KEY missing on table ${this.name}`)
+    }
+  }
 
   summary() {
     return "CREATE " +
@@ -77,31 +99,18 @@ export class CreateTableStatement extends Statement {
   }
 }
 
-export class CreateIndexStatement extends Statement {
-  schemaName?: string
-  name = ""
-  tableName = ""
-  unique = false
-  ifNotExists = false
-  columns = new Array<IndexedColumn>()
-  where?: Token[]
-
-  summary() {
-    return "CREATE " +
-      (this.unique ? "UNIQUE " : "") +
-      "INDEX " +
-      (this.schemaName ? this.schemaName + "." : "") +
-      this.name + " " +
-      "ON " + this.tableName
-  }
-}
-
 export class CreateViewStatement extends Statement {
   schemaName?: string
   name = ""
   temporary = false
   ifNotExists = false
-  select = new Array<Token>()
+  columns?: string[]
+
+  validate() {
+    if (this.temporary && this.schemaName) {
+      throw new Error("temporary table name must be unqualified")
+    }
+  }
 
   summary() {
     return "CREATE " +
@@ -117,7 +126,12 @@ export class CreateTriggerStatement extends Statement {
   name = ""
   temporary = false
   ifNotExists = false
-  body = new Array<Token>()
+
+  validate() {
+    if (this.temporary && this.schemaName) {
+      throw new Error("temporary table name must be unqualified")
+    }
+  }
 
   summary() {
     return "CREATE " +
@@ -125,6 +139,27 @@ export class CreateTriggerStatement extends Statement {
       "TRIGGER " +
       (this.schemaName ? this.schemaName + "." : "") +
       this.name + " "
+  }
+}
+
+export class CreateIndexStatement extends Statement {
+  schemaName?: string
+  name = ""
+  tableName = ""
+  unique = false
+  ifNotExists = false
+  columns = new Array<IndexedColumn>()
+
+  validate() {
+  }
+
+  summary() {
+    return "CREATE " +
+      (this.unique ? "UNIQUE " : "") +
+      "INDEX " +
+      (this.schemaName ? this.schemaName + "." : "") +
+      this.name + " " +
+      "ON " + this.tableName
   }
 }
 
@@ -136,6 +171,9 @@ export class AlterTableStatement extends Statement {
   columnName?: string
   newColumnName?: string
   newColumn?: ColumnDef
+
+  validate() {
+  }
 
   summary() {
     return "ALTER TABLE " +
@@ -155,6 +193,9 @@ export class DropTableStatement extends Statement {
   name: string = ""
   ifExists = false
 
+  validate() {
+  }
+
   summary() {
     return "DROP TABLE " +
       (this.schemaName ? this.schemaName + "." : "") +
@@ -166,6 +207,9 @@ export class DropIndexStatement extends Statement {
   schemaName?: string
   name = ""
   ifExists = false
+
+  validate() {
+  }
 
   summary() {
     return "DROP INDEX " +
@@ -179,6 +223,9 @@ export class DropViewStatement extends Statement {
   name = ""
   ifExists = false
 
+  validate() {
+  }
+
   summary() {
     return "DROP VIEW " +
       (this.schemaName ? this.schemaName + "." : "") +
@@ -191,6 +238,9 @@ export class DropTriggerStatement extends Statement {
   name = ""
   ifExists = false
 
+  validate() {
+  }
+
   summary() {
     return "DROP TRIGGER " +
       (this.schemaName ? this.schemaName + "." : "") +
@@ -201,6 +251,9 @@ export class DropTriggerStatement extends Statement {
 export class ReindexStatement extends Statement {
   schemaName?: string
   name = ""
+
+  validate() {
+  }
 
   summary() {
     return "REINDEX " +
@@ -213,6 +266,9 @@ export class AnalyzeStatement extends Statement {
   schemaName?: string
   name = ""
 
+  validate() {
+  }
+
   summary() {
     return "ANALYZE " +
       (this.schemaName ? this.schemaName + "." : "") +
@@ -222,7 +278,10 @@ export class AnalyzeStatement extends Statement {
 
 export class AttachDatabaseStatement extends Statement {
   name = ""
-  expression: IExpression = Reserved.NULL
+  expression = new Array<Token>()
+
+  validate() {
+  }
 
   summary() {
     return "ATTACHE DATABASE " +
@@ -233,6 +292,9 @@ export class AttachDatabaseStatement extends Statement {
 export class DetachDatabaseStatement extends Statement {
   name = ""
 
+  validate() {
+  }
+
   summary() {
     return "DETACHE DATABASE " +
       this.name
@@ -242,6 +304,9 @@ export class DetachDatabaseStatement extends Statement {
 export class BeginTransactionStatement extends Statement {
   transactionBehavior = TransactionBehavior.DEFERRED
 
+  validate() {
+  }
+
   summary() {
     return "BEGIN TRANSACTION"
   }
@@ -249,6 +314,9 @@ export class BeginTransactionStatement extends Statement {
 
 export class SavepointStatement extends Statement {
   name: string = ""
+
+  validate() {
+  }
 
   summary() {
     return "SAVEPOINT " +
@@ -259,6 +327,9 @@ export class SavepointStatement extends Statement {
 export class ReleaseSavepointStatement extends Statement {
   savePointName = ""
 
+  validate() {
+  }
+
   summary() {
     return "RELEASE SAVEPOINT " +
       this.savePointName
@@ -266,6 +337,9 @@ export class ReleaseSavepointStatement extends Statement {
 }
 
 export class CommitTransactionStatement extends Statement {
+  validate() {
+  }
+
   summary() {
     return "COMMIT TRANSACTION"
   }
@@ -273,6 +347,9 @@ export class CommitTransactionStatement extends Statement {
 
 export class RollbackTransactionStatement extends Statement {
   savePointName?: string
+
+  validate() {
+  }
 
   summary() {
     return "ROLLBACK TRANSACTION" +
@@ -284,6 +361,9 @@ export class VacuumStatement extends Statement {
   schemaName?: string
   fileName?: string
 
+  validate() {
+  }
+
   summary() {
     return "VACUUM" +
       (this.schemaName ? " " + this.schemaName : "")
@@ -293,7 +373,10 @@ export class VacuumStatement extends Statement {
 export class PragmaStatement extends Statement {
   schemaName?: string
   name = ""
-  value?: IExpression
+  value?: Token[]
+
+  validate() {
+  }
 
   summary() {
     return (this.value ? " SET" : " GET") +
@@ -307,8 +390,9 @@ export class InsertStatement extends Statement {
   schemaName?: string
   name = ""
   conflictAction = ConflictAction.ABORT
-  withClause?: Token[]
-  body = new Array<Token>()
+
+  validate() {
+  }
 
   summary() {
     return "INSERT INTO " +
@@ -321,8 +405,9 @@ export class UpdateStatement extends Statement {
   schemaName?: string
   name = ""
   conflictAction = ConflictAction.ABORT
-  withClause?: Token[]
-  body = new Array<Token>()
+
+  validate() {
+  }
 
   summary() {
     return "UPDATE " +
@@ -334,8 +419,9 @@ export class UpdateStatement extends Statement {
 export class DeleteStatement extends Statement {
   schemaName?: string
   name = ""
-  withClause?: Token[]
-  body = new Array<Token>()
+
+  validate() {
+  }
 
   summary() {
     return "DELETE FROM " +
@@ -345,7 +431,8 @@ export class DeleteStatement extends Statement {
 }
 
 export class SelectStatement extends Statement {
-  body = new Array<Token>()
+  validate() {
+  }
 
   summary() {
     return "SELECT"
@@ -355,13 +442,13 @@ export class SelectStatement extends Statement {
 export class ColumnDef {
   name = ""
   typeName = "TEXT"
-  length?: NumberValue
-  scale?: NumberValue
+  length?: string
+  scale?: string
   constraints = new Array<ColumnConstraint>()
 }
 
 export class IndexedColumn {
-  expression: IExpression = Reserved.NULL
+  expression = new Array<Token>()
   sortOrder = SortOrder.ASC
 }
 
@@ -406,7 +493,7 @@ export class CheckColumnConstraint extends ColumnConstraint {
 }
 
 export class DefaultColumnConstraint extends ColumnConstraint {
-  expression: IExpression = Reserved.NULL
+  expression = new Array<Token>()
 }
 
 export class CollateColumnConstraint extends ColumnConstraint {
@@ -419,58 +506,6 @@ export class ReferencesKeyColumnConstraint extends ColumnConstraint {
 }
 
 export class GeneratedColumnConstraint extends ColumnConstraint {
-  expression: IExpression = Reserved.NULL
+  expression = new Array<Token>()
   storeType = StoreType.VIRTUAL
-}
-
-export class Expression implements IExpression {
-  constructor(public value: Token[]) {
-  }
-
-  elements() {
-    return this.value.map(token => token.text)
-  }
-}
-
-export class Reserved implements IExpression {
-  static NULL = new Reserved("NULL")
-  static TRUE = new Reserved("TRUE")
-  static FALSE = new Reserved("FALSE")
-  static CURRENT_DATE = new Reserved("CURRENT_DATE")
-  static CURRENT_TIME = new Reserved("CURRENT_TIME")
-  static CURRENT_TIMESTAMP = new Reserved("CURRENT_TIMESTAMP")
-
-  constructor(public value: string) {
-  }
-
-  elements() {
-    return [ this.value ]
-  }
-}
-
-export class Idnetifier implements IExpression {
-  constructor(public value: string) {
-  }
-
-  elements() {
-    return [ this.value ]
-  }
-}
-
-export class StringValue implements IExpression {
-  constructor(public value: string) {
-  }
-
-  elements() {
-    return [ `'${this.value.replace(/'/g, "''")}'` ]
-  }
-}
-
-export class NumberValue implements IExpression {
-  constructor(public value: string) {
-  }
-
-  elements() {
-    return [ this.value ]
-  }
 }

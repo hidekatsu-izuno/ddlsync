@@ -1,8 +1,9 @@
 import { knex } from "knex";
-import { Statement } from "../parser"
+import { Statement, Token } from "../parser"
 import { AlterTableAction, AlterTableStatement, AttachDatabaseStatement, ConflictAction, CreateIndexStatement, CreateTableStatement, CreateTriggerStatement, CreateViewStatement, DetachDatabaseStatement, DropIndexStatement, DropTableStatement, DropTriggerStatement, DropViewStatement, NotNullColumnConstraint, PrimaryKeyColumnConstraint, PrimaryKeyTableConstraint, SortOrder, UniqueColumnConstraint, UniqueTableConstraint } from "./sqlite3_models";
 import { ChangePlan, DdlSyncProcessor } from "../processor"
 import { Sqlite3Parser } from "./sqlite3_parser"
+import { lc } from "../util/functions";
 
 export default class Sqlite3Processor extends DdlSyncProcessor {
   constructor(config: { [key: string]: any }) {
@@ -70,115 +71,54 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
 
   private handleCreateTableStatement(index: number, stmt: CreateTableStatement, vdb: any) {
     const schemaName = stmt.schemaName || (stmt.temporary ? "temp" : "main")
-    const schema = vdb.schemas[schemaName]
+    const schema = vdb.schemas[lc(schemaName)]
     if (!schema) {
       throw new Error(`[plan] unknown database ${stmt.name}`)
     }
-    if (stmt.temporary && schema !== "temp") {
-      throw new Error("temporary table name must be unqualified")
-    }
-    if (schema[stmt.name]) {
+
+    const object = schema.objects[lc(stmt.name)]
+    if (object) {
+      if (object.dropped) {
+        throw new Error(`[plan] table ${schemaName}.${stmt.name} is defined multiple times`)
+      }
       throw new Error(`[plan] ${schema[stmt.name].type} ${stmt.name} already exists`)
-    }
-    if (schema[stmt.name].dropped) {
-      throw new Error(`[plan] table ${schemaName}.${stmt.name} define multiple times`)
     }
 
     const table = {
       index,
       type: "table",
       name: stmt.name,
-      temporary: !!stmt.temporary,
       virtual: !!stmt.virtual,
-      dropped: false,
-    } as any
-    if (stmt.virtual) {
-      table.moduleName = stmt.moduleName
-      table.moduleArgs = stmt.moduleArgs || []
-    } else if (stmt.select) {
-      table.select = stmt.select.map(token => token.text)
-    } else {
-      let pkeyCount = 0
-      table.columns = (stmt.columns || []).map(column => ({
-        name: column.name,
-        typeName: column.typeName,
-        length: column.length,
-        scale: column.scale,
-        columns: (column.constraints || []).map(constraint => {
-          if (constraint instanceof PrimaryKeyColumnConstraint) {
-            pkeyCount++
-            return {
-              type: "primarykey",
-              autoIncrement: constraint.autoIncrement,
-              conflictAction: constraint.conflictAction,
-              columns: [
-                { expression: [ column.name ], sortOrder: constraint.sortOrder }
-              ]
-            }
-          } else if (constraint instanceof UniqueColumnConstraint) {
-            return {
-              type: "unique",
-              conflictAction: constraint.conflictAction,
-              columns: [
-                { expression: [ column.name ], sortOrder: SortOrder.ASC }
-              ]
-            }
-          } else if (constraint instanceof NotNullColumnConstraint) {
-            return {
-              type: "notnull",
-              conflictAction: constraint.conflictAction
-            }
-          }
-        }),
-        constraints: (stmt.constraints || []).map(constraint => {
-          if (constraint instanceof PrimaryKeyTableConstraint) {
-            pkeyCount++
-            return {
-              type: "primarykey",
-              constraintName: constraint.name,
-              conflictAction: constraint.conflictAction,
-              columns: constraint.columns.map(tccolumn => ({
-                name: tccolumn.expression.elements(),
-                sortOrder: tccolumn.sortOrder,
-              })),
-            }
-          } else if (constraint instanceof UniqueTableConstraint) {
-            return {
-              type: "unique",
-              constraintName: constraint.name,
-              conflictAction: constraint.conflictAction,
-              columns: constraint.columns.map(tccolumn => ({
-                name: tccolumn.expression.elements(),
-                sortOrder: tccolumn.sortOrder,
-              })),
-            }
-          }
-        }),
-        dropped: false,
-      }))
+      columns: stmt.columns?.map(column => column.name),
 
-      if (pkeyCount > 1) {
-        throw new Error(`Table ${table.name} has has more than one primary key`)
-      }
-      if (stmt.withoutRowid && pkeyCount === 0) {
-        throw new Error(`PRIMARY KEY missing on table ${table.name}`)
-      }
+      parts: {
+        name: stmt.parts.concat("name", { between: true }),
+        first: stmt.parts.concat("first", { left: true, between: true }),
+        columns: (stmt.columns?.map((column, index) => {
+          return stmt.parts.concat("column" + index, { left: true, between: true })
+        })),
+        last: stmt.parts.concat("last", { left: true, between: true }),
+      },
+
+      dropped: false,
     }
-    schema.objects[stmt.name] = table
+    schema.objects[lc(table.name)] = table
     return table
   }
 
   private handleAlterTableStatement(index: number, stmt: AlterTableStatement, vdb: any) {
-    const schemaName = stmt.schemaName || (vdb.temp[stmt.name] && !vdb.temp[stmt.name].dropped ? "temp" : "main")
-    const schema = vdb.schemas[schemaName]
+    const schemaName = stmt.schemaName || (vdb.temp[lc(stmt.name)] && !vdb.temp[lc(stmt.name)].dropped ? "temp" : "main")
+    const schema = vdb.schemas[lc(schemaName)]
     if (!schema) {
       throw new Error(`[plan] unknown database ${schemaName}.${stmt.name}`)
     }
-    if (!schema[stmt.name] || schema[stmt.name].dropped || schema[stmt.name].type !== "table") {
+
+    const object = schema.objects[lc(stmt.name)]
+    if (!object || object.dropped || object.type !== "table") {
       throw new Error(`[plan] no such table: ${schemaName}.${stmt.name}`)
     }
 
-    const table = schema[stmt.name]
+    const table = object
     if (stmt.alterTableAction === AlterTableAction.RENAME_TABLE) {
       table.name = stmt.newTableName
     } else if (stmt.alterTableAction === AlterTableAction.ADD_COLUMN) {
@@ -194,80 +134,80 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
   }
 
   private handleDropTableStatement(index: number, stmt: DropTableStatement, vdb: any) {
-    const schemaName = stmt.schemaName || (vdb.temp[stmt.name] && !vdb.temp[stmt.name].dropped ? "temp" : "main")
-    const schema = vdb.schemas[schemaName]
+    const schemaName = stmt.schemaName || (vdb.temp[lc(stmt.name)] && !vdb.temp[lc(stmt.name)].dropped ? "temp" : "main")
+    const schema = vdb.schemas[lc(schemaName)]
     if (!schema) {
       throw new Error(`[plan] unknown database ${stmt.name}`)
     }
 
-    if ((!schema[stmt.name] || schema[stmt.name].dropped) && stmt.ifExists) {
+    const object = schema.objects[lc(stmt.name)]
+    if ((!object || object.dropped) && stmt.ifExists) {
       const table = {
         index,
         type: "table",
         name: stmt.name,
         dropped: true,
       }
-      schema[stmt.name] = table
+      schema.objects[lc(stmt.name)] = table
       return table
     }
-    if (!schema[stmt.name] || schema[stmt.name].dropped || schema[stmt.name].type !== "table") {
+    if (!object || object.dropped || object.type !== "table") {
       throw new Error(`[plan] no such table: ${stmt.name}`)
     }
 
-    const table = schema[stmt.name]
+    const table = object
     table.dropped = true
     return table
   }
 
   private handleCreateViewStatement(index: number, stmt: CreateViewStatement, vdb: any) {
     const schemaName = stmt.schemaName || (stmt.temporary ? "temp" : "main")
-    const schema = vdb.schemas[schemaName]
+    const schema = vdb.schemas[lc(schemaName)]
     if (!schema) {
       throw new Error(`[plan] unknown database ${stmt.name}`)
     }
-    if (stmt.temporary && schema !== "temp") {
-      throw new Error("temporary table name must be unqualified")
-    }
-    if (schema[stmt.name]) {
+
+    const object = schema.objects[lc(stmt.name)]
+    if (object) {
+      if (object.dropped) {
+        throw new Error(`[plan] view ${schemaName}.${stmt.name} define multiple times`)
+      }
       throw new Error(`[plan] ${schema[stmt.name].type} ${stmt.name} already exists`)
-    }
-    if (schema[stmt.name].dropped) {
-      throw new Error(`[plan] view ${schemaName}.${stmt.name} define multiple times`)
     }
 
     const view = {
       index,
       type: "view",
       name: stmt.name,
-      temporary: !!stmt.temporary,
       dropped: false,
     }
-    schema[stmt.name] = view
+    schema.objects[lc(stmt.name)] = view
     return view
   }
 
   private handleDropViewStatement(index: number, stmt: DropViewStatement, vdb: any) {
     const schemaName = stmt.schemaName || (vdb.temp[stmt.name] && !vdb.temp[stmt.name].dropped ? "temp" : "main")
-    const schema = vdb.schemas[schemaName]
+    const schema = vdb.schemas[lc(schemaName)]
     if (!schema) {
       throw new Error(`[plan] unknown database ${stmt.name}`)
     }
 
-    if ((!schema[stmt.name] || schema[stmt.name].dropped) && stmt.ifExists) {
+    const object = schema.objects[lc(stmt.name)]
+    if ((!object || object.dropped) && stmt.ifExists) {
       const view = {
         index,
         type: "view",
         name: stmt.name,
         dropped: true,
       }
-      schema[stmt.name] = view
+      schema.objects[lc(stmt.name)] = view
       return view
     }
-    if (!schema[stmt.name] || schema[stmt.name].dropped || schema[stmt.name].type !== "view") {
+    if (!object || object.dropped || object.type !== "view") {
       throw new Error(`[plan] no such view: ${stmt.name}`)
     }
 
-    const view = schema[stmt.name]
+    const view = object
     view.dropped = true
     return view
   }
@@ -278,13 +218,12 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     if (!schema) {
       throw new Error(`[plan] unknown database ${stmt.name}`)
     }
-    if (stmt.temporary && schema !== "temp") {
-      throw new Error("temporary table name must be unqualified")
-    }
-    if (schema[stmt.name]) {
+
+    const object = schema.objects[lc(stmt.name)]
+    if (object) {
       throw new Error(`[plan] ${schema[stmt.name].type} ${stmt.name} already exists`)
     }
-    if (schema[stmt.name].dropped) {
+    if (object.dropped) {
       throw new Error(`[plan] trigger ${schemaName}.${stmt.name} define multiple times`)
     }
 
@@ -292,10 +231,9 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
       index,
       type: "trigger",
       name: stmt.name,
-      temporary: !!stmt.temporary,
       dropped: false,
     }
-    schema[stmt.name] = trigger
+    schema.objects[lc(stmt.name)] = trigger
     return trigger
   }
 
@@ -306,21 +244,22 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
       throw new Error(`[plan] unknown database ${stmt.name}`)
     }
 
-    if ((!schema[stmt.name] || schema[stmt.name].dropped) && stmt.ifExists) {
+    const object = schema.objects[lc(stmt.name)]
+    if ((!object || object.dropped) && stmt.ifExists) {
       const trigger = {
         index,
         type: "trigger",
         name: stmt.name,
         dropped: true,
       }
-      schema[stmt.name] = trigger
+      schema.objects[lc(stmt.name)] = trigger
       return trigger
     }
-    if (!schema[stmt.name] || schema[stmt.name].dropped || schema[stmt.name].type !== "trigger") {
+    if (!object || object.dropped || object.type !== "trigger") {
       throw new Error(`[plan] no such trigger: ${stmt.name}`)
     }
 
-    const trigger = schema[stmt.name]
+    const trigger = object
     trigger.dropped = true
     return trigger
   }
