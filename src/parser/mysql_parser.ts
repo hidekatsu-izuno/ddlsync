@@ -3,15 +3,10 @@ import {
   Token,
   Lexer,
   Parser,
-  Expression,
-  Idnetifier,
-  StringValue,
-  NumberValue,
-  IExpression,
 } from "../parser"
 import { Reserved } from "./mysql_models"
 import semver from "semver"
-import escapeRegExp from "lodash.escaperegexp"
+import { escapeRegExp } from "../util/functions"
 
 export class MysqlLexer extends Lexer {
   private delimiter = /;/y

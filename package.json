@@ -30,7 +30,6 @@
     "fast-glob": "^3.2.5",
     "interpret": "^2.2.0",
     "knex": "^0.95.4",
-    "lodash.escaperegexp": "^4.1.2",
     "rechoir": "^0.7.0",
     "semver": "^7.3.5",
     "sqlite3": "^5.0.2",
@@ -39,7 +38,6 @@
   "devDependencies": {
     "@types/interpret": "^1.1.1",
     "@types/jest": "^26.0.23",
-    "@types/lodash.escaperegexp": "^4.1.6",
     "@types/node": "^15.0.2",
     "@types/semver": "^7.3.5",
     "@typescript-eslint/eslint-plugin": "^4.22.1",

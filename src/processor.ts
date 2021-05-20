@@ -16,11 +16,3 @@ export abstract class DdlSyncProcessor {
     await this.con.destroy()
   }
 }
-
-export enum ChangeType {
-  CREATE,
-  ALTER,
-  DROP,
-  EXECUTE,
-  SKIP,
-}
