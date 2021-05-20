@@ -102,43 +102,34 @@ export class Sqlite3Parser extends Parser {
     }
 
     let stmt
-
-    const definition = new Array<Token>()
-    function addPrefix(token: Token | null) {
-      if (token) {
-        definition.push(new Token(token.type, token.text.toUpperCase(), token.start, token.end))
-      }
-      return token
-    }
-
-    if (addPrefix(this.consumeIf(Keyword.CREATE))) {
+    if (this.consumeIf(Keyword.CREATE)) {
       if (this.consumeIf(Keyword.TEMP) || this.consumeIf(Keyword.TEMPORARY)) {
-        if (addPrefix(this.consumeIf(Keyword.TABLE))) {
+        if (this.consumeIf(Keyword.TABLE)) {
           stmt = new CreateTableStatement()
           stmt.temporary = true
-        } else if (addPrefix(this.consumeIf(Keyword.VIEW))) {
+        } else if (this.consumeIf(Keyword.VIEW)) {
           stmt = new CreateViewStatement()
           stmt.temporary = true
-        } else if (addPrefix(this.consumeIf(Keyword.TRIGGER))) {
+        } else if (this.consumeIf(Keyword.TRIGGER)) {
           stmt = new CreateTriggerStatement()
           stmt.temporary = true
         } else {
           throw this.createParseError()
         }
-      } else if (addPrefix(this.consumeIf(Keyword.VIRTUAL))) {
-        addPrefix(this.consume(Keyword.TABLE))
+      } else if (this.consumeIf(Keyword.VIRTUAL)) {
+        this.consume(Keyword.TABLE)
         stmt = new CreateTableStatement()
         stmt.virtual = true
-      } else if (addPrefix(this.consumeIf(Keyword.TABLE))) {
+      } else if (this.consumeIf(Keyword.TABLE)) {
         stmt = new CreateTableStatement()
-      } else if (addPrefix(this.consumeIf(Keyword.VIEW))) {
+      } else if (this.consumeIf(Keyword.VIEW)) {
         stmt = new CreateViewStatement()
-      } else if (addPrefix(this.consumeIf(Keyword.TRIGGER))) {
+      } else if (this.consumeIf(Keyword.TRIGGER)) {
         stmt = new CreateTriggerStatement()
-      } else if (addPrefix(this.consumeIf(Keyword.INDEX))) {
+      } else if (this.consumeIf(Keyword.INDEX)) {
         stmt = new CreateIndexStatement()
-      } else if (addPrefix(this.consumeIf(Keyword.UNIQUE))) {
-        addPrefix(this.consume(Keyword.INDEX))
+      } else if (this.consumeIf(Keyword.UNIQUE)) {
+        this.consume(Keyword.INDEX)
         stmt = new CreateIndexStatement()
         stmt.unique = true
       } else {

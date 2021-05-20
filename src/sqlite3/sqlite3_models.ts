@@ -39,16 +39,28 @@ export enum TransactionBehavior {
   EXCLUSIVE = "EXCLUSIVE",
 }
 
-export class ExplainStatement extends Statement {
-  constructor(public statement: Statement) {
-    super()
-  }
+export class AttachDatabaseStatement extends Statement {
+  name = ""
+  expression = new Array<Token>()
 
   validate() {
   }
 
   summary() {
-    return "EXPLAIN"
+    return "ATTACHE DATABASE " +
+      this.name
+  }
+}
+
+export class DetachDatabaseStatement extends Statement {
+  name = ""
+
+  validate() {
+  }
+
+  summary() {
+    return "DETACHE DATABASE " +
+      this.name
   }
 }
 
@@ -99,70 +111,6 @@ export class CreateTableStatement extends Statement {
   }
 }
 
-export class CreateViewStatement extends Statement {
-  schemaName?: string
-  name = ""
-  temporary = false
-  ifNotExists = false
-  columns?: string[]
-
-  validate() {
-    if (this.temporary && this.schemaName) {
-      throw new Error("temporary table name must be unqualified")
-    }
-  }
-
-  summary() {
-    return "CREATE " +
-      (this.temporary ? "TEMPORARY " : "") +
-      "VIEW " +
-      (this.schemaName ? this.schemaName + "." : "") +
-      this.name + " "
-  }
-}
-
-export class CreateTriggerStatement extends Statement {
-  schemaName?: string
-  name = ""
-  temporary = false
-  ifNotExists = false
-
-  validate() {
-    if (this.temporary && this.schemaName) {
-      throw new Error("temporary table name must be unqualified")
-    }
-  }
-
-  summary() {
-    return "CREATE " +
-      (this.temporary ? "TEMPORARY " : "") +
-      "TRIGGER " +
-      (this.schemaName ? this.schemaName + "." : "") +
-      this.name + " "
-  }
-}
-
-export class CreateIndexStatement extends Statement {
-  schemaName?: string
-  name = ""
-  tableName = ""
-  unique = false
-  ifNotExists = false
-  columns = new Array<IndexedColumn>()
-
-  validate() {
-  }
-
-  summary() {
-    return "CREATE " +
-      (this.unique ? "UNIQUE " : "") +
-      "INDEX " +
-      (this.schemaName ? this.schemaName + "." : "") +
-      this.name + " " +
-      "ON " + this.tableName
-  }
-}
-
 export class AlterTableStatement extends Statement {
   schemaName?: string
   name = ""
@@ -203,18 +151,25 @@ export class DropTableStatement extends Statement {
   }
 }
 
-export class DropIndexStatement extends Statement {
+export class CreateViewStatement extends Statement {
   schemaName?: string
   name = ""
-  ifExists = false
+  temporary = false
+  ifNotExists = false
+  columns?: string[]
 
   validate() {
+    if (this.temporary && this.schemaName) {
+      throw new Error("temporary table name must be unqualified")
+    }
   }
 
   summary() {
-    return "DROP INDEX " +
+    return "CREATE " +
+      (this.temporary ? "TEMPORARY " : "") +
+      "VIEW " +
       (this.schemaName ? this.schemaName + "." : "") +
-      this.name
+      this.name + " "
   }
 }
 
@@ -233,6 +188,27 @@ export class DropViewStatement extends Statement {
   }
 }
 
+export class CreateTriggerStatement extends Statement {
+  schemaName?: string
+  name = ""
+  temporary = false
+  ifNotExists = false
+
+  validate() {
+    if (this.temporary && this.schemaName) {
+      throw new Error("temporary table name must be unqualified")
+    }
+  }
+
+  summary() {
+    return "CREATE " +
+      (this.temporary ? "TEMPORARY " : "") +
+      "TRIGGER " +
+      (this.schemaName ? this.schemaName + "." : "") +
+      this.name + " "
+  }
+}
+
 export class DropTriggerStatement extends Statement {
   schemaName?: string
   name = ""
@@ -243,6 +219,42 @@ export class DropTriggerStatement extends Statement {
 
   summary() {
     return "DROP TRIGGER " +
+      (this.schemaName ? this.schemaName + "." : "") +
+      this.name
+  }
+}
+
+export class CreateIndexStatement extends Statement {
+  schemaName?: string
+  name = ""
+  tableName = ""
+  unique = false
+  ifNotExists = false
+  columns = new Array<IndexedColumn>()
+
+  validate() {
+  }
+
+  summary() {
+    return "CREATE " +
+      (this.unique ? "UNIQUE " : "") +
+      "INDEX " +
+      (this.schemaName ? this.schemaName + "." : "") +
+      this.name + " " +
+      "ON " + this.tableName
+  }
+}
+
+export class DropIndexStatement extends Statement {
+  schemaName?: string
+  name = ""
+  ifExists = false
+
+  validate() {
+  }
+
+  summary() {
+    return "DROP INDEX " +
       (this.schemaName ? this.schemaName + "." : "") +
       this.name
   }
@@ -272,31 +284,6 @@ export class AnalyzeStatement extends Statement {
   summary() {
     return "ANALYZE " +
       (this.schemaName ? this.schemaName + "." : "") +
-      this.name
-  }
-}
-
-export class AttachDatabaseStatement extends Statement {
-  name = ""
-  expression = new Array<Token>()
-
-  validate() {
-  }
-
-  summary() {
-    return "ATTACHE DATABASE " +
-      this.name
-  }
-}
-
-export class DetachDatabaseStatement extends Statement {
-  name = ""
-
-  validate() {
-  }
-
-  summary() {
-    return "DETACHE DATABASE " +
       this.name
   }
 }
@@ -436,6 +423,19 @@ export class SelectStatement extends Statement {
 
   summary() {
     return "SELECT"
+  }
+}
+
+export class ExplainStatement extends Statement {
+  constructor(public statement: Statement) {
+    super()
+  }
+
+  validate() {
+  }
+
+  summary() {
+    return "EXPLAIN"
   }
 }
 

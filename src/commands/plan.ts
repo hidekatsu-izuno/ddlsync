@@ -29,13 +29,8 @@ async function main(
       }
     }
 
-    // Test flight
-    const changes = await processor.plan(stmts)
-
-    // Show change plans
-    for (const [i, change] of changes.entries()) {
-      console.log(`${i+1}: ${change.summary}`)
-    }
+    // Dry run
+    await processor.run(stmts, true)
   } finally {
     await processor.destroy()
   }

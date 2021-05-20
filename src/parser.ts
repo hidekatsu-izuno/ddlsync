@@ -158,6 +158,37 @@ export class Token {
     public end: number,
   ) {
   }
+
+  static concat(tokens: Token[], options: {
+    left?: boolean,
+    right?: boolean,
+    space?: string,
+  } = {}) {
+    let text = ""
+    for (let i = 0; i < tokens.length; i++) {
+      const token = tokens[i]
+      if (options.left || i > 0) {
+        if (options.space) {
+          text += options.space
+        } else {
+          for (const ws of token.before) {
+            text += ws.text
+          }
+        }
+      }
+      text += token.text
+      if (options.right && i === tokens.length - 1) {
+        if (options.space) {
+          text += options.space
+        } else {
+          for (const ws of token.after) {
+            text += ws.text
+          }
+        }
+      }
+    }
+    return text
+  }
 }
 
 export abstract class Lexer {

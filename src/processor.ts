@@ -10,9 +10,7 @@ export abstract class DdlSyncProcessor {
 
   abstract parse(input: string, options: { [key: string]: any}): Promise<Statement[]>
 
-  abstract plan(stmts: Statement[]): Promise<ChangePlan[]>
-
-  abstract apply(changeInfo: ChangePlan): Promise<void>
+  abstract run(stmts: Statement[], dryrun?: boolean): Promise<void>
 
   async destroy() {
     await this.con.destroy()
@@ -20,20 +18,9 @@ export abstract class DdlSyncProcessor {
 }
 
 export enum ChangeType {
-  CREATE_OBJECT,
-  ALTER_OBJECT,
-  ADD_COLUMN,
-  DROP_COLUMN,
-  DROP_OBJECT,
-  CHANGE_STATE,
-  OTHER,
-}
-
-export class ChangePlan {
-  constructor(
-    public type: ChangeType,
-    public summary: string,
-    public stmts: Statement[]
-  ) {
-  }
+  CREATE,
+  ALTER,
+  DROP,
+  EXECUTE,
+  SKIP,
 }
