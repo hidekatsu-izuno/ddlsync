@@ -51,12 +51,8 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
         case DropIndexStatement.name:
           await this.tryDropIndexStatement(i, stmt as DropIndexStatement, vdb)
           break
-        case BeginTransactionStatement.name:
-        case SavepointStatement.name:
-        case ReleaseSavepointStatement.name:
-        case CommitTransactionStatement.name:
-        case RollbackTransactionStatement.name:
-          throw Error(`[plan] transaction features are not supported`)
+        case InsertStatement.name:
+          await this.tryInsertStatement(i, stmt as InsertStatement, vdb)
         default:
           // no handle
       }
@@ -83,6 +79,13 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
           case InsertStatement.name:
             await this.runInsertStatement(i, stmt as InsertStatement, refs[i])
             break
+          case BeginTransactionStatement.name:
+          case SavepointStatement.name:
+          case ReleaseSavepointStatement.name:
+          case CommitTransactionStatement.name:
+          case RollbackTransactionStatement.name:
+            await this.runTransactionStatement(i, stmt)
+            break;
           default:
             await this.runStatement(i, stmt)
         }
@@ -186,6 +189,11 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     }
 
     table.dropped = true
+    for (const object of schema.objects) {
+      if (object.type === "index" && lcase(object.tableName) === lcase(table.name)) {
+        object.dropped = true
+      }
+    }
     return table
   }
 
@@ -350,7 +358,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
 
   private tryInsertStatement(seq: number, stmt: InsertStatement, vdb: any) {
     const schemaName = stmt.schemaName ||
-    (vdb.schemas["temp"].objects[lcase(stmt.name)]?.dropped === false ? "temp" : "main")
+      (vdb.schemas["temp"].objects[lcase(stmt.name)]?.dropped === false ? "temp" : "main")
     const schema = vdb.schemas[lcase(schemaName)]
     if (!schema) {
       throw new Error(`[plan] unknown database ${schemaName}`)
@@ -360,6 +368,8 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     if (!table || table.dropped || table.type !== "table") {
       throw new Error(`[plan] no such table: ${schemaName}.${stmt.name}`)
     }
+
+    return table
   }
 
   private async runCreateObjectStatement(seq: number, stmt: Statement, obj: any) {
@@ -369,14 +379,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
       await this.runStatement(seq, stmt)
     } else {
       const scripts = []
-      const row = await this.con.withSchema(obj.schema.name)
-        .select("*")
-        .from("sqlite_master")
-        .whereRaw("type = :type AND name = :name COLLATE NOCASE", {
-          type: obj.type,
-          name: obj.name,
-        })
-        .first()
+      const row = this.getMetaData(obj.type, obj.schema.name, obj.name)
       if (row || obj.asSelect) {
         scripts.push(`DROP ${ucase(obj.type)} IF EXISTS ${quoteIdentifier(obj.name)}`)
       }
@@ -393,43 +396,37 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
   private async runDropObjectStatement(seq: number, stmt: Statement, obj: any) {
     if (lcase(obj.schema.name) === "temp") {
       await this.runStatement(seq, stmt)
-      return
-    }
+    } else {
+      const scripts = []
+      const row = this.getMetaData(obj.type, obj.schema.name, obj.name)
+      if (row) {
+        scripts.push(Token.concat(stmt.tokens))
+      }
 
-    const scripts = []
-    const row = await this.con.withSchema(obj.schema.name)
-      .select("*")
-      .from("sqlite_master")
-      .whereRaw("type = :type AND name = :name COLLATE NOCASE", {
-        type: obj.type,
-        name: obj.name,
-      })
-      .first()
-    if (row) {
-      scripts.push(Token.concat(stmt.tokens))
-    }
-
-    for (const script of scripts) {
-      console.log(script + ";")
-      const result = await this.con.raw(script)
-      console.log(`-- result: ${result}`)
+      for (const script of scripts) {
+        console.log(script + ";")
+        const result = await this.con.raw(script)
+        console.log(`-- result: ${result}`)
+      }
     }
   }
 
   private async runInsertStatement(seq: number, stmt: InsertStatement, table: any) {
     if (lcase(table.schema.name) === "temp") {
       await this.runStatement(seq, stmt)
-      return
+    } else {
+      const hasData = await this.hasData(table.schema.name, table.name)
+      if (!hasData) {
+        const script = Token.concat(stmt.tokens)
+        console.log(script)
+        const result = await this.con.raw(script)
+        console.log(`-- result: ${result}`)
+      }
     }
+  }
 
-    const row = await this.con.withSchema(table.schema.name)
-      .select("1").from(stmt.name).first()
-    if (!row) {
-      const script = Token.concat(stmt.tokens)
-      console.log(script)
-      const result = await this.con.raw(script)
-      console.log(`-- result: ${result}`)
-    }
+  private async runTransactionStatement(seq: number, stmt: Statement) {
+    console.log(`-- skip: transaction control is ignroed`)
   }
 
   private async runStatement(seq: number, stmt: Statement) {
@@ -437,6 +434,26 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     console.log(script)
     const result = await this.con.raw(script)
     console.log(`-- result: ${result}`)
+  }
+
+  private async getMetaData(type: string, schemaName: string, name: string, tableName?: string) {
+    const builder = this.con.withSchema(schemaName)
+      .select("sql")
+      .from("sqlite_master")
+      .whereRaw("type = :type AND name = :name COLLATE NOCASE", { type, name })
+    if (tableName) {
+      builder.andWhereRaw("tbl_name = :tableName", { tableName })
+    }
+    return await builder.first()
+  }
+
+  private async hasData(schemaName: string, name: string) {
+    const row = await this.con.withSchema(schemaName)
+      .select("1")
+      .from(name)
+      .first()
+
+    return !!row
   }
 }
 
