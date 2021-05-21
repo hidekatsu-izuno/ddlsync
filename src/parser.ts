@@ -163,11 +163,15 @@ export class Token {
     left?: boolean,
     right?: boolean,
     space?: string,
+    start?: number,
+    end?: number,
   } = {}) {
     let text = ""
-    for (let i = 0; i < tokens.length; i++) {
+    const start = (options.start || 0)
+    const end = (options.end || tokens.length)
+    for (let i = start; i < end; i++) {
       const token = tokens[i]
-      if (options.left || i > 0) {
+      if (options.left || i > start) {
         if (options.space) {
           text += options.space
         } else {
@@ -359,6 +363,7 @@ export class ParseError extends Error {
 export abstract class Statement {
   filename?: string
   tokens = new Array<Token>()
+  markers = new Map<string, number>()
 
   abstract validate(): void
 

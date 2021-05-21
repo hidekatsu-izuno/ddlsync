@@ -26,6 +26,7 @@
   "dependencies": {
     "colorette": "^1.2.1",
     "commander": "^7.2.0",
+    "date-fns": "^2.21.3",
     "decimal.js": "^10.2.1",
     "fast-glob": "^3.2.5",
     "interpret": "^2.2.0",

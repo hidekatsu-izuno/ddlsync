@@ -2,7 +2,6 @@ import path from "path"
 import rechoir from "rechoir"
 import interpret from "interpret"
 import colorette from "colorette"
-import { knex } from 'knex'
 import io from "../util/io"
 import Sqlite3Processor from "../sqlite3/sqlite3_processor"
 
@@ -19,21 +18,29 @@ export async function createDddlSyncProcessor(args: string[], options: { [key: s
 async function initConfig(args: string[], options: { [key: string]: any }) {
   let cwd = process.cwd()
   let configPath = null
-  if (options.knexfile) {
+  if (options.config) {
     if (typeof options.knexfile === "string") {
-      configPath = path.resolve(cwd, options.knexfile)
+      configPath = path.resolve(cwd, options.config)
     }
   } else {
     for (let ext of Extensions) {
-      const filePath = path.resolve(cwd, `knexfile.${ext}`)
+      const filePath = path.resolve(cwd, `ddlsync.config.${ext}`)
       if (await io.isFile(filePath)) {
         configPath = filePath
+      }
+    }
+    if (!configPath) {
+      for (let ext of Extensions) {
+        const filePath = path.resolve(cwd, `knexfile.${ext}`)
+        if (await io.isFile(filePath)) {
+          configPath = filePath
+        }
       }
     }
   }
 
   if (!configPath) {
-    throw new Error("knexfile is not found.")
+    throw new Error("A config file is not found.")
   }
 
   const autoloads = rechoir.prepare(
@@ -41,47 +48,54 @@ async function initConfig(args: string[], options: { [key: string]: any }) {
     configPath,
     cwd,
     true
-  );
+  )
   if (autoloads instanceof Error) {
     (autoloads as any).failures.forEach(function (failed: any) {
-      console.log(
-        colorette.red('Failed to load external module'),
-        colorette.magenta(failed.moduleName)
-      );
-    });
+      console.log(colorette.red("Failed to load external module"), colorette.magenta(failed.moduleName))
+    })
   } else if (Array.isArray(autoloads)) {
-    const succeeded = autoloads[autoloads.length - 1];
-    console.log(
-      'Requiring external module',
-      colorette.magenta(succeeded.moduleName)
-    );
+    const succeeded = autoloads[autoloads.length - 1]
+    console.log("Requiring external module", colorette.magenta(succeeded.moduleName))
   }
 
   let config = require(configPath)
   if (config && config.default) {
-    config = config.default;
+    config = config.default
   }
   if (typeof config === 'function') {
-    config = await config();
+    config = await config()
   }
 
-  const env = options.env || process.env.NODE_ENV || 'development';
-  console.log(env)
+  const env = options.env || process.env.NODE_ENV || 'development'
   if (config[env]) {
-    console.log('Using environment:', colorette.magenta(env));
+    console.log('Using environment:', colorette.magenta(env))
   }
 
-  config = config[env] || config;
+  config = config[env] || config
   if (!config) {
-    console.log(colorette.red('Warning: unable to read knexfile config'));
-    process.exit(1);
+    throw new Error(`Warning: unable to read a config file: ${configPath}`)
   }
 
   if (!config.ddlsync) {
     config.ddlsync = {}
   }
-  if (!config.ddlsync.include) {
-    config.ddlsync.include = "./ddl/**/*.sql"
+
+  if (options.include) {
+    config.ddlsync.include = options.include
+  }
+  if (config.ddlsync.include && !Array.isArray(config.ddlsync.include)) {
+    config.ddlsync.include = [ config.ddlsync.include ]
+  }
+
+  if (options.exclude) {
+    config.ddlsync.exclude = options.exclude
+  }
+  if (config.ddlsync.exclude && !Array.isArray(config.ddlsync.exclude)) {
+    config.ddlsync.exclude = [ config.ddlsync.exclude ]
+  }
+
+  if (options.workDir) {
+    config.ddlsync.workDir = options.workDir
   }
 
   return config;

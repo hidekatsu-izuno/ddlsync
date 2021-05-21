@@ -1,11 +1,13 @@
-import { Command } from 'commander';
-import fg from 'fast-glob'
-import {promises as fs} from 'fs'
-import {createDddlSyncProcessor } from '../util/config'
+import { Command, Option } from 'commander'
+import { createDddlSyncProcessor } from '../util/config'
 
 export default (program: Command) => {
   program.command('plan')
     .description("plan by sql")
+    .addOption(new Option("-c, --config <path>", "specify the config file path."))
+    .addOption(new Option("--include <pattern>", "set include file pattern without a config file.").default("ddl/**/*.sql"))
+    .addOption(new Option("--exclude <pattern>", "set exclude file pattern without a config file."))
+    .addOption(new Option("--workDir <dir>", "set working dir without a config file.").default("./.ddlsync"))
     .action(async function (options) {
       await main([], { ...program.opts(), ...options })
     })
@@ -16,21 +18,9 @@ async function main(
   options: { [key: string]: any }
 ) {
   const processor = await createDddlSyncProcessor(args, options)
+  processor.dryrun = true
   try {
-    const files = await fg(processor.config.ddlsync.include)
-
-    const stmts = []
-    for (const fileName of files) {
-      const contents = await fs.readFile(fileName, 'utf-8')
-      for (const stmt of await processor.parse(contents, {
-        fileName
-      })) {
-        stmts.push(stmt)
-      }
-    }
-
-    // Dry run
-    await processor.run(stmts, true)
+    await processor.execute()
   } finally {
     await processor.destroy()
   }

@@ -137,16 +137,21 @@ export class Sqlite3Parser extends Parser {
       }
 
       if (this.consumeIf(Keyword.IF)) {
+        stmt.markers.set("ifNotExistsStart", this.pos - start - 1)
         this.consume(Keyword.NOT)
         this.consume(Keyword.EXISTS)
         stmt.ifNotExists = true
+        stmt.markers.set("ifNotExistsEnd", this.pos - start)
       }
 
+      stmt.markers.set("nameStart", this.pos - start)
       stmt.name = this.identifier()
       if (this.consumeIf(TokenType.Dot)) {
         stmt.schemaName = stmt.name
+        stmt.markers.set("nameStart", this.pos - start)
         stmt.name = this.identifier()
       }
+      stmt.markers.set("nameEnd", this.pos - start)
 
       if (stmt instanceof CreateTableStatement) {
         if (stmt.virtual) {

@@ -8,37 +8,6 @@ export abstract class ColumnConstraint {
   name?: string
 }
 
-export enum AlterTableAction {
-  RENAME_TABLE = "RENAME_TABLE",
-  RENAME_COLUMN = "RENAME_COLUMN",
-  ADD_COLUMN = "ADD_COLUMN",
-  DROP_COLUMN = "DROP_COLUMN",
-}
-
-export enum SortOrder {
-  ASC = "ASC",
-  DESC = "DESC",
-}
-
-export enum ConflictAction {
-  ROLLBACK = "ROLLBACK",
-  ABORT = "ABORT",
-  FAIL = "FAIL",
-  IGNORE = "IGNORE",
-  REPLACE = "REPLACE",
-}
-
-export enum StoreType {
-  STORED = "STORED",
-  VIRTUAL = "VIRTUAL",
-}
-
-export enum TransactionBehavior {
-  DEFERRED = "DEFERRED",
-  IMMEDIATE = "IMMEDIATE",
-  EXCLUSIVE = "EXCLUSIVE",
-}
-
 export class AttachDatabaseStatement extends Statement {
   name = ""
   expression = new Array<Token>()
@@ -508,4 +477,35 @@ export class ReferencesKeyColumnConstraint extends ColumnConstraint {
 export class GeneratedColumnConstraint extends ColumnConstraint {
   expression = new Array<Token>()
   storeType = StoreType.VIRTUAL
+}
+
+export enum AlterTableAction {
+  RENAME_TABLE = "RENAME_TABLE",
+  RENAME_COLUMN = "RENAME_COLUMN",
+  ADD_COLUMN = "ADD_COLUMN",
+  DROP_COLUMN = "DROP_COLUMN",
+}
+
+export enum SortOrder {
+  ASC = "ASC",
+  DESC = "DESC",
+}
+
+export enum ConflictAction {
+  ROLLBACK = "ROLLBACK",
+  ABORT = "ABORT",
+  FAIL = "FAIL",
+  IGNORE = "IGNORE",
+  REPLACE = "REPLACE",
+}
+
+export enum StoreType {
+  STORED = "STORED",
+  VIRTUAL = "VIRTUAL",
+}
+
+export enum TransactionBehavior {
+  DEFERRED = "DEFERRED",
+  IMMEDIATE = "IMMEDIATE",
+  EXCLUSIVE = "EXCLUSIVE",
 }

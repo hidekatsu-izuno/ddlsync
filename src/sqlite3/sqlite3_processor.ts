@@ -1,8 +1,8 @@
-import { Statement, Token, TokenType } from "../parser"
+import { Statement, Token } from "../parser"
 import { AlterTableStatement, AttachDatabaseStatement, CreateIndexStatement, CreateTableStatement, CreateTriggerStatement, CreateViewStatement, DetachDatabaseStatement, DropIndexStatement, DropTableStatement, DropTriggerStatement, DropViewStatement, ExplainStatement, InsertStatement, NotNullColumnConstraint, PrimaryKeyColumnConstraint, PrimaryKeyTableConstraint, SortOrder, UniqueColumnConstraint, UniqueTableConstraint, UpdateStatement, SelectStatement, BeginTransactionStatement, SavepointStatement, ReleaseSavepointStatement, CommitTransactionStatement, RollbackTransactionStatement } from "./sqlite3_models";
 import { DdlSyncProcessor } from "../processor"
 import { Sqlite3Parser } from "./sqlite3_parser"
-import { lcase, ucase } from "../util/functions";
+import { lcase, ucase } from "../util/functions"
 
 export default class Sqlite3Processor extends DdlSyncProcessor {
   constructor(config: { [key: string]: any }) {
@@ -21,82 +21,63 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
 
     const refs = []
     for (const [i, stmt] of stmts.entries()) {
-      switch (stmt.constructor.name) {
-        case AttachDatabaseStatement.name:
-          await this.tryAttachDatabaseStatement(i, stmt as AttachDatabaseStatement, vdb)
+      switch (stmt.constructor) {
+        case AttachDatabaseStatement:
+          refs[i] = await this.tryAttachDatabaseStatement(i, stmt as AttachDatabaseStatement, vdb)
           break
-        case DetachDatabaseStatement.name:
-          await this.tryDetachDatabaseStatement(i, stmt as DetachDatabaseStatement, vdb)
+        case DetachDatabaseStatement:
+          refs[i] = await this.tryDetachDatabaseStatement(i, stmt as DetachDatabaseStatement, vdb)
           break
-        case CreateTableStatement.name:
-          await this.tryCreateTableStatement(i, stmt as CreateTableStatement, vdb)
+        case CreateTableStatement:
+        case CreateViewStatement:
+        case CreateTriggerStatement:
+        case CreateIndexStatement:
+          refs[i] = await this.tryCreateObjectStatement(i, stmt, vdb)
           break
-        case AlterTableStatement.name:
+        case AlterTableStatement:
           throw Error(`[plan] alter table statement is not supported`)
-        case DropTableStatement.name:
-          await this.tryDropTableStatement(i, stmt as DropTableStatement, vdb)
+        case DropTableStatement:
+        case DropViewStatement:
+        case DropTriggerStatement:
+        case DropIndexStatement:
+          refs[i] = await this.tryDropObjectStatement(i, stmt, vdb)
           break
-        case CreateViewStatement.name:
-          await this.tryCreateViewStatement(i, stmt as CreateViewStatement, vdb)
-          break
-        case DropViewStatement.name:
-          await this.tryDropViewStatement(i, stmt as DropViewStatement, vdb)
-          break
-        case CreateTriggerStatement.name:
-          await this.tryCreateTriggerStatement(i, stmt as CreateTriggerStatement, vdb)
-          break
-        case DropTriggerStatement.name:
-          await this.tryDropTriggerStatement(i, stmt as DropTriggerStatement, vdb)
-          break
-        case CreateIndexStatement.name:
-          await this.tryCreateIndexStatement(i, stmt as CreateIndexStatement, vdb)
-          break
-        case DropIndexStatement.name:
-          await this.tryDropIndexStatement(i, stmt as DropIndexStatement, vdb)
-          break
-        case InsertStatement.name:
-          await this.tryInsertStatement(i, stmt as InsertStatement, vdb)
+        case InsertStatement:
+          refs[i] = await this.tryInsertStatement(i, stmt as InsertStatement, vdb)
         default:
           // no handle
-      }
-      const handler = (this as any)["try" + stmt.constructor.name]
-      if (handler) {
-        refs[i] = await handler(i, stmt, vdb)
       }
     }
 
     for (const [i, stmt] of stmts.entries()) {
-      try {
-        console.time(`-- ## start statement ${i}: ${stmt.summary()}`)
-        switch (stmt.constructor.name) {
-          case CreateTableStatement.name:
-          case CreateViewStatement.name:
-          case CreateTriggerStatement.name:
-          case CreateIndexStatement.name:
-              await this.runCreateObjectStatement(i, stmt, refs[i])
-            break
-          case DropTableStatement.name:
-          case DropViewStatement.name:
-          case DropTriggerStatement.name:
-          case DropIndexStatement.name:
-            await this.runDropObjectStatement(i, stmt, refs[i])
-            break
-          case InsertStatement.name:
-            await this.runInsertStatement(i, stmt as InsertStatement, refs[i])
-            break
-          case BeginTransactionStatement.name:
-          case SavepointStatement.name:
-          case ReleaseSavepointStatement.name:
-          case CommitTransactionStatement.name:
-          case RollbackTransactionStatement.name:
-            await this.runTransactionStatement(i, stmt)
-            break;
-          default:
-            await this.runStatement(i, stmt)
-        }
-      } finally {
-        console.timeEnd(`-- ## end statement ${i}: time`)
+      console.log(`-- ## statement ${i}: ${stmt.summary()}`)
+      switch (stmt.constructor) {
+        case CreateTableStatement:
+        case CreateViewStatement:
+        case CreateTriggerStatement:
+        case CreateIndexStatement:
+            await this.runCreateObjectStatement(i, stmt, refs[i] as VObject, dryrun)
+          break
+        case DropTableStatement:
+        case DropViewStatement:
+        case DropTriggerStatement:
+        case DropIndexStatement:
+          await this.runDropObjectStatement(i, stmt, refs[i] as VObject, dryrun)
+          break
+        case InsertStatement:
+          await this.runInsertStatement(i, stmt as InsertStatement, refs[i] as VObject, dryrun)
+          break
+        case BeginTransactionStatement:
+        case SavepointStatement:
+        case ReleaseSavepointStatement:
+        case CommitTransactionStatement:
+        case RollbackTransactionStatement:
+          await this.runTransactionStatement(i, stmt, dryrun)
+          break;
+        default:
+          await this.runStatement(i, stmt, dryrun)
       }
+      console.log()
     }
   }
 
@@ -125,179 +106,82 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     return schema
   }
 
-  private tryCreateTableStatement(seq: number, stmt: CreateTableStatement, vdb: VDatabase) {
-    const schemaName = stmt.schemaName || (stmt.temporary ? "temp" : "main")
+  private tryCreateObjectStatement(seq: number, stmt: any, vdb: VDatabase) {
+    const type = lcase(stmt.constructor.name.replace(/^Create([a-zA-Z0-9]+)Statement$/, "$1"))
+
+    let schemaName = stmt.schemaName
+    if (!schemaName) {
+      if (type === "index") {
+        const tempObject = vdb.get("temp")?.get(stmt.name)
+        schemaName = tempObject && !tempObject.dropped ? "temp" : "main"
+      } else {
+        schemaName = stmt.temporary ? "temp" : "main"
+      }
+    }
+
     const schema = vdb.get(schemaName)
     if (!schema) {
       throw new Error(`[plan] unknown database ${schemaName}`)
     }
 
-    let table = schema.get(stmt.name)
-    if (table && !table.dropped) {
-      throw new Error(`[plan] ${table.type} ${stmt.name} already exists`)
+    let object = schema.get(stmt.name)
+    if (object && !object.dropped) {
+      throw new Error(`[plan] ${object.type} ${stmt.name} already exists`)
     }
 
-    return schema.add("table", stmt.name)
+    if (type === "index") {
+      const table = schema.get(stmt.tableName)
+      if (!table || table.dropped || table.type !== "table") {
+        throw new Error(`[plan] no such table: ${schemaName}.${stmt.tableName}`)
+      }
+    }
+
+    return schema.add(type, stmt.name, stmt.tableName)
   }
 
-  private tryDropTableStatement(seq: number, stmt: DropTableStatement, vdb: VDatabase) {
-    const schemaName = stmt.schemaName ||
-      (vdb.get("temp")?.get(stmt.name)?.dropped === false ? "temp" : "main")
+
+  private tryDropObjectStatement(seq: number, stmt: any, vdb: VDatabase) {
+    const type = lcase(stmt.constructor.name.replace(/^Drop([a-zA-Z0-9]+)Statement$/, "$1"))
+    let schemaName = stmt.schemaName
+    if (!schemaName) {
+      if (type === "index") {
+        const tempObject = vdb.get("temp")?.get(stmt.name)
+        schemaName = tempObject && !tempObject.dropped ? "temp" : "main"
+      } else {
+        schemaName = stmt.temporary ? "temp" : "main"
+      }
+    }
+
     const schema = vdb.get(schemaName)
     if (!schema) {
       throw new Error(`[plan] unknown database ${schemaName}`)
     }
 
-    let table = schema.get(stmt.name)
-    if (!table || table.dropped) {
+    let object = schema.get(stmt.name)
+    if (!object || object.dropped) {
       if (stmt.ifExists) {
-        if (!table) {
-          table = schema.add("table", stmt.name)
-          table.dropped = true
+        if (!object) {
+          object = schema.add(type, stmt.name)
+          object.dropped = true
         }
-        return table
+        return object
       }
-      throw new Error(`[plan] no such table: ${schemaName}.${stmt.name}`)
-    } else if (table.type !== "table") {
-      throw new Error(`[plan] no such table: ${schemaName}.${stmt.name}`)
+      throw new Error(`[plan] no such ${type}: ${schemaName}.${stmt.name}`)
+    } else if (object.type !== type) {
+      throw new Error(`[plan] no such ${type}: ${schemaName}.${stmt.name}`)
     }
 
-    table.dropped = true
-    for (const object of schema) {
-      if (object.type === "index" && object.tableName && lcase(object.tableName) === lcase(table.name)) {
-        object.dropped = true
-      }
-    }
-    return table
-  }
+    object.dropped = true
 
-  private tryCreateViewStatement(seq: number, stmt: CreateViewStatement, vdb: VDatabase) {
-    const schemaName = stmt.schemaName || (stmt.temporary ? "temp" : "main")
-    const schema = vdb.get(schemaName)
-    if (!schema) {
-      throw new Error(`[plan] unknown database ${schemaName}`)
-    }
-
-    const view = schema.get(stmt.name)
-    if (view && !view.dropped) {
-      throw new Error(`[plan] ${view.type} ${stmt.name} already exists`)
-    }
-
-    return schema.add("view", stmt.name)
-  }
-
-  private tryDropViewStatement(seq: number, stmt: DropViewStatement, vdb: VDatabase) {
-    const schemaName = stmt.schemaName ||
-      (vdb.get("temp")?.get(stmt.name)?.dropped === false ? "temp" : "main")
-    const schema = vdb.get(schemaName)
-    if (!schema) {
-      throw new Error(`[plan] unknown database ${schemaName}`)
-    }
-
-    let view = schema.get(stmt.name)
-    if (!view || view.dropped) {
-      if (stmt.ifExists) {
-        if (!view) {
-          view = schema.add("view", stmt.name)
-          view.dropped = true
+    if (type === "table") {
+      for (const object of schema) {
+        if (object.type === "index" && object.tableName && lcase(object.tableName) === lcase(object.name)) {
+          object.dropped = true
         }
-        return view
       }
-      throw new Error(`[plan] no such view: ${schemaName}.${stmt.name}`)
-    } else if (view.type !== "view") {
-      throw new Error(`[plan] no such view: ${schemaName}.${stmt.name}`)
     }
 
-    view.dropped = true
-    return view
-  }
-
-  private tryCreateTriggerStatement(seq: number, stmt: CreateTriggerStatement, vdb: VDatabase) {
-    const schemaName = stmt.schemaName || (stmt.temporary ? "temp" : "main")
-    const schema = vdb.get(schemaName)
-    if (!schema) {
-      throw new Error(`[plan] unknown database ${schemaName}`)
-    }
-
-    let trigger = schema.get(stmt.name)
-    if (trigger && !trigger.dropped) {
-      throw new Error(`[plan] ${trigger.type} ${stmt.name} already exists`)
-    }
-
-    return schema.add("trigger", stmt.name)
-  }
-
-  private tryDropTriggerStatement(seq: number, stmt: DropTriggerStatement, vdb: VDatabase) {
-    const schemaName = stmt.schemaName ||
-      (vdb.get("temp")?.get(stmt.name)?.dropped === false ? "temp" : "main")
-    const schema = vdb.get(schemaName)
-    if (!schema) {
-      throw new Error(`[plan] unknown database ${schemaName}`)
-    }
-
-    let trigger = schema.get(stmt.name)
-    if (!trigger || trigger.dropped) {
-      if (stmt.ifExists) {
-        if (!trigger) {
-          trigger = schema.add("trigger", stmt.name)
-          trigger.dropped = true
-        }
-        return trigger
-      }
-      throw new Error(`[plan] no such trigger: ${schemaName}.${stmt.name}`)
-    } else if (trigger.type !== "trigger") {
-      throw new Error(`[plan] no such trigger: ${schemaName}.${stmt.name}`)
-    }
-
-    trigger.dropped = true
-    return trigger
-  }
-
-  private tryCreateIndexStatement(seq: number, stmt: CreateIndexStatement, vdb: VDatabase) {
-    const schemaName = stmt.schemaName ||
-      (vdb.get("temp")?.get(stmt.name)?.dropped === false ? "temp" : "main")
-    const schema = vdb.get(schemaName)
-    if (!schema) {
-      throw new Error(`[plan] unknown database ${schemaName}`)
-    }
-
-    const index = schema.get(stmt.name)
-    if (index && !index.dropped) {
-      throw new Error(`[plan] ${index.type} ${stmt.name} already exists`)
-    }
-
-    const table = schema.get(stmt.tableName)
-    if (!table || table.dropped || table.type !== "table") {
-      throw new Error(`[plan] no such table: ${schemaName}.${stmt.tableName}`)
-    }
-
-    return schema.add("index", stmt.name)
-  }
-
-  private tryDropIndexStatement(seq: number, stmt: DropIndexStatement, vdb: VDatabase) {
-    const schemaName = stmt.schemaName ||
-      (vdb.get("temp")?.get(stmt.name)?.dropped === false ? "temp" : "main")
-    const schema = vdb.get(schemaName)
-    if (!schema) {
-      throw new Error(`[plan] unknown database ${schemaName}`)
-    }
-
-    let index = schema.get(stmt.name)
-    if (!index || index.dropped) {
-      if (stmt.ifExists) {
-        if (!index) {
-          index = schema.add("index", stmt.name)
-          index.dropped = true
-        }
-        return index
-      }
-      throw new Error(`[plan] no such index: ${schemaName}.${stmt.name}`)
-    } else if (index.type !== "index") {
-      throw new Error(`[plan] no such index: ${schemaName}.${stmt.name}`)
-    }
-
-    index.dropped = true
-    return index
+    return object
   }
 
   private tryInsertStatement(seq: number, stmt: InsertStatement, vdb: VDatabase) {
@@ -316,93 +200,126 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     return table
   }
 
-  private async runCreateObjectStatement(seq: number, stmt: Statement, object: VObject) {
-    if (object.dropped) {
-      console.log(`-- skip: ${object.type} ${object.schemaName}.${object.name} is dropped`)
-    } else if (lcase(object.schemaName) === "temp") {
-      await this.runStatement(seq, stmt)
+  private async runCreateObjectStatement(seq: number, stmt: Statement, obj: VObject, dryrun: boolean) {
+    if (obj.dropped) {
+      console.log(`-- skip: ${obj.type} ${obj.schemaName}.${obj.name} is dropped`)
+    } else if (lcase(obj.schemaName) === "temp") {
+      await this.runScript(this.createScript(stmt))
     } else {
-      const scripts = []
-      const row = await this.getMetaData(object.type, object.schemaName, object.name, object.tableName)
-      if (row && ((stmt as any).asSelect || this.isDifference(stmt, row.sql))) {
-        scripts.push(`DROP ${ucase(object.type)} IF EXISTS ${quoteIdentifier(object.name)}`)
-      }
-      scripts.push(Token.concat(stmt.tokens))
+      const meta = await this.getTableMetaData(obj.schemaName, obj.name)
+      if (!meta) {
+        this.runScript(this.createScript(stmt))
+      } else {
+        const stmt2 = (await this.parse(meta.sql || ""))[0]
+        if (!stmt2) {
+          throw new Error(`Failed to get metadata: ${obj.schemaName}.${obj.name}`)
+        }
 
-      for (const script of scripts) {
-        console.log(script + ";")
-        const result = await this.con.raw(script)
-        console.log(`-- result: ${result}`)
+        if ((stmt as any).asSelect || !this.isSame(stmt, stmt2)) {
+          if (stmt2 instanceof CreateTableStatement && !stmt2.virtual) {
+            const backupTableName = `~${this.timestamp()} ${obj.name}`
+            this.runScript(`ALTER TABLE ${iquote(obj.schemaName)}.${iquote(obj.name)} RENAME TO ${iquote(backupTableName)}`)
+            this.runScript(this.createScript(stmt))
+            // INSERT SELECT from backupTableName
+            this.runScript(`DROP TABLE IF EXISTS ${iquote(obj.schemaName)}.${iquote(backupTableName)}`)
+          } else {
+            this.runScript(`DROP ${ucase(meta.type)} IF EXISTS ${iquote(obj.schemaName)}.${iquote(obj.name)}`)
+            this.runScript(this.createScript(stmt))
+          }
+        } else {
+          console.log(`-- skip: ${obj.type} ${obj.schemaName}.${obj.name} is unchangeed`)
+        }
       }
     }
   }
 
-  private async runDropObjectStatement(seq: number, stmt: Statement, object: VObject) {
-    if (lcase(object.schemaName) === "temp") {
-      await this.runStatement(seq, stmt)
+  private async runDropObjectStatement(seq: number, stmt: Statement, obj: VObject, dryrun: boolean) {
+    if (lcase(obj.schemaName) === "temp") {
+      this.runScript(this.createScript(stmt))
     } else {
-      const scripts = []
-      const row = await this.getMetaData(object.type, object.schemaName, object.name, object.tableName)
-      if (row) {
-        scripts.push(Token.concat(stmt.tokens))
-      }
-
-      for (const script of scripts) {
-        console.log(script + ";")
-        const result = await this.con.raw(script)
-        console.log(`-- result: ${result}`)
+      const meta = await this.getTableMetaData(obj.schemaName, obj.name)
+      if (meta && meta.type === obj.type) {
+        this.runScript(this.createScript(stmt))
+      } else {
+        console.log(`-- skip: ${obj.type} ${obj.schemaName}.${obj.name} is not found`)
       }
     }
   }
 
-  private async runInsertStatement(seq: number, stmt: InsertStatement, table: VObject) {
+  private async runInsertStatement(seq: number, stmt: InsertStatement, table: VObject, dryrun: boolean) {
+    const scripts = []
     if (lcase(table.schemaName) === "temp") {
-      await this.runStatement(seq, stmt)
+      await this.runScript(this.createScript(stmt))
     } else {
       const hasData = await this.hasData(table.schemaName, table.name)
       if (!hasData) {
-        const script = Token.concat(stmt.tokens)
-        console.log(script)
-        const result = await this.con.raw(script)
-        console.log(`-- result: ${result}`)
+        await this.runScript(this.createScript(stmt))
+      } else {
+        console.log(`-- skip: ${table.schemaName}.${table.name} has data`)
       }
     }
   }
 
-  private async runTransactionStatement(seq: number, stmt: Statement) {
+  private async runTransactionStatement(seq: number, stmt: Statement, dryrun: boolean) {
     console.log(`-- skip: transaction control is ignroed`)
   }
 
-  private async runStatement(seq: number, stmt: Statement) {
-    const script = Token.concat(stmt.tokens)
-    console.log(script)
-    const result = await this.con.raw(script)
-    console.log(`-- result: ${result}`)
+  private async runStatement(seq: number, stmt: Statement, dryrun: boolean) {
+    await this.runScript(this.createScript(stmt))
   }
 
-  private async getMetaData(type: string, schemaName: string, name: string, tableName?: string) {
-    const builder = this.con.withSchema(schemaName)
-      .select("sql")
-      .from("sqlite_master")
-      .whereRaw("type = :type AND name = :name COLLATE NOCASE", { type, name })
-    if (tableName) {
-      builder.andWhereRaw("tbl_name = :tableName", { tableName })
+  private createScript(stmt: Statement) {
+    let tokens = stmt.tokens
+    if ((stmt as any).ifNotExists) {
+      const start = stmt.markers.get("ifNotExistsStart")
+      const end = stmt.markers.get("ifNotExistsEnd")
+      if (start != null && end != null && end - start > 0) {
+        tokens = tokens.splice(start, end - start)
+      }
     }
-    return await builder.first()
+    return Token.concat(tokens)
+  }
+
+  private async getTableMetaData(schemaName: string, name: string) {
+    const result = await this.con.raw(
+      `SELECT type, sql FROM ${iquote(schemaName)}.sqlite_master WHERE name = ? COLLATE NOCASE LIMIT 1`,
+      [name]
+    ) as any
+    return result.length ? result[0] : undefined
   }
 
   private async hasData(schemaName: string, name: string) {
-    const row = await this.con.withSchema(schemaName)
-      .select("1")
-      .from(name)
-      .first()
-    return !!row
+    const result = await this.con.raw(`SELECT 1 FROM ${iquote(schemaName)}.${iquote(name)} LIMIT 1`)
+    return !!result.length
   }
 
-  private async isDifference(stmt1: Statement, sql: string) {
+  private isSame(stmt1: Statement, stmt2: Statement) {
+    if (stmt1.constructor.name !== stmt2.constructor.name) {
+      return false
+    }
+
+    if ((stmt1 as any).virtual !== (stmt2 as any).virtual) {
+      return false
+    }
+
     const tokens1 = stmt1.tokens
-    const tokens2 = (await this.parse(sql))[0].tokens
-    //TODO
+    const startPos1 = stmt1.markers.get("nameStart") || 0
+    const tokens2 = stmt2.tokens
+    const startPos2 = stmt2.markers.get("nameStart") || 0
+
+    if (tokens1.length - startPos1 !== tokens2.length - startPos2) {
+      return false
+    }
+
+    for (let i = 0; i < tokens1.length - startPos1; i++) {
+      const token1 = tokens1[startPos1 + i]
+      const token2 = tokens2[startPos2 + i]
+      if (token1.text !== token2.text) {
+        return false
+      }
+    }
+
+    return true
   }
 }
 
@@ -460,6 +377,6 @@ class VObject {
   }
 }
 
-function quoteIdentifier(text: string) {
+function iquote(text: string) {
   return "`" + text.replace(/`/g, "``") + "`"
 }

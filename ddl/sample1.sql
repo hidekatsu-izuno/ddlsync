@@ -6,6 +6,10 @@ create table sample1_a (
   b_value blob
 );
 
+create view v_sampe1 as
+select b_value as dbx from
+sample1_a;
+
 CREATE TABLE SAMPLE1_B (
   I_VALUE INTEGER NOT NULL PRIMARY KEY,
   N_VALUE NUMERIC null,
@@ -23,3 +27,13 @@ Create Table "Sample1_C" (
   PRIMARY KEY("I_Value", "R_Value")
 );
 
+select 1;
+
+create table xxx (
+  item
+);
+insert into xxx (
+  item
+) values (
+  'item'
+)
