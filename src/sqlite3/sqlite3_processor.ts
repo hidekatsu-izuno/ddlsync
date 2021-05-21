@@ -2,7 +2,7 @@ import { Statement, Token } from "../parser"
 import { AlterTableStatement, AttachDatabaseStatement, CreateIndexStatement, CreateTableStatement, CreateTriggerStatement, CreateViewStatement, DetachDatabaseStatement, DropIndexStatement, DropTableStatement, DropTriggerStatement, DropViewStatement, ExplainStatement, InsertStatement, NotNullColumnConstraint, PrimaryKeyColumnConstraint, PrimaryKeyTableConstraint, SortOrder, UniqueColumnConstraint, UniqueTableConstraint, UpdateStatement, SelectStatement, BeginTransactionStatement, SavepointStatement, ReleaseSavepointStatement, CommitTransactionStatement, RollbackTransactionStatement } from "./sqlite3_models";
 import { DdlSyncProcessor } from "../processor"
 import { Sqlite3Parser } from "./sqlite3_parser"
-import { lcase, ucase } from "../util/functions"
+import { lcase, sortBy, ucase } from "../util/functions"
 
 export default class Sqlite3Processor extends DdlSyncProcessor {
   constructor(config: { [key: string]: any }) {
@@ -204,11 +204,12 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     if (obj.dropped) {
       console.log(`-- skip: ${obj.type} ${obj.schemaName}.${obj.name} is dropped`)
     } else if (lcase(obj.schemaName) === "temp") {
-      await this.runScript(this.createScript(stmt))
+      await await this.runScript(this.createScript(stmt))
     } else {
       const meta = await this.getTableMetaData(obj.schemaName, obj.name)
       if (!meta) {
-        this.runScript(this.createScript(stmt))
+        // create new object if not exists
+        await this.runScript(this.createScript(stmt))
       } else {
         const stmt2 = (await this.parse(meta.sql || ""))[0]
         if (!stmt2) {
@@ -216,15 +217,48 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
         }
 
         if ((stmt as any).asSelect || !this.isSame(stmt, stmt2)) {
-          if (stmt2 instanceof CreateTableStatement && !stmt2.virtual) {
-            const backupTableName = `~${this.timestamp()} ${obj.name}`
-            this.runScript(`ALTER TABLE ${iquote(obj.schemaName)}.${iquote(obj.name)} RENAME TO ${iquote(backupTableName)}`)
-            this.runScript(this.createScript(stmt))
-            // INSERT SELECT from backupTableName
-            this.runScript(`DROP TABLE IF EXISTS ${iquote(obj.schemaName)}.${iquote(backupTableName)}`)
+          if (
+            stmt2 instanceof CreateTableStatement && !stmt2.virtual &&
+            stmt instanceof CreateTableStatement && !stmt.virtual && !(stmt as any).asSelect
+          ) {
+            if (await this.hasData(obj.schemaName, obj.name)) {
+              const columnMappings = this.mapColumns(stmt, stmt2)
+              if (columnMappings.hasDroppedColumn) {
+                await this.backupTableData(obj.schemaName, obj.name)
+              }
+
+              const backupTableName = `~${this.timestamp()} ${obj.name}`
+
+              // backup src table
+              await this.runScript(`ALTER TABLE ${iquote(obj.schemaName)}.${iquote(obj.name)} RENAME TO ${iquote(backupTableName)}`)
+              // create new table
+              await this.runScript(this.createScript(stmt))
+              // restore data
+              await this.runScript(`INSERT INTO ${iquote(obj.schemaName)}.${iquote(obj.name)} ` +
+                `(${columnMappings.srcColumns.join(", ")}) ` +
+                `SELECT ${columnMappings.destColumns.join(", ")} ` +
+                `FROM ${iquote(obj.schemaName)}.${iquote(backupTableName)} ` +
+                `ORDER BY ${columnMappings.sortColumns.join(", ")}`)
+              // drop backup table
+              await this.runScript(`DROP TABLE IF EXISTS ${iquote(obj.schemaName)}.${iquote(backupTableName)}`)
+            } else {
+              // drop object
+              await this.runScript(`DROP ${ucase(meta.type)} IF EXISTS ${iquote(obj.schemaName)}.${iquote(obj.name)}`)
+              // create new object
+              await this.runScript(this.createScript(stmt))
+            }
           } else {
-            this.runScript(`DROP ${ucase(meta.type)} IF EXISTS ${iquote(obj.schemaName)}.${iquote(obj.name)}`)
-            this.runScript(this.createScript(stmt))
+            // backup src table if object is a normal table
+            if (stmt2 instanceof CreateTableStatement && !stmt2.virtual) {
+              if (await this.hasData(obj.schemaName, obj.name)) {
+                await this.backupTableData(obj.schemaName, obj.name)
+              }
+            }
+
+            // drop object
+            await this.runScript(`DROP ${ucase(meta.type)} IF EXISTS ${iquote(obj.schemaName)}.${iquote(obj.name)}`)
+            // create new object
+            await this.runScript(this.createScript(stmt))
           }
         } else {
           console.log(`-- skip: ${obj.type} ${obj.schemaName}.${obj.name} is unchangeed`)
@@ -235,11 +269,11 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
 
   private async runDropObjectStatement(seq: number, stmt: Statement, obj: VObject, dryrun: boolean) {
     if (lcase(obj.schemaName) === "temp") {
-      this.runScript(this.createScript(stmt))
+      await this.runScript(this.createScript(stmt))
     } else {
       const meta = await this.getTableMetaData(obj.schemaName, obj.name)
       if (meta && meta.type === obj.type) {
-        this.runScript(this.createScript(stmt))
+        await this.runScript(this.createScript(stmt))
       } else {
         console.log(`-- skip: ${obj.type} ${obj.schemaName}.${obj.name} is not found`)
       }
@@ -249,11 +283,11 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
   private async runInsertStatement(seq: number, stmt: InsertStatement, table: VObject, dryrun: boolean) {
     const scripts = []
     if (lcase(table.schemaName) === "temp") {
-      await this.runScript(this.createScript(stmt))
+      await await this.runScript(this.createScript(stmt))
     } else {
       const hasData = await this.hasData(table.schemaName, table.name)
       if (!hasData) {
-        await this.runScript(this.createScript(stmt))
+        await await this.runScript(this.createScript(stmt))
       } else {
         console.log(`-- skip: ${table.schemaName}.${table.name} has data`)
       }
@@ -265,7 +299,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
   }
 
   private async runStatement(seq: number, stmt: Statement, dryrun: boolean) {
-    await this.runScript(this.createScript(stmt))
+    await await this.runScript(this.createScript(stmt))
   }
 
   private createScript(stmt: Statement) {
@@ -320,6 +354,15 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     }
 
     return true
+  }
+
+  private mapColumns(stmt1: CreateTableStatement, stmt2: CreateTableStatement) {
+    return {
+      hasDroppedColumn: false,
+      srcColumns: [],
+      destColumns: [],
+      sortColumns:[],
+    }
   }
 }
 

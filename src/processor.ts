@@ -56,7 +56,7 @@ export abstract class DdlSyncProcessor {
     return formatDateTime(this.startTime, format)
   }
 
-  protected async backupTable(schemaName: string, name: string) {
+  protected async backupTableData(schemaName: string, name: string) {
     const backupDir = path.join(this.config.ddlsync.workDir, "backup")
     await fs.promises.mkdir(backupDir, { recursive: true })
 
