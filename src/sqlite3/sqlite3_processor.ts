@@ -251,16 +251,19 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
           throw new Error(`Failed to get metadata: ${obj.schemaName}.${obj.name}`)
         }
 
-        console.log(stmt)
-
         if (!this.isSame(stmt, oldStmt)) {
           if (
-            oldStmt instanceof CreateTableStatement && !oldStmt.virtual &&
-            stmt instanceof CreateTableStatement && !stmt.virtual && !(stmt as any).asSelect
+            stmt instanceof CreateTableStatement && !stmt.virtual && !(stmt as any).asSelect &&
+            oldStmt instanceof CreateTableStatement && !oldStmt.virtual
           ) {
             if (this.hasData(obj.schemaName, obj.name)) {
               const columnMappings = this.mapColumns(stmt, oldStmt)
               const backupTableName = `~${this.timestamp()} ${obj.name}`
+
+              if (columnMappings.compatible) {
+                const backupFilename = await this.backupTableData(obj.schemaName, obj.name)
+                console.log(`-- backup: ${obj.type} ${obj.schemaName}.${obj.name} is backuped to ${dquote(backupFilename)}. you may need to resolve manually`)
+              }
 
               // backup src table
               this.runScript(`ALTER TABLE ${bquote(obj.schemaName)}.${bquote(obj.name)} RENAME TO ${bquote(backupTableName)}`)
@@ -273,11 +276,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
                 `FROM ${bquote(obj.schemaName)}.${bquote(backupTableName)} ` +
                 `ORDER BY ${columnMappings.sortColumns.join(", ")}`, QueryType.UPDATE)
               // drop backup table
-              if (columnMappings.compatible) {
-                this.runScript(`DROP TABLE IF EXISTS ${bquote(obj.schemaName)}.${bquote(backupTableName)}`)
-              } else {
-                console.log(`-- backup: ${obj.type} ${obj.schemaName}.${obj.name} is backuped as ${bquote(backupTableName)}. this must be resolved manually`)
-              }
+              this.runScript(`DROP TABLE IF EXISTS ${bquote(obj.schemaName)}.${bquote(backupTableName)}`)
             } else {
               // drop object
               this.runScript(`DROP ${ucase(meta.type)} IF EXISTS ${bquote(obj.schemaName)}.${bquote(obj.name)}`)
@@ -288,7 +287,8 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
             // backup src table if object is a normal table
             if (oldStmt instanceof CreateTableStatement && !oldStmt.virtual) {
               if (this.hasData(obj.schemaName, obj.name)) {
-                this.backupTableData(obj.schemaName, obj.name)
+                const backupFilename = await this.backupTableData(obj.schemaName, obj.name)
+                console.log(`-- backup: ${obj.type} ${obj.schemaName}.${obj.name} is backuped to ${dquote(backupFilename)}. you may need to resolve manually`)
               }
             }
 
@@ -490,7 +490,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
 
     const backupFileName = path.join(
       backupDir,
-      `${schemaName}-${name}-${this.timestamp()}.csv.gz`
+      `~${this.timestamp()}-${schemaName}-${name}.csv.gz`
     )
 
     const stmt = this.con.prepare(`SELECT * FROM ${bquote(schemaName)}.${bquote(name)}`)
@@ -498,6 +498,8 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
       yield stmt.columns().map(column => column.name);
       yield* stmt.raw().iterate();
     })())
+
+    return backupFileName
   }
 }
 

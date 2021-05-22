@@ -24,10 +24,16 @@ async function initConfig(args: string[], options: { [key: string]: any }) {
       configPath = path.resolve(cwd, options.config)
     }
   } else {
-    loop: for (const prefix of ["ddlsync.config", "ormconfig", "knexfile"]) {
+    loop: for (const fileType of [
+      { prefix: "ddlsync.config", type: "ddlsync" },
+      { prefix: "ormconfig", type: "typeorm" },
+      { prefix: "knexfile", type: "knex" },
+      { prefix: "config/config", type: "sequelize" },
+    ]) {
       for (let ext of Extensions) {
-        const filePath = path.resolve(cwd, `${prefix}.${ext}`)
+        const filePath = path.resolve(cwd, `${fileType.prefix}.${ext}`)
         if (await io.isFile(filePath)) {
+          configType = fileType.type
           configPath = filePath
           break loop
         }
@@ -75,13 +81,26 @@ async function initConfig(args: string[], options: { [key: string]: any }) {
   let ddlSyncConfg
   if (configType === "typeorm") {
     ddlSyncConfg = { ...config, ...config.ddlsync, ddlsync: undefined }
+  } else if (configType === "sequelize") {
+    ddlSyncConfg = { ...config.ddlsync, ddlsync: undefined }
+    if (config.dialect === "sqlite") {
+      ddlSyncConfg.type = "sqlite3"
+      ddlSyncConfg.database = config.storage
+    } else {
+      ddlSyncConfg.type = config.dialect
+      ddlSyncConfg.host = config.host
+      ddlSyncConfg.port = config.port
+      ddlSyncConfg.username = config.username
+      ddlSyncConfg.password = config.password
+      ddlSyncConfg.database = config.database
+    }
   } else if (configType === "knex") {
-    ddlSyncConfg = { ...config.ddlsync }
+    ddlSyncConfg = { ...config.ddlsync, ddlsync: undefined }
     if (config.client === "sqlite3") {
       ddlSyncConfg.type = config.client
       ddlSyncConfg.database = config.connection?.filename
     } else {
-      if (config.client === "mysql2") {
+      if (config.client === "mysql2" || config.client === "mariadb") {
         ddlSyncConfg.type = "mysql"
       } else if (config.client === "pg") {
         ddlSyncConfg.type = "postgres"
