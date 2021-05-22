@@ -1,10 +1,11 @@
 import { Command, Option } from 'commander'
-import knex from 'knex'
+import knex, { Knex } from 'knex'
 import path from "path"
 import fs from "fs"
 import zlib from "zlib"
 import { Transform } from 'stream'
 import { createDddlSyncProcessor } from '../util/config'
+import sqlite3 from "sqlite3"
 
 export default (program: Command) => {
   program.command('test')
@@ -22,23 +23,19 @@ async function main(
   args: string[],
   options: { [key: string]: any }
 ) {
+  /*
   const processor = await createDddlSyncProcessor(args, options)
   try {
-    await (processor as any).con.raw("select 1")
-      .stream((stream: any) => {
-        stream
-          .pipe(new Transform({
-            objectMode: true,
-            transform(chunk, encoding, callback) {
-              this.push(JSON.stringify(chunk))
-              callback()
-            }
-          }))
-          .pipe(zlib.createGzip())
-          .pipe(fs.createWriteStream("./.ddlsync/test.gz"))
-      })
+    const con = ((processor as any).con as Knex)
+    await con.raw("drop table test")
+    await con.raw("create table test as select 1, 2 as a, 3, 4 as bc, 5, 6 as d")
+    const result = await con.raw("select * from test")
+    for (let row of result) {
+      for (let key of Object.keys(row)) {
+        console.log(key)
+      }
+    }
   } finally {
     await processor.destroy()
-  }
-
+  }*/
 }

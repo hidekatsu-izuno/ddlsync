@@ -1,3 +1,8 @@
+import { knex, Knex } from "knex"
+import fs from 'fs'
+import path from "path"
+import { Transform } from "stream"
+import zlib from "zlib"
 import { Statement, Token } from "../parser"
 import { AlterTableStatement, AttachDatabaseStatement, CreateIndexStatement, CreateTableStatement, CreateTriggerStatement, CreateViewStatement, DetachDatabaseStatement, DropIndexStatement, DropTableStatement, DropTriggerStatement, DropViewStatement, ExplainStatement, InsertStatement, NotNullColumnConstraint, PrimaryKeyColumnConstraint, PrimaryKeyTableConstraint, SortOrder, UniqueColumnConstraint, UniqueTableConstraint, UpdateStatement, SelectStatement, BeginTransactionStatement, SavepointStatement, ReleaseSavepointStatement, CommitTransactionStatement, RollbackTransactionStatement } from "./sqlite3_models";
 import { DdlSyncProcessor } from "../processor"
@@ -5,8 +10,11 @@ import { Sqlite3Parser } from "./sqlite3_parser"
 import { lcase, sortBy, ucase } from "../util/functions"
 
 export default class Sqlite3Processor extends DdlSyncProcessor {
+  private con: Knex
+
   constructor(config: { [key: string]: any }) {
     super("sqlite3", config)
+    this.con = knex(config)
   }
 
   async parse(input: string, options?: { [key: string]: any}) {
@@ -79,6 +87,10 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
       }
       console.log()
     }
+  }
+
+  async destroy()  {
+    await this.con.destroy()
   }
 
   private tryAttachDatabaseStatement(seq: number, stmt: AttachDatabaseStatement, vdb: VDatabase) {
@@ -223,10 +235,6 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
           ) {
             if (await this.hasData(obj.schemaName, obj.name)) {
               const columnMappings = this.mapColumns(stmt, stmt2)
-              if (columnMappings.hasDroppedColumn) {
-                await this.backupTableData(obj.schemaName, obj.name)
-              }
-
               const backupTableName = `~${this.timestamp()} ${obj.name}`
 
               // backup src table
@@ -240,7 +248,11 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
                 `FROM ${iquote(obj.schemaName)}.${iquote(backupTableName)} ` +
                 `ORDER BY ${columnMappings.sortColumns.join(", ")}`)
               // drop backup table
-              await this.runScript(`DROP TABLE IF EXISTS ${iquote(obj.schemaName)}.${iquote(backupTableName)}`)
+              if (columnMappings.compatible) {
+                await this.runScript(`DROP TABLE IF EXISTS ${iquote(obj.schemaName)}.${iquote(backupTableName)}`)
+              } else {
+                console.log(`-- backup: ${obj.type} ${obj.schemaName}.${obj.name} is backuped as ${backupTableName}. this must be resolved manually`)
+              }
             } else {
               // drop object
               await this.runScript(`DROP ${ucase(meta.type)} IF EXISTS ${iquote(obj.schemaName)}.${iquote(obj.name)}`)
@@ -358,11 +370,52 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
 
   private mapColumns(stmt1: CreateTableStatement, stmt2: CreateTableStatement) {
     return {
-      hasDroppedColumn: false,
+      compatible: true,
       srcColumns: [],
       destColumns: [],
       sortColumns:[],
     }
+  }
+
+  private async runScript(script: string) {
+    console.log(script + ";")
+    if (!this.dryrun) {
+      const result = await this.con.raw(script)
+      if (result && result.length) {
+        console.log(`-- result: ${result.length} records`)
+      }
+    }
+  }
+
+  private async backupTableData(schemaName: string, name: string) {
+    const backupDir = path.join(this.config.ddlsync.workDir, "backup")
+    await fs.promises.mkdir(backupDir, { recursive: true })
+
+    const backupFileName = path.join(
+      backupDir,
+      `${schemaName}-${name}-${this.timestamp()}.csv.gz`
+    )
+
+    let count = 0
+    await this.con
+      .withSchema(schemaName)
+      .select("*")
+      .from(name)
+      .stream(stream => {
+        stream
+          .pipe(new Transform({
+            objectMode: true,
+            transform(chunk, encoding, done) {
+              if (count == 0) {
+                this.push(`header\n`)
+              }
+              count++
+              done()
+            },
+          }))
+          .pipe(zlib.createGzip())
+          .pipe(fs.createWriteStream(backupFileName))
+      })
   }
 }
 
