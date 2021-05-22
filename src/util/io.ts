@@ -1,5 +1,7 @@
 import fs from 'fs'
-import { dirname, resolve } from 'path';
+import zlib from "zlib"
+import { dirname, resolve } from 'path'
+import { Readable, Transform } from 'stream'
 
 export async function exists(path: string) {
   try {
@@ -44,6 +46,33 @@ export async function findFileInParents(start: string, pattern: RegExp) {
       break;
     }
 	}
+}
+
+export async function writeGzippedCsv(filename: string, source: AsyncIterable<any[]>) {
+  await new Promise(function(resolve, reject) {
+    Readable.from(source)
+      .pipe(new Transform({
+        objectMode: true,
+        transform(chunk, encoding, done) {
+          for (let i = 0; i < chunk.length; i++) {
+            if (i == 0) {
+              this.push(",")
+            }
+            if (chunk[i] == null) {
+              this.push("\\N")
+            } else {
+              this.push(chunk[i])
+            }
+          }
+          this.push("\n")
+          done()
+        },
+      }))
+      .pipe(zlib.createGzip())
+      .pipe(fs.createWriteStream(filename))
+      .on("error", reject)
+      .on("finish", resolve)
+  })
 }
 
 export default {

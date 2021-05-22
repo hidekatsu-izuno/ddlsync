@@ -5,11 +5,11 @@ import colorette from "colorette"
 import io from "../util/io"
 import Sqlite3Processor from "../sqlite3/sqlite3_processor"
 
-const Extensions = ["ts", "js", "coffee", "eg", "ls"]
+const Extensions = ["ts", "js", "json", "yml", "coffee", "eg", "ls"]
 
 export async function createDddlSyncProcessor(args: string[], options: { [key: string]: any }) {
   const config = await initConfig(args, options)
-  if (config.client === "sqlite3") {
+  if (config.client === "sqlite3" || config.type === "sqlite3") {
     return new Sqlite3Processor(config)
   }
   throw new Error(`Unsupported client: ${config.client}`)
@@ -17,23 +17,19 @@ export async function createDddlSyncProcessor(args: string[], options: { [key: s
 
 async function initConfig(args: string[], options: { [key: string]: any }) {
   let cwd = process.cwd()
+  let configType = null
   let configPath = null
   if (options.config) {
     if (typeof options.knexfile === "string") {
       configPath = path.resolve(cwd, options.config)
     }
   } else {
-    for (let ext of Extensions) {
-      const filePath = path.resolve(cwd, `ddlsync.config.${ext}`)
-      if (await io.isFile(filePath)) {
-        configPath = filePath
-      }
-    }
-    if (!configPath) {
+    loop: for (const prefix of ["ddlsync.config", "ormconfig", "knexfile"]) {
       for (let ext of Extensions) {
-        const filePath = path.resolve(cwd, `knexfile.${ext}`)
+        const filePath = path.resolve(cwd, `${prefix}.${ext}`)
         if (await io.isFile(filePath)) {
           configPath = filePath
+          break loop
         }
       }
     }
@@ -76,27 +72,54 @@ async function initConfig(args: string[], options: { [key: string]: any }) {
     throw new Error(`Warning: unable to read a config file: ${configPath}`)
   }
 
-  if (!config.ddlsync) {
-    config.ddlsync = {}
+  let ddlSyncConfg
+  if (configType === "typeorm") {
+    ddlSyncConfg = { ...config, ...config.ddlsync, ddlsync: undefined }
+  } else if (configType === "knex") {
+    ddlSyncConfg = { ...config.ddlsync }
+    if (config.client === "sqlite3") {
+      ddlSyncConfg.type = config.client
+      ddlSyncConfg.database = config.connection?.filename
+    } else {
+      if (config.client === "mysql2") {
+        ddlSyncConfg.type = "mysql"
+      } else if (config.client === "pg") {
+        ddlSyncConfg.type = "postgres"
+      } else if (config.client === "tedious") {
+        ddlSyncConfg.type = "mssql"
+        } else if (config.client === "oracledb") {
+        ddlSyncConfg.type = "oracle"
+      } else {
+        ddlSyncConfg.type = config.client
+      }
+      ddlSyncConfg.host = config.connection?.host
+      ddlSyncConfg.port = config.connection?.port
+      ddlSyncConfg.username = config.connection?.username
+      ddlSyncConfg.password = config.connection?.password
+      ddlSyncConfg.database = config.connection?.database
+    }
+  } else {
+    ddlSyncConfg = config
   }
 
+  // override settings
   if (options.include) {
-    config.ddlsync.include = options.include
+    ddlSyncConfg.include = options.include
   }
-  if (config.ddlsync.include && !Array.isArray(config.ddlsync.include)) {
-    config.ddlsync.include = [ config.ddlsync.include ]
-  }
-
   if (options.exclude) {
-    config.ddlsync.exclude = options.exclude
+    ddlSyncConfg.exclude = options.exclude
   }
-  if (config.ddlsync.exclude && !Array.isArray(config.ddlsync.exclude)) {
-    config.ddlsync.exclude = [ config.ddlsync.exclude ]
-  }
-
   if (options.workDir) {
-    config.ddlsync.workDir = options.workDir
+    ddlSyncConfg.workDir = ddlSyncConfg.workDir
   }
 
-  return config;
+  // normalize config
+  if (ddlSyncConfg.include && !Array.isArray(ddlSyncConfg.include)) {
+    ddlSyncConfg.include = [ ddlSyncConfg.include ]
+  }
+  if (ddlSyncConfg.exclude && !Array.isArray(ddlSyncConfg.exclude)) {
+    ddlSyncConfg.exclude = [ ddlSyncConfg.exclude ]
+  }
+
+  return ddlSyncConfg;
 }

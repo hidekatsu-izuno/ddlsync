@@ -1,11 +1,9 @@
 import { Command, Option } from 'commander'
-import knex, { Knex } from 'knex'
-import path from "path"
 import fs from "fs"
 import zlib from "zlib"
-import { Transform } from 'stream'
+import { Readable, Transform } from 'stream'
 import { createDddlSyncProcessor } from '../util/config'
-import sqlite3 from "sqlite3"
+import sqlite3 from "better-sqlite3"
 
 export default (program: Command) => {
   program.command('test')
@@ -23,19 +21,28 @@ async function main(
   args: string[],
   options: { [key: string]: any }
 ) {
-  /*
   const processor = await createDddlSyncProcessor(args, options)
   try {
-    const con = ((processor as any).con as Knex)
-    await con.raw("drop table test")
-    await con.raw("create table test as select 1, 2 as a, 3, 4 as bc, 5, 6 as d")
-    const result = await con.raw("select * from test")
-    for (let row of result) {
-      for (let key of Object.keys(row)) {
-        console.log(key)
-      }
-    }
+    const con = ((processor as any).con as sqlite3.Database)
+    const stmt = con.prepare(`SELECT * FROM sqlite_master`)
+    await new Promise(function(resolve, reject) {
+      Readable.from((async function *() {
+        yield stmt.columns().map(column => column.name);
+        yield* stmt.raw().iterate();
+      })())
+        .pipe(new Transform({
+          objectMode: true,
+          transform(chunk, encoding, done) {
+            this.push(chunk.join(',') + '\n')
+            done()
+          },
+        }))
+        .pipe(zlib.createGzip())
+        .pipe(fs.createWriteStream("./.ddlsync/test.csv.gz"))
+        .on('error', reject)
+        .on("finish", resolve)
+    })
   } finally {
     await processor.destroy()
-  }*/
+  }
 }

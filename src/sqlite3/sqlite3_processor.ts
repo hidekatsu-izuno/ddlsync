@@ -1,20 +1,19 @@
-import { knex, Knex } from "knex"
 import fs from 'fs'
 import path from "path"
-import { Transform } from "stream"
-import zlib from "zlib"
 import { Statement, Token } from "../parser"
 import { AlterTableStatement, AttachDatabaseStatement, CreateIndexStatement, CreateTableStatement, CreateTriggerStatement, CreateViewStatement, DetachDatabaseStatement, DropIndexStatement, DropTableStatement, DropTriggerStatement, DropViewStatement, ExplainStatement, InsertStatement, NotNullColumnConstraint, PrimaryKeyColumnConstraint, PrimaryKeyTableConstraint, SortOrder, UniqueColumnConstraint, UniqueTableConstraint, UpdateStatement, SelectStatement, BeginTransactionStatement, SavepointStatement, ReleaseSavepointStatement, CommitTransactionStatement, RollbackTransactionStatement } from "./sqlite3_models";
 import { DdlSyncProcessor } from "../processor"
 import { Sqlite3Parser } from "./sqlite3_parser"
+import sqlite3 from "better-sqlite3"
 import { lcase, sortBy, ucase } from "../util/functions"
+import { writeGzippedCsv } from '../util/io'
 
 export default class Sqlite3Processor extends DdlSyncProcessor {
-  private con: Knex
+  private con
 
   constructor(config: { [key: string]: any }) {
-    super("sqlite3", config)
-    this.con = knex(config)
+    super(config)
+    this.con = sqlite3(config.database || ":memory:")
   }
 
   async parse(input: string, options?: { [key: string]: any}) {
@@ -31,16 +30,16 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     for (const [i, stmt] of stmts.entries()) {
       switch (stmt.constructor) {
         case AttachDatabaseStatement:
-          refs[i] = await this.tryAttachDatabaseStatement(i, stmt as AttachDatabaseStatement, vdb)
+          refs[i] = this.tryAttachDatabaseStatement(i, stmt as AttachDatabaseStatement, vdb)
           break
         case DetachDatabaseStatement:
-          refs[i] = await this.tryDetachDatabaseStatement(i, stmt as DetachDatabaseStatement, vdb)
+          refs[i] = this.tryDetachDatabaseStatement(i, stmt as DetachDatabaseStatement, vdb)
           break
         case CreateTableStatement:
         case CreateViewStatement:
         case CreateTriggerStatement:
         case CreateIndexStatement:
-          refs[i] = await this.tryCreateObjectStatement(i, stmt, vdb)
+          refs[i] = this.tryCreateObjectStatement(i, stmt, vdb)
           break
         case AlterTableStatement:
           throw Error(`[plan] alter table statement is not supported`)
@@ -48,10 +47,10 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
         case DropViewStatement:
         case DropTriggerStatement:
         case DropIndexStatement:
-          refs[i] = await this.tryDropObjectStatement(i, stmt, vdb)
+          refs[i] = this.tryDropObjectStatement(i, stmt, vdb)
           break
         case InsertStatement:
-          refs[i] = await this.tryInsertStatement(i, stmt as InsertStatement, vdb)
+          refs[i] = this.tryInsertStatement(i, stmt as InsertStatement, vdb)
         default:
           // no handle
       }
@@ -64,33 +63,36 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
         case CreateViewStatement:
         case CreateTriggerStatement:
         case CreateIndexStatement:
-            await this.runCreateObjectStatement(i, stmt, refs[i] as VObject, dryrun)
+            await this.runCreateObjectStatement(i, stmt, refs[i] as VObject)
           break
         case DropTableStatement:
         case DropViewStatement:
         case DropTriggerStatement:
         case DropIndexStatement:
-          await this.runDropObjectStatement(i, stmt, refs[i] as VObject, dryrun)
+          await this.runDropObjectStatement(i, stmt, refs[i] as VObject)
           break
         case InsertStatement:
-          await this.runInsertStatement(i, stmt as InsertStatement, refs[i] as VObject, dryrun)
+          await this.runInsertStatement(i, stmt as InsertStatement, refs[i] as VObject)
           break
         case BeginTransactionStatement:
         case SavepointStatement:
         case ReleaseSavepointStatement:
         case CommitTransactionStatement:
         case RollbackTransactionStatement:
-          await this.runTransactionStatement(i, stmt, dryrun)
+          await this.runTransactionStatement(i, stmt)
+          break;
+        case SelectStatement:
+          await this.runSelectStatement(i, stmt)
           break;
         default:
-          await this.runStatement(i, stmt, dryrun)
+          await this.runStatement(i, stmt)
       }
       console.log()
     }
   }
 
   async destroy()  {
-    await this.con.destroy()
+    this.con.close()
   }
 
   private tryAttachDatabaseStatement(seq: number, stmt: AttachDatabaseStatement, vdb: VDatabase) {
@@ -212,16 +214,16 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     return table
   }
 
-  private async runCreateObjectStatement(seq: number, stmt: Statement, obj: VObject, dryrun: boolean) {
+  private async runCreateObjectStatement(seq: number, stmt: Statement, obj: VObject) {
     if (obj.dropped) {
       console.log(`-- skip: ${obj.type} ${obj.schemaName}.${obj.name} is dropped`)
     } else if (lcase(obj.schemaName) === "temp") {
-      await await this.runScript(this.createScript(stmt))
+      this.runScript(this.createScript(stmt), false)
     } else {
-      const meta = await this.getTableMetaData(obj.schemaName, obj.name)
+      const meta = this.getTableMetaData(obj.schemaName, obj.name)
       if (!meta) {
         // create new object if not exists
-        await this.runScript(this.createScript(stmt))
+        this.runScript(this.createScript(stmt), false)
       } else {
         const stmt2 = (await this.parse(meta.sql || ""))[0]
         if (!stmt2) {
@@ -233,44 +235,44 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
             stmt2 instanceof CreateTableStatement && !stmt2.virtual &&
             stmt instanceof CreateTableStatement && !stmt.virtual && !(stmt as any).asSelect
           ) {
-            if (await this.hasData(obj.schemaName, obj.name)) {
+            if (this.hasData(obj.schemaName, obj.name)) {
               const columnMappings = this.mapColumns(stmt, stmt2)
               const backupTableName = `~${this.timestamp()} ${obj.name}`
 
               // backup src table
-              await this.runScript(`ALTER TABLE ${iquote(obj.schemaName)}.${iquote(obj.name)} RENAME TO ${iquote(backupTableName)}`)
+              this.runScript(`ALTER TABLE ${iquote(obj.schemaName)}.${iquote(obj.name)} RENAME TO ${iquote(backupTableName)}`, false)
               // create new table
-              await this.runScript(this.createScript(stmt))
+              this.runScript(this.createScript(stmt), false)
               // restore data
-              await this.runScript(`INSERT INTO ${iquote(obj.schemaName)}.${iquote(obj.name)} ` +
+              this.runScript(`INSERT INTO ${iquote(obj.schemaName)}.${iquote(obj.name)} ` +
                 `(${columnMappings.srcColumns.join(", ")}) ` +
                 `SELECT ${columnMappings.destColumns.join(", ")} ` +
                 `FROM ${iquote(obj.schemaName)}.${iquote(backupTableName)} ` +
-                `ORDER BY ${columnMappings.sortColumns.join(", ")}`)
+                `ORDER BY ${columnMappings.sortColumns.join(", ")}`, false)
               // drop backup table
               if (columnMappings.compatible) {
-                await this.runScript(`DROP TABLE IF EXISTS ${iquote(obj.schemaName)}.${iquote(backupTableName)}`)
+                this.runScript(`DROP TABLE IF EXISTS ${iquote(obj.schemaName)}.${iquote(backupTableName)}`, false)
               } else {
                 console.log(`-- backup: ${obj.type} ${obj.schemaName}.${obj.name} is backuped as ${backupTableName}. this must be resolved manually`)
               }
             } else {
               // drop object
-              await this.runScript(`DROP ${ucase(meta.type)} IF EXISTS ${iquote(obj.schemaName)}.${iquote(obj.name)}`)
+              this.runScript(`DROP ${ucase(meta.type)} IF EXISTS ${iquote(obj.schemaName)}.${iquote(obj.name)}`, false)
               // create new object
-              await this.runScript(this.createScript(stmt))
+              this.runScript(this.createScript(stmt), false)
             }
           } else {
             // backup src table if object is a normal table
             if (stmt2 instanceof CreateTableStatement && !stmt2.virtual) {
-              if (await this.hasData(obj.schemaName, obj.name)) {
-                await this.backupTableData(obj.schemaName, obj.name)
+              if (this.hasData(obj.schemaName, obj.name)) {
+                this.backupTableData(obj.schemaName, obj.name)
               }
             }
 
             // drop object
-            await this.runScript(`DROP ${ucase(meta.type)} IF EXISTS ${iquote(obj.schemaName)}.${iquote(obj.name)}`)
+            this.runScript(`DROP ${ucase(meta.type)} IF EXISTS ${iquote(obj.schemaName)}.${iquote(obj.name)}`, false)
             // create new object
-            await this.runScript(this.createScript(stmt))
+            this.runScript(this.createScript(stmt), false)
           }
         } else {
           console.log(`-- skip: ${obj.type} ${obj.schemaName}.${obj.name} is unchangeed`)
@@ -279,39 +281,42 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     }
   }
 
-  private async runDropObjectStatement(seq: number, stmt: Statement, obj: VObject, dryrun: boolean) {
+  private async runDropObjectStatement(seq: number, stmt: Statement, obj: VObject) {
     if (lcase(obj.schemaName) === "temp") {
-      await this.runScript(this.createScript(stmt))
+      this.runScript(this.createScript(stmt), false)
     } else {
-      const meta = await this.getTableMetaData(obj.schemaName, obj.name)
+      const meta = this.getTableMetaData(obj.schemaName, obj.name)
       if (meta && meta.type === obj.type) {
-        await this.runScript(this.createScript(stmt))
+        this.runScript(this.createScript(stmt), false)
       } else {
         console.log(`-- skip: ${obj.type} ${obj.schemaName}.${obj.name} is not found`)
       }
     }
   }
 
-  private async runInsertStatement(seq: number, stmt: InsertStatement, table: VObject, dryrun: boolean) {
-    const scripts = []
+  private async runInsertStatement(seq: number, stmt: InsertStatement, table: VObject) {
     if (lcase(table.schemaName) === "temp") {
-      await await this.runScript(this.createScript(stmt))
+      this.runScript(this.createScript(stmt), false)
     } else {
-      const hasData = await this.hasData(table.schemaName, table.name)
+      const hasData = this.hasData(table.schemaName, table.name)
       if (!hasData) {
-        await await this.runScript(this.createScript(stmt))
+        this.runScript(this.createScript(stmt), false)
       } else {
         console.log(`-- skip: ${table.schemaName}.${table.name} has data`)
       }
     }
   }
 
-  private async runTransactionStatement(seq: number, stmt: Statement, dryrun: boolean) {
+  private async runTransactionStatement(seq: number, stmt: Statement) {
     console.log(`-- skip: transaction control is ignroed`)
   }
 
-  private async runStatement(seq: number, stmt: Statement, dryrun: boolean) {
-    await await this.runScript(this.createScript(stmt))
+  private async runSelectStatement(seq: number, stmt: Statement) {
+    this.runScript(this.createScript(stmt), true)
+  }
+
+  private async runStatement(seq: number, stmt: Statement) {
+    this.runScript(this.createScript(stmt), false)
   }
 
   private createScript(stmt: Statement) {
@@ -326,17 +331,16 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     return Token.concat(tokens)
   }
 
-  private async getTableMetaData(schemaName: string, name: string) {
-    const result = await this.con.raw(
-      `SELECT type, sql FROM ${iquote(schemaName)}.sqlite_master WHERE name = ? COLLATE NOCASE LIMIT 1`,
-      [name]
-    ) as any
-    return result.length ? result[0] : undefined
+  private getTableMetaData(schemaName: string, name: string) {
+    return this.con
+      .prepare(`SELECT type, sql FROM ${iquote(schemaName)}.sqlite_master WHERE name = ? COLLATE NOCASE LIMIT 1`)
+      .get(name)
   }
 
-  private async hasData(schemaName: string, name: string) {
-    const result = await this.con.raw(`SELECT 1 FROM ${iquote(schemaName)}.${iquote(name)} LIMIT 1`)
-    return !!result.length
+  private hasData(schemaName: string, name: string) {
+    return !!this.con
+      .prepare(`SELECT 1 FROM ${iquote(schemaName)}.${iquote(name)} LIMIT 1`)
+      .get()
   }
 
   private isSame(stmt1: Statement, stmt2: Statement) {
@@ -377,12 +381,19 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     }
   }
 
-  private async runScript(script: string) {
+  private runScript(script: string, hasResult: boolean) {
     console.log(script + ";")
     if (!this.dryrun) {
-      const result = await this.con.raw(script)
-      if (result && result.length) {
-        console.log(`-- result: ${result.length} records`)
+      const stmt = this.con.prepare(script)
+      if (hasResult) {
+        let count = 0
+        for (const row of stmt.iterate()) {
+          count++
+        }
+        console.log(`-- result: ${count} records`)
+      } else {
+        const result = stmt.run()
+        console.log(`-- result: ${result.changes} records`)
       }
     }
   }
@@ -396,26 +407,11 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
       `${schemaName}-${name}-${this.timestamp()}.csv.gz`
     )
 
-    let count = 0
-    await this.con
-      .withSchema(schemaName)
-      .select("*")
-      .from(name)
-      .stream(stream => {
-        stream
-          .pipe(new Transform({
-            objectMode: true,
-            transform(chunk, encoding, done) {
-              if (count == 0) {
-                this.push(`header\n`)
-              }
-              count++
-              done()
-            },
-          }))
-          .pipe(zlib.createGzip())
-          .pipe(fs.createWriteStream(backupFileName))
-      })
+    const stmt = this.con.prepare(`SELECT * FROM ${iquote(schemaName)}.${iquote(name)}`)
+    await writeGzippedCsv(backupFileName, (async function *() {
+      yield stmt.columns().map(column => column.name);
+      yield* stmt.raw().iterate();
+    })())
   }
 }
 

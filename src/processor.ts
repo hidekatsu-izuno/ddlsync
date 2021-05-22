@@ -8,7 +8,6 @@ export abstract class DdlSyncProcessor {
   private startTime = Date.now()
 
   protected constructor(
-    public name: string,
     public config: { [key: string]: any },
   ) {
   }

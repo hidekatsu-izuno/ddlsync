@@ -30,13 +30,12 @@
     "decimal.js": "^10.2.1",
     "fast-glob": "^3.2.5",
     "interpret": "^2.2.0",
-    "knex": "^0.95.4",
     "rechoir": "^0.7.0",
     "semver": "^7.3.5",
-    "sqlite3": "^5.0.2",
     "tslib": "^2.2.0"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^5.4.1",
     "@types/interpret": "^1.1.1",
     "@types/jest": "^26.0.23",
     "@types/node": "^15.0.2",
@@ -59,5 +58,8 @@
   "jest": {
     "preset": "ts-jest",
     "testEnvironment": "node"
+  },
+  "optionalDependencies": {
+    "better-sqlite3": "^7.4.0"
   }
 }
