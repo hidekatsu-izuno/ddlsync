@@ -202,7 +202,9 @@ export class Sqlite3Parser extends Parser {
             }
           } else if (this.consumeIf(Keyword.AS)) {
             stmt.asSelect = true
+            stmt.markers.set("selectStart", this.pos - start)
             this.selectClause()
+            stmt.markers.set("selectEnd", this.pos - start)
           } else {
             throw this.createParseError()
           }

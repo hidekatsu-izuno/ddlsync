@@ -154,8 +154,8 @@ export class Token {
   constructor(
     public type: TokenType,
     public text: string,
-    public start: number,
-    public end: number,
+    public start: number = -1,
+    public end: number = -1,
   ) {
   }
 

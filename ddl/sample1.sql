@@ -36,4 +36,6 @@ insert into xxx (
   item
 ) values (
   'item'
-)
+);
+
+create table xxx2 AS select * from xxx
