@@ -380,11 +380,67 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
   }
 
   private mapColumns(stmt1: CreateTableStatement, stmt2: CreateTableStatement) {
+    const columns1 = (stmt1.columns || []).reduce((prev, current) => {
+      prev.add(lcase(current.name))
+      return prev
+    }, new Set<string>())
+
+    const droppedColumns = new Set<string>(columns1)
+    const srcColumns = []
+    const destColumns = []
+    let sortColumns = []
+    for (const column2 of stmt2.columns || []) {
+      let notNull = false
+      for (const constraint2 of column2.constraints) {
+        if (sortColumns.length === 0 && constraint2 instanceof PrimaryKeyColumnConstraint) {
+          let key = bquote(column2.name)
+          if (constraint2.sortOrder === SortOrder.DESC) {
+            key += " DESC"
+          }
+          sortColumns.push(key)
+        } else if (constraint2 instanceof NotNullColumnConstraint) {
+          notNull = true
+        }
+      }
+
+      destColumns.push(bquote(column2.name))
+      if (columns1.has(lcase(column2.name))) {
+        srcColumns.push(bquote(column2.name))
+        droppedColumns.delete(lcase(column2.name))
+      } else if (notNull) {
+        if (isTextType(column2.typeName)) {
+          srcColumns.push("''")
+        } else if (isBlobType(column2.typeName)) {
+          srcColumns.push("x'00'")
+        } else {
+          srcColumns.push("0")
+        }
+      } else {
+        srcColumns.push("NULL")
+      }
+    }
+    if (sortColumns.length === 0) {
+      for (const constraint2 of stmt2.constraints || []) {
+        if (sortColumns.length === 0 && constraint2 instanceof PrimaryKeyTableConstraint) {
+          for (const ccolumn2 of constraint2.columns) {
+            let key = Token.concat(ccolumn2.expression, { space: " " })
+            if (ccolumn2.sortOrder === SortOrder.DESC) {
+              key += " DESC"
+            }
+            sortColumns.push(key)
+          }
+        }
+      }
+    }
+    if (sortColumns.length === 0) {
+      sortColumns = destColumns
+    }
+
     return {
-      compatible: true,
-      srcColumns: [],
-      destColumns: [],
-      sortColumns:[],
+      compatible: droppedColumns.size === 0,
+      srcColumns,
+      destColumns,
+      sortColumns,
     }
   }
 
@@ -428,6 +484,14 @@ enum QueryType {
   DEFINE,
   UPDATE,
   SELECT,
+}
+
+function isTextType(type: string) {
+  return /^(TEXT|(VAR)?CHAR(CTER)?|N(VAR)?CHAR|(VARYING|NATIVE) +CHARACTER|CLOB) *[(]?/i.test(type)
+}
+
+function isBlobType(type: string) {
+  return /^(BLOB) *[(]?/i.test(type)
 }
 
 class VDatabase {

@@ -174,7 +174,7 @@ export class Token {
     for (let i = start; i < end; i++) {
       const token = tokens[i]
       if (options.left || i > start) {
-        if (options.space) {
+        if (token.before.length > 0 && options.space) {
           text += options.space
         } else {
           for (const ws of token.before) {
@@ -184,7 +184,7 @@ export class Token {
       }
       text += token.text
       if (options.right && i === tokens.length - 1) {
-        if (options.space) {
+        if (token.after.length > 0 && options.space) {
           text += options.space
         } else {
           for (const ws of token.after) {
