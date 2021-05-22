@@ -41,4 +41,10 @@ insert into xxx (
 
 create table xxx2 AS select * from xxx;
 
-drop table if exists xxx3
+create table xxx4 (
+  col1 text
+  ,col2 text
+  ,col3 text not null
+);
+
+--insert into xxx4 (col1) values ('val1')

@@ -500,10 +500,12 @@ export class Sqlite3Parser extends Parser {
       this.consume(TokenType.RightParen)
     }
 
-    while (this.peek() &&
+    while (
+      this.peek() &&
       !this.peekIf(TokenType.SemiColon) &&
       !this.peekIf(TokenType.RightParen) &&
-      !this.peekIf(TokenType.Comma)) {
+      !this.peekIf(TokenType.Comma)
+    ) {
       columnDef.constraints.push(this.columnConstraint())
     }
 
@@ -680,7 +682,20 @@ export class Sqlite3Parser extends Parser {
     while (
       this.peekIf(TokenType.QuotedIdentifier) ||
       this.peekIf(TokenType.QuotedValue) ||
-      this.peekIf(TokenType.Identifier)
+      (
+        this.peekIf(TokenType.Identifier) &&
+        !this.peekIf(Keyword.CONSTRAINT) &&
+        !this.peekIf(Keyword.PRIMARY) &&
+        !this.peekIf(Keyword.NOT) &&
+        !this.peekIf(Keyword.NULL) &&
+        !this.peekIf(Keyword.UNIQUE) &&
+        !this.peekIf(Keyword.CHECK) &&
+        !this.peekIf(Keyword.DEFAULT) &&
+        !this.peekIf(Keyword.COLLATE) &&
+        !this.peekIf(Keyword.REFERENCES) &&
+        !this.peekIf(Keyword.GENERATED) &&
+        !this.peekIf(Keyword.AS)
+      )
     ) {
       typeNames.push(this.identifier())
     }

@@ -4,7 +4,7 @@ import sqlite3 from "better-sqlite3"
 import { Statement } from "../models"
 import { Token, TokenType } from "../parser"
 import { DdlSyncProcessor } from "../processor"
-import { AlterTableStatement, AttachDatabaseStatement, CreateIndexStatement, CreateTableStatement, CreateTriggerStatement, CreateViewStatement, DetachDatabaseStatement, DropIndexStatement, DropTableStatement, DropTriggerStatement, DropViewStatement, ExplainStatement, InsertStatement, NotNullColumnConstraint, PrimaryKeyColumnConstraint, PrimaryKeyTableConstraint, SortOrder, UniqueColumnConstraint, UniqueTableConstraint, UpdateStatement, SelectStatement, BeginTransactionStatement, SavepointStatement, ReleaseSavepointStatement, CommitTransactionStatement, RollbackTransactionStatement, DeleteStatement, AlterTableAction, GeneratedColumnConstraint, ColumnDef } from "./sqlite3_models";
+import { AlterTableStatement, AttachDatabaseStatement, CreateIndexStatement, CreateTableStatement, CreateTriggerStatement, CreateViewStatement, DetachDatabaseStatement, DropIndexStatement, DropTableStatement, DropTriggerStatement, DropViewStatement, ExplainStatement, InsertStatement, NotNullColumnConstraint, PrimaryKeyColumnConstraint, PrimaryKeyTableConstraint, SortOrder, UniqueColumnConstraint, UniqueTableConstraint, UpdateStatement, SelectStatement,  DeleteStatement, AlterTableAction, GeneratedColumnConstraint, ColumnDef, getAffinityType, AffinityType } from "./sqlite3_models";
 import { Sqlite3Parser } from "./sqlite3_parser"
 import { lcase, ucase, bquote, dquote } from "../util/functions"
 import { writeGzippedCsv } from '../util/io'
@@ -246,18 +246,20 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
         // create new object if not exists
         this.runScript(this.toSQL(stmt))
       } else {
-        const stmt2 = (await this.parse(meta.sql || ""))[0]
-        if (!stmt2) {
+        const oldStmt = (await this.parse(meta.sql || ""))[0]
+        if (!oldStmt) {
           throw new Error(`Failed to get metadata: ${obj.schemaName}.${obj.name}`)
         }
 
-        if (!this.isSame(stmt, stmt2)) {
+        console.log(stmt)
+
+        if (!this.isSame(stmt, oldStmt)) {
           if (
-            stmt2 instanceof CreateTableStatement && !stmt2.virtual &&
+            oldStmt instanceof CreateTableStatement && !oldStmt.virtual &&
             stmt instanceof CreateTableStatement && !stmt.virtual && !(stmt as any).asSelect
           ) {
             if (this.hasData(obj.schemaName, obj.name)) {
-              const columnMappings = this.mapColumns(stmt, stmt2)
+              const columnMappings = this.mapColumns(stmt, oldStmt)
               const backupTableName = `~${this.timestamp()} ${obj.name}`
 
               // backup src table
@@ -266,15 +268,15 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
               this.runScript(this.toSQL(stmt))
               // restore data
               this.runScript(`INSERT INTO ${bquote(obj.schemaName)}.${bquote(obj.name)} ` +
-                `(${columnMappings.srcColumns.join(", ")}) ` +
-                `SELECT ${columnMappings.destColumns.join(", ")} ` +
+                `(${columnMappings.destColumns.join(", ")}) ` +
+                `SELECT ${columnMappings.srcColumns.join(", ")} ` +
                 `FROM ${bquote(obj.schemaName)}.${bquote(backupTableName)} ` +
                 `ORDER BY ${columnMappings.sortColumns.join(", ")}`, QueryType.UPDATE)
               // drop backup table
               if (columnMappings.compatible) {
                 this.runScript(`DROP TABLE IF EXISTS ${bquote(obj.schemaName)}.${bquote(backupTableName)}`)
               } else {
-                console.log(`-- backup: ${obj.type} ${obj.schemaName}.${obj.name} is backuped as ${backupTableName}. this must be resolved manually`)
+                console.log(`-- backup: ${obj.type} ${obj.schemaName}.${obj.name} is backuped as ${bquote(backupTableName)}. this must be resolved manually`)
               }
             } else {
               // drop object
@@ -284,7 +286,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
             }
           } else {
             // backup src table if object is a normal table
-            if (stmt2 instanceof CreateTableStatement && !stmt2.virtual) {
+            if (oldStmt instanceof CreateTableStatement && !oldStmt.virtual) {
               if (this.hasData(obj.schemaName, obj.name)) {
                 this.backupTableData(obj.schemaName, obj.name)
               }
@@ -330,21 +332,21 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
       .get()
   }
 
-  private isSame(stmt1: Statement, stmt2: Statement) {
-    if (stmt1.constructor.name !== stmt2.constructor.name) {
+  private isSame(newStmt: Statement, oldStmt: Statement) {
+    if (newStmt.constructor.name !== oldStmt.constructor.name) {
       return false
     }
 
-    if ((stmt1 as any).virtual !== (stmt2 as any).virtual) {
+    if ((newStmt as any).virtual !== (oldStmt as any).virtual) {
       return false
     }
 
-    let tokens1 = stmt1.tokens
-    let startPos1 = stmt1.markers.get("nameStart") || 0
-    if ((stmt1 as any).asSelect) {
-      const nameEnd = stmt1.markers.get("nameEnd") || 0
-      const selectStart = stmt1.markers.get("selectStart") || 0
-      const selectEnd = stmt1.markers.get("selectEnd") || 0
+    let tokens1 = newStmt.tokens
+    let startPos1 = newStmt.markers.get("nameStart") || 0
+    if ((newStmt as any).asSelect) {
+      const nameEnd = newStmt.markers.get("nameEnd") || 0
+      const selectStart = newStmt.markers.get("selectStart") || 0
+      const selectEnd = newStmt.markers.get("selectEnd") || 0
       const columns = this.con.prepare(Token.concat(tokens1.slice(selectStart, selectEnd))).columns()
       const newTokens = [...tokens1.slice(0, nameEnd)]
       newTokens.push(new Token(TokenType.LeftParen, "("))
@@ -361,8 +363,8 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
       newTokens.push(new Token(TokenType.RightParen, ")"))
       tokens1 = newTokens
     }
-    const tokens2 = stmt2.tokens
-    const startPos2 = stmt2.markers.get("nameStart") || 0
+    const tokens2 = oldStmt.tokens
+    const startPos2 = oldStmt.markers.get("nameStart") || 0
 
     if (tokens1.length - startPos1 !== tokens2.length - startPos2) {
       return false
@@ -379,71 +381,73 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     return true
   }
 
-  private mapColumns(stmt1: CreateTableStatement, stmt2: CreateTableStatement) {
-    const columns1 = (stmt1.columns || []).reduce((prev, current) => {
+  private mapColumns(newStmt: CreateTableStatement, oldStmt: CreateTableStatement) {
+    const oldColumns = (oldStmt.columns || []).reduce((prev, current) => {
       prev.set(lcase(current.name), current)
       return prev
     }, new Map<string, ColumnDef>())
 
-    const droppedColumns = new Map<string, ColumnDef>(columns1)
+    const droppedColumns = new Map<string, ColumnDef>(oldColumns)
     const srcColumns = []
     const destColumns = []
     let sortColumns = []
 
     let pkeyColumns = new Map<string, string>()
-    for (const constraint2 of stmt2.constraints || []) {
-      if (pkeyColumns.size === 0 && constraint2 instanceof PrimaryKeyTableConstraint) {
-        for (const ccolumn2 of constraint2.columns) {
-          let sortColumn = bquote(ccolumn2.name || "")
-          if (ccolumn2.sortOrder === SortOrder.DESC) {
+    for (const newCnst of newStmt.constraints || []) {
+      if (pkeyColumns.size === 0 && newCnst instanceof PrimaryKeyTableConstraint) {
+        for (const newCnstCols of newCnst.columns) {
+          let sortColumn = bquote(newCnstCols.name || "")
+          if (newCnstCols.sortOrder === SortOrder.DESC) {
             sortColumn += " DESC"
           }
-          pkeyColumns.set(lcase(ccolumn2.name || ""), sortColumn)
+          pkeyColumns.set(lcase(newCnstCols.name || ""), sortColumn)
         }
       }
     }
-    for (const column2 of stmt2.columns || []) {
+    for (const newColumn of newStmt.columns || []) {
       let autoIncrement = false
       let notNull = false
       let generated = false
-      for (const constraint2 of column2.constraints) {
-        if (pkeyColumns.size === 0 && constraint2 instanceof PrimaryKeyColumnConstraint) {
-          if (constraint2.autoIncrement) {
+      for (const newCnst of newColumn.constraints) {
+        if (pkeyColumns.size === 0 && newCnst instanceof PrimaryKeyColumnConstraint) {
+          if (newCnst.autoIncrement) {
             autoIncrement = true
           }
-          let sortColumn = bquote(column2.name)
-          if (constraint2.sortOrder === SortOrder.DESC) {
+          let sortColumn = bquote(newColumn.name)
+          if (newCnst.sortOrder === SortOrder.DESC) {
             sortColumn += " DESC"
           }
-          pkeyColumns.set(lcase(column2.name), sortColumn)
-        } else if (constraint2 instanceof NotNullColumnConstraint) {
+          pkeyColumns.set(lcase(newColumn.name), sortColumn)
+        } else if (newCnst instanceof NotNullColumnConstraint) {
           notNull = true
-        } else if (constraint2 instanceof GeneratedColumnConstraint) {
+        } else if (newCnst instanceof GeneratedColumnConstraint) {
           generated = true
         }
       }
 
-      destColumns.push(bquote(column2.name))
       if (generated) {
         // skip
       } else {
-        const column1 = columns1.get(lcase(column2.name))
-        if (column1) {
-          srcColumns.push(bquote(column2.name))
-          droppedColumns.delete(lcase(column2.name))
+        const oldColumn = oldColumns.get(lcase(newColumn.name))
+        if (oldColumn) {
+          srcColumns.push(bquote(oldColumn.name))
+          destColumns.push(bquote(newColumn.name))
+          droppedColumns.delete(lcase(newColumn.name))
         } else if (autoIncrement) {
           // skip
         } else if (notNull) {
-          const atype = getAffinityType(column2.typeName)
+          const atype = getAffinityType(newColumn.typeName)
           if (atype === AffinityType.TEXT) {
-            srcColumns.push("''")
+            srcColumns.push(`'' AS ${bquote(newColumn.name)}`)
           } else if (atype === AffinityType.BLOB) {
-            srcColumns.push("X'00'")
+            srcColumns.push(`X'00' AS ${bquote(newColumn.name)}`)
           } else {
-            srcColumns.push("0")
+            srcColumns.push(`0 AS ${bquote(newColumn.name)}`)
           }
+          destColumns.push(bquote(newColumn.name))
         } else {
-          srcColumns.push("NULL")
+          srcColumns.push(`NULL AS ${bquote(newColumn.name)}`)
+          destColumns.push(bquote(newColumn.name))
         }
       }
     }
@@ -501,28 +505,6 @@ enum QueryType {
   DEFINE,
   UPDATE,
   SELECT,
-}
-
-enum AffinityType {
-  INTEGER,
-  TEXT,
-  BLOB,
-  REAL,
-  NUMERIC,
-}
-
-function getAffinityType(type: string) {
-  if (/^(INT(EGER|2|8)|(TINY|SMALL|MEDIUM|BIG|UNSIGNED +BIG +)INT)/i.test(type)) {
-    return AffinityType.INTEGER
-  } else if (/^BLOB/i.test(type)) {
-    return AffinityType.BLOB
-  } else if (/^(REAL|DOUBLE( +PRECISION)?|FLOAT)/i.test(type)) {
-    return AffinityType.REAL
-  } else if (/^(NUMERIC|DECIMAL|BOOLEAN|DATE|DATETIME)/i.test(type)) {
-    return AffinityType.NUMERIC
-  } else {
-    return AffinityType.TEXT
-  }
 }
 
 class VDatabase {

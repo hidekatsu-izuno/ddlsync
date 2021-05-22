@@ -411,7 +411,7 @@ export class ExplainStatement extends Statement {
 
 export class ColumnDef {
   name = ""
-  typeName = "TEXT"
+  typeName?: string
   length?: string
   scale?: string
   constraints = new Array<ColumnConstraint>()
@@ -510,4 +510,28 @@ export enum TransactionBehavior {
   DEFERRED = "DEFERRED",
   IMMEDIATE = "IMMEDIATE",
   EXCLUSIVE = "EXCLUSIVE",
+}
+
+export enum AffinityType {
+  INTEGER,
+  TEXT,
+  BLOB,
+  REAL,
+  NUMERIC,
+}
+
+export function getAffinityType(type?: string) {
+  if (!type) {
+    return AffinityType.TEXT
+  } else if (/^(INT(EGER|2|8)|(TINY|SMALL|MEDIUM|BIG|UNSIGNED +BIG +)INT)/i.test(type)) {
+    return AffinityType.INTEGER
+  } else if (/^BLOB/i.test(type)) {
+    return AffinityType.BLOB
+  } else if (/^(REAL|DOUBLE( +PRECISION)?|FLOAT)/i.test(type)) {
+    return AffinityType.REAL
+  } else if (/^(NUMERIC|DECIMAL|BOOLEAN|DATE|DATETIME)/i.test(type)) {
+    return AffinityType.NUMERIC
+  } else {
+    return AffinityType.TEXT
+  }
 }
