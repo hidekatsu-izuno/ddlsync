@@ -32,10 +32,13 @@ select 1;
 create table xxx (
   item
 );
+delete from xxx;
 insert into xxx (
   item
 ) values (
   'item'
 );
 
-create table xxx2 AS select * from xxx
+create table xxx2 AS select * from xxx;
+
+drop table if exists xxx3

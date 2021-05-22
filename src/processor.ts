@@ -1,6 +1,6 @@
 import fs from 'fs'
 import fg from 'fast-glob'
-import { Statement } from "./parser"
+import { Statement } from "./models"
 import { formatDateTime } from "./util/functions"
 
 export abstract class DdlSyncProcessor {

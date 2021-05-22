@@ -1,3 +1,5 @@
+import { Statement } from "./models"
+
 export class TokenType {
   static Delimiter = new TokenType("Delimiter")
   static Command = new TokenType("Command")
@@ -358,14 +360,4 @@ export class ParseError extends Error {
   ) {
     super(message)
   }
-}
-
-export abstract class Statement {
-  filename?: string
-  tokens = new Array<Token>()
-  markers = new Map<string, number>()
-
-  abstract validate(): void
-
-  abstract summary(): string
 }

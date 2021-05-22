@@ -1,11 +1,12 @@
 import fs from 'fs'
 import path from "path"
-import { Statement, Token, TokenType } from "../parser"
-import { AlterTableStatement, AttachDatabaseStatement, CreateIndexStatement, CreateTableStatement, CreateTriggerStatement, CreateViewStatement, DetachDatabaseStatement, DropIndexStatement, DropTableStatement, DropTriggerStatement, DropViewStatement, ExplainStatement, InsertStatement, NotNullColumnConstraint, PrimaryKeyColumnConstraint, PrimaryKeyTableConstraint, SortOrder, UniqueColumnConstraint, UniqueTableConstraint, UpdateStatement, SelectStatement, BeginTransactionStatement, SavepointStatement, ReleaseSavepointStatement, CommitTransactionStatement, RollbackTransactionStatement } from "./sqlite3_models";
-import { DdlSyncProcessor } from "../processor"
-import { Sqlite3Parser } from "./sqlite3_parser"
 import sqlite3 from "better-sqlite3"
-import { lcase, sortBy, ucase } from "../util/functions"
+import { Statement } from "../models"
+import { Token, TokenType } from "../parser"
+import { DdlSyncProcessor } from "../processor"
+import { AlterTableStatement, AttachDatabaseStatement, CreateIndexStatement, CreateTableStatement, CreateTriggerStatement, CreateViewStatement, DetachDatabaseStatement, DropIndexStatement, DropTableStatement, DropTriggerStatement, DropViewStatement, ExplainStatement, InsertStatement, NotNullColumnConstraint, PrimaryKeyColumnConstraint, PrimaryKeyTableConstraint, SortOrder, UniqueColumnConstraint, UniqueTableConstraint, UpdateStatement, SelectStatement, BeginTransactionStatement, SavepointStatement, ReleaseSavepointStatement, CommitTransactionStatement, RollbackTransactionStatement, DeleteStatement } from "./sqlite3_models";
+import { Sqlite3Parser } from "./sqlite3_parser"
+import { lcase, ucase, bquote, dquote } from "../util/functions"
 import { writeGzippedCsv } from '../util/io'
 
 export default class Sqlite3Processor extends DdlSyncProcessor {
@@ -57,7 +58,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     }
 
     for (const [i, stmt] of stmts.entries()) {
-      console.log(`-- ## statement ${i}: ${stmt.summary()}`)
+      console.log(`-- ## statement ${i+1}: ${stmt.summary()}`)
       switch (stmt.constructor) {
         case CreateTableStatement:
         case CreateViewStatement:
@@ -65,25 +66,14 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
         case CreateIndexStatement:
             await this.runCreateObjectStatement(i, stmt, refs[i] as VObject)
           break
-        case DropTableStatement:
-        case DropViewStatement:
-        case DropTriggerStatement:
-        case DropIndexStatement:
-          await this.runDropObjectStatement(i, stmt, refs[i] as VObject)
-          break
         case InsertStatement:
-          await this.runInsertStatement(i, stmt as InsertStatement, refs[i] as VObject)
+        case UpdateStatement:
+        case DeleteStatement:
+          await this.runStatement(i, stmt, QueryType.UPDATE)
           break
-        case BeginTransactionStatement:
-        case SavepointStatement:
-        case ReleaseSavepointStatement:
-        case CommitTransactionStatement:
-        case RollbackTransactionStatement:
-          await this.runTransactionStatement(i, stmt)
-          break;
         case SelectStatement:
-          await this.runSelectStatement(i, stmt)
-          break;
+          await this.runStatement(i, stmt, QueryType.SELECT)
+          break
         default:
           await this.runStatement(i, stmt)
       }
@@ -218,12 +208,12 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     if (obj.dropped) {
       console.log(`-- skip: ${obj.type} ${obj.schemaName}.${obj.name} is dropped`)
     } else if (lcase(obj.schemaName) === "temp") {
-      this.runScript(this.toSQL(stmt), false)
+      this.runScript(this.toSQL(stmt))
     } else {
       const meta = this.getTableMetaData(obj.schemaName, obj.name)
       if (!meta) {
         // create new object if not exists
-        this.runScript(this.toSQL(stmt), false)
+        this.runScript(this.toSQL(stmt))
       } else {
         const stmt2 = (await this.parse(meta.sql || ""))[0]
         if (!stmt2) {
@@ -240,26 +230,26 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
               const backupTableName = `~${this.timestamp()} ${obj.name}`
 
               // backup src table
-              this.runScript(`ALTER TABLE ${bquote(obj.schemaName)}.${bquote(obj.name)} RENAME TO ${bquote(backupTableName)}`, false)
+              this.runScript(`ALTER TABLE ${bquote(obj.schemaName)}.${bquote(obj.name)} RENAME TO ${bquote(backupTableName)}`)
               // create new table
-              this.runScript(this.toSQL(stmt), false)
+              this.runScript(this.toSQL(stmt))
               // restore data
               this.runScript(`INSERT INTO ${bquote(obj.schemaName)}.${bquote(obj.name)} ` +
                 `(${columnMappings.srcColumns.join(", ")}) ` +
                 `SELECT ${columnMappings.destColumns.join(", ")} ` +
                 `FROM ${bquote(obj.schemaName)}.${bquote(backupTableName)} ` +
-                `ORDER BY ${columnMappings.sortColumns.join(", ")}`, false)
+                `ORDER BY ${columnMappings.sortColumns.join(", ")}`, QueryType.UPDATE)
               // drop backup table
               if (columnMappings.compatible) {
-                this.runScript(`DROP TABLE IF EXISTS ${bquote(obj.schemaName)}.${bquote(backupTableName)}`, false)
+                this.runScript(`DROP TABLE IF EXISTS ${bquote(obj.schemaName)}.${bquote(backupTableName)}`)
               } else {
                 console.log(`-- backup: ${obj.type} ${obj.schemaName}.${obj.name} is backuped as ${backupTableName}. this must be resolved manually`)
               }
             } else {
               // drop object
-              this.runScript(`DROP ${ucase(meta.type)} IF EXISTS ${bquote(obj.schemaName)}.${bquote(obj.name)}`, false)
+              this.runScript(`DROP ${ucase(meta.type)} IF EXISTS ${bquote(obj.schemaName)}.${bquote(obj.name)}`)
               // create new object
-              this.runScript(this.toSQL(stmt), false)
+              this.runScript(this.toSQL(stmt))
             }
           } else {
             // backup src table if object is a normal table
@@ -270,9 +260,9 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
             }
 
             // drop object
-            this.runScript(`DROP ${ucase(meta.type)} IF EXISTS ${bquote(obj.schemaName)}.${bquote(obj.name)}`, false)
+            this.runScript(`DROP ${ucase(meta.type)} IF EXISTS ${bquote(obj.schemaName)}.${bquote(obj.name)}`)
             // create new object
-            this.runScript(this.toSQL(stmt), false)
+            this.runScript(this.toSQL(stmt))
           }
         } else {
           console.log(`-- skip: ${obj.type} ${obj.schemaName}.${obj.name} is unchangeed`)
@@ -281,42 +271,8 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     }
   }
 
-  private async runDropObjectStatement(seq: number, stmt: Statement, obj: VObject) {
-    if (lcase(obj.schemaName) === "temp") {
-      this.runScript(this.toSQL(stmt), false)
-    } else {
-      const meta = this.getTableMetaData(obj.schemaName, obj.name)
-      if (meta && meta.type === obj.type) {
-        this.runScript(this.toSQL(stmt), false)
-      } else {
-        console.log(`-- skip: ${obj.type} ${obj.schemaName}.${obj.name} is not found`)
-      }
-    }
-  }
-
-  private async runInsertStatement(seq: number, stmt: InsertStatement, table: VObject) {
-    if (lcase(table.schemaName) === "temp") {
-      this.runScript(this.toSQL(stmt), false)
-    } else {
-      const hasData = this.hasData(table.schemaName, table.name)
-      if (!hasData) {
-        this.runScript(this.toSQL(stmt), false)
-      } else {
-        console.log(`-- skip: ${table.schemaName}.${table.name} has data`)
-      }
-    }
-  }
-
-  private async runTransactionStatement(seq: number, stmt: Statement) {
-    console.log(`-- skip: transaction control is ignroed`)
-  }
-
-  private async runSelectStatement(seq: number, stmt: Statement) {
-    this.runScript(this.toSQL(stmt), true)
-  }
-
-  private async runStatement(seq: number, stmt: Statement) {
-    this.runScript(this.toSQL(stmt), false)
+  private async runStatement(seq: number, stmt: Statement, type: QueryType = QueryType.DEFINE) {
+    this.runScript(this.toSQL(stmt), type)
   }
 
   private toSQL(stmt: Statement) {
@@ -329,11 +285,6 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
       }
     }
     return Token.concat(tokens)
-  }
-
-  private getSelectSQL(stmt: CreateTableStatement) {
-    // TODO
-    return ""
   }
 
   private getTableMetaData(schemaName: string, name: string) {
@@ -406,19 +357,21 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     }
   }
 
-  private runScript(script: string, hasResult: boolean) {
+  private runScript(script: string, type: QueryType = QueryType.DEFINE) {
     console.log(script + ";")
     if (!this.dryrun) {
       const stmt = this.con.prepare(script)
-      if (hasResult) {
+      if (type === QueryType.SELECT) {
         let count = 0
         for (const row of stmt.iterate()) {
           count++
         }
         console.log(`-- result: ${count} records`)
-      } else {
+      } else if (type === QueryType.UPDATE) {
         const result = stmt.run()
         console.log(`-- result: ${result.changes} records`)
+      } else {
+        stmt.run()
       }
     }
   }
@@ -438,6 +391,12 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
       yield* stmt.raw().iterate();
     })())
   }
+}
+
+enum QueryType {
+  DEFINE,
+  UPDATE,
+  SELECT,
 }
 
 class VDatabase {
@@ -492,12 +451,4 @@ class VObject {
     public tableName?: string,
   ) {
   }
-}
-
-function dquote(text: string) {
-  return '"' + text.replace(/`/g, '""') + '"'
-}
-
-function bquote(text: string) {
-  return "`" + text.replace(/`/g, "``") + "`"
 }
