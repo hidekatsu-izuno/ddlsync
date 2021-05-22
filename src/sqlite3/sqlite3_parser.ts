@@ -234,7 +234,7 @@ export class Sqlite3Parser extends Parser {
         stmt.tableName = this.identifier()
         this.consume(TokenType.LeftParen)
         for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-          stmt.columns.push(this.indexedColumn())
+          stmt.columns.push(this.indexedColumn(stmt.unique))
         }
         this.consume(TokenType.RightParen)
         if (this.consumeIf(Keyword.WHERE)) {
@@ -630,9 +630,8 @@ export class Sqlite3Parser extends Parser {
       constraint = new PrimaryKeyTableConstraint()
       constraint.name = name
       this.consume(TokenType.LeftParen)
-      constraint.columns.push(this.indexedColumn())
-      while (this.consumeIf(TokenType.Comma)) {
-        constraint.columns.push(this.indexedColumn())
+      for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+        constraint.columns.push(this.indexedColumn(true))
       }
       this.consume(TokenType.RightParen)
       if (this.consumeIf(Keyword.ON)) {
@@ -644,7 +643,7 @@ export class Sqlite3Parser extends Parser {
       constraint.name = name
       this.consume(TokenType.LeftParen)
       for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-        constraint.columns.push(this.indexedColumn())
+        constraint.columns.push(this.indexedColumn(true))
       }
       this.consume(TokenType.RightParen)
       if (this.consumeIf(Keyword.ON)) {
@@ -717,9 +716,13 @@ export class Sqlite3Parser extends Parser {
     return tokens.map(token => token.text).join();
   }
 
-  indexedColumn() {
+  indexedColumn(unique: boolean) {
     const column = new IndexedColumn()
-    column.expression = this.expression()
+    if (unique) {
+      column.name = this.identifier()
+    } else {
+      column.expression = this.expression()
+    }
     if (this.consumeIf(Keyword.ASC)) {
       column.sortOrder = SortOrder.ASC
     } else if (this.consumeIf(Keyword.DESC)) {

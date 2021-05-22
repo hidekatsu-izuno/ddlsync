@@ -13,7 +13,7 @@ export function escapeRegExp(text: string) {
 }
 
 export function dquote(text: string) {
-  return '"' + text.replace(/`/g, '""') + '"'
+  return '"' + text.replace(/"/g, '""') + '"'
 }
 
 export function bquote(text: string) {

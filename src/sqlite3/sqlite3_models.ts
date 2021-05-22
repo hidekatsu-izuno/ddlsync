@@ -418,7 +418,8 @@ export class ColumnDef {
 }
 
 export class IndexedColumn {
-  expression = new Array<Token>()
+  name?: string
+  expression?: Token[]
   sortOrder = SortOrder.ASC
 }
 

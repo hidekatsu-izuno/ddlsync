@@ -4,7 +4,7 @@ import sqlite3 from "better-sqlite3"
 import { Statement } from "../models"
 import { Token, TokenType } from "../parser"
 import { DdlSyncProcessor } from "../processor"
-import { AlterTableStatement, AttachDatabaseStatement, CreateIndexStatement, CreateTableStatement, CreateTriggerStatement, CreateViewStatement, DetachDatabaseStatement, DropIndexStatement, DropTableStatement, DropTriggerStatement, DropViewStatement, ExplainStatement, InsertStatement, NotNullColumnConstraint, PrimaryKeyColumnConstraint, PrimaryKeyTableConstraint, SortOrder, UniqueColumnConstraint, UniqueTableConstraint, UpdateStatement, SelectStatement, BeginTransactionStatement, SavepointStatement, ReleaseSavepointStatement, CommitTransactionStatement, RollbackTransactionStatement, DeleteStatement, AlterTableAction } from "./sqlite3_models";
+import { AlterTableStatement, AttachDatabaseStatement, CreateIndexStatement, CreateTableStatement, CreateTriggerStatement, CreateViewStatement, DetachDatabaseStatement, DropIndexStatement, DropTableStatement, DropTriggerStatement, DropViewStatement, ExplainStatement, InsertStatement, NotNullColumnConstraint, PrimaryKeyColumnConstraint, PrimaryKeyTableConstraint, SortOrder, UniqueColumnConstraint, UniqueTableConstraint, UpdateStatement, SelectStatement, BeginTransactionStatement, SavepointStatement, ReleaseSavepointStatement, CommitTransactionStatement, RollbackTransactionStatement, DeleteStatement, AlterTableAction, GeneratedColumnConstraint, ColumnDef } from "./sqlite3_models";
 import { Sqlite3Parser } from "./sqlite3_parser"
 import { lcase, ucase, bquote, dquote } from "../util/functions"
 import { writeGzippedCsv } from '../util/io'
@@ -381,58 +381,75 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
 
   private mapColumns(stmt1: CreateTableStatement, stmt2: CreateTableStatement) {
     const columns1 = (stmt1.columns || []).reduce((prev, current) => {
-      prev.add(lcase(current.name))
+      prev.set(lcase(current.name), current)
       return prev
-    }, new Set<string>())
+    }, new Map<string, ColumnDef>())
 
-    const droppedColumns = new Set<string>(columns1)
+    const droppedColumns = new Map<string, ColumnDef>(columns1)
     const srcColumns = []
     const destColumns = []
     let sortColumns = []
-    for (const column2 of stmt2.columns || []) {
-      let notNull = false
-      for (const constraint2 of column2.constraints) {
-        if (sortColumns.length === 0 && constraint2 instanceof PrimaryKeyColumnConstraint) {
-          let key = bquote(column2.name)
-          if (constraint2.sortOrder === SortOrder.DESC) {
-            key += " DESC"
+
+    let pkeyColumns = new Map<string, string>()
+    for (const constraint2 of stmt2.constraints || []) {
+      if (pkeyColumns.size === 0 && constraint2 instanceof PrimaryKeyTableConstraint) {
+        for (const ccolumn2 of constraint2.columns) {
+          let sortColumn = bquote(ccolumn2.name || "")
+          if (ccolumn2.sortOrder === SortOrder.DESC) {
+            sortColumn += " DESC"
           }
-          sortColumns.push(key)
+          pkeyColumns.set(lcase(ccolumn2.name || ""), sortColumn)
+        }
+      }
+    }
+    for (const column2 of stmt2.columns || []) {
+      let autoIncrement = false
+      let notNull = false
+      let generated = false
+      for (const constraint2 of column2.constraints) {
+        if (pkeyColumns.size === 0 && constraint2 instanceof PrimaryKeyColumnConstraint) {
+          if (constraint2.autoIncrement) {
+            autoIncrement = true
+          }
+          let sortColumn = bquote(column2.name)
+          if (constraint2.sortOrder === SortOrder.DESC) {
+            sortColumn += " DESC"
+          }
+          pkeyColumns.set(lcase(column2.name), sortColumn)
         } else if (constraint2 instanceof NotNullColumnConstraint) {
           notNull = true
+        } else if (constraint2 instanceof GeneratedColumnConstraint) {
+          generated = true
         }
       }
 
       destColumns.push(bquote(column2.name))
-      if (columns1.has(lcase(column2.name))) {
-        srcColumns.push(bquote(column2.name))
-        droppedColumns.delete(lcase(column2.name))
-      } else if (notNull) {
-        if (isTextType(column2.typeName)) {
-          srcColumns.push("''")
-        } else if (isBlobType(column2.typeName)) {
-          srcColumns.push("x'00'")
-        } else {
-          srcColumns.push("0")
-        }
+      if (generated) {
+        // skip
       } else {
-        srcColumns.push("NULL")
-      }
-    }
-    if (sortColumns.length === 0) {
-      for (const constraint2 of stmt2.constraints || []) {
-        if (sortColumns.length === 0 && constraint2 instanceof PrimaryKeyTableConstraint) {
-          for (const ccolumn2 of constraint2.columns) {
-            let key = Token.concat(ccolumn2.expression, { space: " " })
-            if (ccolumn2.sortOrder === SortOrder.DESC) {
-              key += " DESC"
-            }
-            sortColumns.push(key)
+        const column1 = columns1.get(lcase(column2.name))
+        if (column1) {
+          srcColumns.push(bquote(column2.name))
+          droppedColumns.delete(lcase(column2.name))
+        } else if (autoIncrement) {
+          // skip
+        } else if (notNull) {
+          const atype = getAffinityType(column2.typeName)
+          if (atype === AffinityType.TEXT) {
+            srcColumns.push("''")
+          } else if (atype === AffinityType.BLOB) {
+            srcColumns.push("X'00'")
+          } else {
+            srcColumns.push("0")
           }
+        } else {
+          srcColumns.push("NULL")
         }
       }
     }
-    if (sortColumns.length === 0) {
+    if (pkeyColumns.size > 0) {
+      sortColumns = Array.from(pkeyColumns.values())
+    } else {
       sortColumns = destColumns
     }
 
@@ -440,7 +457,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
       compatible: droppedColumns.size === 0,
       srcColumns,
       destColumns,
-      sortColumns,
+      sortColumns
     }
   }
 
@@ -486,12 +503,26 @@ enum QueryType {
   SELECT,
 }
 
-function isTextType(type: string) {
-  return /^(TEXT|(VAR)?CHAR(CTER)?|N(VAR)?CHAR|(VARYING|NATIVE) +CHARACTER|CLOB) *[(]?/i.test(type)
+enum AffinityType {
+  INTEGER,
+  TEXT,
+  BLOB,
+  REAL,
+  NUMERIC,
 }
 
-function isBlobType(type: string) {
-  return /^(BLOB) *[(]?/i.test(type)
+function getAffinityType(type: string) {
+  if (/^(INT(EGER|2|8)|(TINY|SMALL|MEDIUM|BIG|UNSIGNED +BIG +)INT)/i.test(type)) {
+    return AffinityType.INTEGER
+  } else if (/^BLOB/i.test(type)) {
+    return AffinityType.BLOB
+  } else if (/^(REAL|DOUBLE( +PRECISION)?|FLOAT)/i.test(type)) {
+    return AffinityType.REAL
+  } else if (/^(NUMERIC|DECIMAL|BOOLEAN|DATE|DATETIME)/i.test(type)) {
+    return AffinityType.NUMERIC
+  } else {
+    return AffinityType.TEXT
+  }
 }
 
 class VDatabase {
