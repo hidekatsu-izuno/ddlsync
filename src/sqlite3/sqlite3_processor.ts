@@ -4,7 +4,7 @@ import sqlite3 from "better-sqlite3"
 import { Statement } from "../models"
 import { Token, TokenType } from "../parser"
 import { DdlSyncProcessor } from "../processor"
-import { AlterTableStatement, AttachDatabaseStatement, CreateIndexStatement, CreateTableStatement, CreateTriggerStatement, CreateViewStatement, DetachDatabaseStatement, DropIndexStatement, DropTableStatement, DropTriggerStatement, DropViewStatement, ExplainStatement, InsertStatement, NotNullColumnConstraint, PrimaryKeyColumnConstraint, PrimaryKeyTableConstraint, SortOrder, UniqueColumnConstraint, UniqueTableConstraint, UpdateStatement, SelectStatement, BeginTransactionStatement, SavepointStatement, ReleaseSavepointStatement, CommitTransactionStatement, RollbackTransactionStatement, DeleteStatement } from "./sqlite3_models";
+import { AlterTableStatement, AttachDatabaseStatement, CreateIndexStatement, CreateTableStatement, CreateTriggerStatement, CreateViewStatement, DetachDatabaseStatement, DropIndexStatement, DropTableStatement, DropTriggerStatement, DropViewStatement, ExplainStatement, InsertStatement, NotNullColumnConstraint, PrimaryKeyColumnConstraint, PrimaryKeyTableConstraint, SortOrder, UniqueColumnConstraint, UniqueTableConstraint, UpdateStatement, SelectStatement, BeginTransactionStatement, SavepointStatement, ReleaseSavepointStatement, CommitTransactionStatement, RollbackTransactionStatement, DeleteStatement, AlterTableAction } from "./sqlite3_models";
 import { Sqlite3Parser } from "./sqlite3_parser"
 import { lcase, ucase, bquote, dquote } from "../util/functions"
 import { writeGzippedCsv } from '../util/io'
@@ -43,7 +43,8 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
           refs[i] = this.tryCreateObjectStatement(i, stmt, vdb)
           break
         case AlterTableStatement:
-          throw Error(`alter table statement is not supported`)
+          refs[i] = this.tryAlterTableStatement(i, stmt as AlterTableStatement, vdb)
+          break
         case DropTableStatement:
         case DropViewStatement:
         case DropTriggerStatement:
@@ -51,7 +52,9 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
           refs[i] = this.tryDropObjectStatement(i, stmt, vdb)
           break
         case InsertStatement:
-          refs[i] = this.tryInsertStatement(i, stmt as InsertStatement, vdb)
+        case UpdateStatement:
+        case DeleteStatement:
+          refs[i] = this.tryUpdateStatement(i, stmt, vdb)
         default:
           // no handle
       }
@@ -143,17 +146,45 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     return schema.add(type, stmt.name, stmt.tableName)
   }
 
+  private tryAlterTableStatement(seq: number, stmt: AlterTableStatement, vdb: VDatabase) {
+    let schemaName = stmt.schemaName
+    if (!schemaName) {
+      const tempObject = vdb.get("temp")?.get(stmt.name)
+      schemaName = tempObject && !tempObject.dropped ? "temp" : "main"
+    }
+
+    const schema = vdb.get(schemaName)
+    if (!schema) {
+      throw new Error(`unknown database ${schemaName}`)
+    }
+
+    let obj = schema.get(stmt.name)
+    if (!obj || obj.dropped) {
+      throw new Error(`no such table: ${schemaName}.${stmt.name}`)
+    } else if (obj.type !== "table") {
+      throw new Error(`no such table: ${schemaName}.${stmt.name}`)
+    }
+
+    if (stmt.alterTableAction == AlterTableAction.RENAME_TABLE && stmt.newTableName) {
+      obj.dropped = true
+      schema.add("table", stmt.newTableName)
+      for (const aObj of schema) {
+        if (aObj.type === "index" && aObj.tableName && lcase(aObj.tableName) === lcase(aObj.name)) {
+          aObj.dropped = true
+          schema.add("index", aObj.name, stmt.newTableName)
+        }
+      }
+    }
+
+    return obj
+  }
 
   private tryDropObjectStatement(seq: number, stmt: any, vdb: VDatabase) {
     const type = lcase(stmt.constructor.name.replace(/^Drop([a-zA-Z0-9]+)Statement$/, "$1"))
     let schemaName = stmt.schemaName
     if (!schemaName) {
-      if (type === "index") {
-        const tempObject = vdb.get("temp")?.get(stmt.name)
-        schemaName = tempObject && !tempObject.dropped ? "temp" : "main"
-      } else {
-        schemaName = stmt.temporary ? "temp" : "main"
-      }
+      const tempObject = vdb.get("temp")?.get(stmt.name)
+      schemaName = tempObject && !tempObject.dropped ? "temp" : "main"
     }
 
     const schema = vdb.get(schemaName)
@@ -188,7 +219,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     return object
   }
 
-  private tryInsertStatement(seq: number, stmt: InsertStatement, vdb: VDatabase) {
+  private tryUpdateStatement(seq: number, stmt: any, vdb: VDatabase) {
     const schemaName = stmt.schemaName ||
       (vdb.get("temp")?.get(stmt.name)?.dropped === false ? "temp" : "main")
     const schema = vdb.get(schemaName)
