@@ -203,14 +203,6 @@ export abstract class Lexer {
   ) {
   }
 
-  toReserved(text: string): TokenType | undefined {
-    return undefined
-  }
-
-  process(token: Token) {
-    return token
-  }
-
   lex(input: string) {
     const tokens = []
     let pos = 0
@@ -271,6 +263,10 @@ export abstract class Lexer {
     }
 
     return tokens
+  }
+
+  process(token: Token) {
+    return token
   }
 }
 

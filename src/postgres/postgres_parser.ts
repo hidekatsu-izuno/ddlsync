@@ -1,20 +1,16 @@
+import { Statement } from "../models"
 import {
   TokenType,
+  Keyword,
   Token,
   Lexer,
   Parser,
-  Expression,
-  Idnetifier,
-  StringValue,
-  NumberValue,
-  IExpression,
+  Operator,
+  ParseError,
+  AggregateParseError,
 } from "../parser"
-import { Reserved } from "./mysql_models"
-import semver from "semver"
 
-export class PgLexer extends Lexer {
-  private reservedMap
-
+export class PostgresLexer extends Lexer {
   constructor(
     private options: { [key: string]: any } = {}
   ) {
@@ -41,30 +37,19 @@ export class PgLexer extends Lexer {
       { type: TokenType.Operator, re: /::|[*/<>=~!@#%^&|`?+-]+/y },
       { type: TokenType.Error, re: /./y },
     ])
-
-    this.reservedMap = Reserved.toMap(options.version)
-  }
-
-  process(token: Token) {
-    if (token.type === TokenType.Identifier) {
-      const reserved = this.reservedMap.get(token.text.toUpperCase())
-      if (reserved) {
-        token.type = reserved
-      }
-    }
-    return token
   }
 }
 
-export class PgParser extends Parser {
+export class PostgresParser extends Parser {
   constructor(
     input: string,
-    private options: { [key: string]: any} = {}
+    options: { [key: string]: any} = {},
   ) {
-    super(input, new PgLexer(options))
+    super(input, new PostgresLexer(options), options)
   }
 
   root() {
-    return []
+    const root: Statement[] = []
+    return root
   }
 }

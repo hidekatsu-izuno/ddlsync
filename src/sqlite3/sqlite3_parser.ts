@@ -1,4 +1,3 @@
-import assert from 'assert'
 import Decimal from "decimal.js"
 import {
   TokenType,
@@ -42,7 +41,7 @@ export class Sqlite3Lexer extends Lexer {
 export class Sqlite3Parser extends Parser {
   constructor(
     input: string,
-    options?: { [key: string]: any},
+    options: { [key: string]: any} = {},
   ) {
     super(input, new Sqlite3Lexer(options), options)
   }

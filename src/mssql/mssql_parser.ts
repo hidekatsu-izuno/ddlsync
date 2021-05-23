@@ -1,20 +1,16 @@
+import { Statement } from "../models"
 import {
   TokenType,
+  Keyword,
   Token,
   Lexer,
   Parser,
-  Expression,
-  Idnetifier,
-  StringValue,
-  NumberValue,
-  IExpression,
+  Operator,
+  ParseError,
+  AggregateParseError,
 } from "../parser"
-import { Reserved } from "./mssql_models"
-import semver from "semver"
 
-export class MssqlLexer extends Lexer {
-  private reservedMap
-
+export class MsSqlLexer extends Lexer {
   constructor(
     private options: { [key: string]: any } = {}
   ) {
@@ -37,30 +33,19 @@ export class MssqlLexer extends Lexer {
       { type: TokenType.Operator, re: /\|\||<<|>>|<>|[=<>!^]=?|[~&|*/+-]/y },
       { type: TokenType.Error, re: /./y },
     ])
-
-    this.reservedMap = Reserved.toMap(options.version)
-  }
-
-  process(token: Token) {
-    if (token.type === TokenType.Identifier) {
-      const reserved = this.reservedMap.get(token.text.toUpperCase())
-      if (reserved) {
-        token.type = reserved
-      }
-    }
-    return token
   }
 }
 
-export class MssqlParser extends Parser {
+export class MsSqlParser extends Parser {
   constructor(
     input: string,
-    private options: { [key: string]: any} = {}
+    options: { [key: string]: any} = {},
   ) {
-    super(input, new MssqlLexer(options))
+    super(input, new MsSqlLexer(options), options)
   }
 
   root() {
-    return []
+    const root: Statement[] = []
+    return root
   }
 }

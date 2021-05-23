@@ -1,5 +1,5 @@
-import { TokenType, Token, Statement, TableConstraint, ColumnConstraint, IExpression, Idnetifier, NumberValue } from "../parser"
 import semver from "semver"
+import { TokenType } from "../parser"
 
 const ReservedMap = new Map<string, Reserved>()
 export class Reserved extends TokenType {

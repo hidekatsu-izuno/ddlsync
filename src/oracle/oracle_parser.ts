@@ -1,30 +1,16 @@
+import { Statement } from "../models"
 import {
   TokenType,
+  Keyword,
   Token,
   Lexer,
   Parser,
-  Expression,
-  Idnetifier,
-  StringValue,
-  NumberValue,
-  IExpression,
+  Operator,
+  ParseError,
+  AggregateParseError,
 } from "../parser"
-import { Reserved } from "./oracle_models"
-import semver from "semver"
-
-/*
-const PlSqlTargets = new Set<Reserved>()
-PlSqlTargets.add(Reserved.FUNCTION)
-PlSqlTargets.add(Reserved.LIBRARY)
-PlSqlTargets.add(Reserved.PACKAGE)
-PlSqlTargets.add(Reserved.PROCEDURE)
-PlSqlTargets.add(Reserved.TRIGGER)
-PlSqlTargets.add(Reserved.TYPE)
-*/
 
 export class OracleLexer extends Lexer {
-  private reservedMap
-
   constructor(
     private options: { [key: string]: any } = {}
   ) {
@@ -48,30 +34,20 @@ export class OracleLexer extends Lexer {
       { type: TokenType.Operator, re: /\|\||<<|>>|<>|[=<>!^]=?|[~&|*/+-]/y },
       { type: TokenType.Error, re: /./y },
     ])
-
-    this.reservedMap = Reserved.toMap(options.version)
-  }
-
-  process(token: Token) {
-    if (token.type === TokenType.Identifier) {
-      const reserved = this.reservedMap.get(token.text.toUpperCase())
-      if (reserved) {
-        token.type = reserved
-      }
-    }
-    return token
   }
 }
 
 export class OracleParser extends Parser {
   constructor(
     input: string,
-    private options: { [key: string]: any} = {}
+    options: { [key: string]: any} = {},
   ) {
-    super(input, new OracleLexer(options))
+    super(input, new OracleLexer(options), options)
   }
 
   root() {
-    return []
+    const root: Statement[] = []
+    return root
   }
 }
+

@@ -1,16 +1,19 @@
+import semver from "semver"
+import { Statement } from "../models"
 import {
   TokenType,
+  Keyword,
   Token,
   Lexer,
   Parser,
+  Operator,
+  ParseError,
+  AggregateParseError,
 } from "../parser"
-import { Reserved } from "./mysql_models"
-import semver from "semver"
 import { escapeRegExp } from "../util/functions"
 
-export class MysqlLexer extends Lexer {
+export class MySqlLexer extends Lexer {
   private delimiter = /;/y
-  private reservedMap
 
   constructor(
     private options: { [key: string]: any } = {}
@@ -37,17 +40,10 @@ export class MysqlLexer extends Lexer {
       { type: TokenType.Operator, re: /\|\|&&|<=>|<<|>>|<>|->>?|[=<>!:]=?|[~&|^*/%+-]/y },
       { type: TokenType.Error, re: /./y },
     ])
-
-    this.reservedMap = Reserved.toMap(options.version)
   }
 
   process(token: Token) {
-    if (token.type === TokenType.Identifier) {
-      const reserved = this.reservedMap.get(token.text.toUpperCase())
-      if (reserved) {
-        token.type = reserved
-      }
-    } else if (token.type === TokenType.Command) {
+    if (token.type === TokenType.Command) {
       const args = token.text.trim().split(/[ \t]+/g)
       if (/^delimiter$/i.test(args[0]) && args[1]) {
         this.delimiter = new RegExp(escapeRegExp(args[1]), "y")
@@ -57,33 +53,34 @@ export class MysqlLexer extends Lexer {
   }
 }
 
-export class MysqlParser extends Parser {
+export class MySqlParser extends Parser {
   constructor(
     input: string,
-    private options: { [key: string]: any} = {}
+    options: { [key: string]: any} = {},
   ) {
     super(input.replace(
       /\/\*!(0|[0-9][1-9]*)?(.*?)\*\//g,
       (m, p1, p2) => {
         if (options.version && p1) {
-          if (semver.lt(options.version, MysqlParser.toSemverString(p1))) {
+          if (semver.lt(options.version, toSemverString(p1))) {
             return m
           }
         }
         return " ".repeat((p1 ? p1.length : 0) + 2) + p2 + "  "
       }
-    ), new MysqlLexer(options))
+    ), new MySqlLexer(options), options)
   }
 
   root() {
-    return []
+    const root: Statement[] = []
+    return root
   }
+}
 
-  private static toSemverString(version: string) {
-    const value = Number.parseInt(version, 10)
-    const major = Math.trunc(value / 10000)
-    const minor = Math.trunc(value / 100 % 100)
-    const patch = Math.trunc(value % 100)
-    return `${major}.${minor}.${patch}`
-  }
+function toSemverString(version: string) {
+  const value = Number.parseInt(version, 10)
+  const major = Math.trunc(value / 10000)
+  const minor = Math.trunc(value / 100 % 100)
+  const patch = Math.trunc(value % 100)
+  return `${major}.${minor}.${patch}`
 }
