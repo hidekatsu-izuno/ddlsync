@@ -213,9 +213,6 @@ export abstract class Lexer {
     input = input.replace(/\/\*(<noddlsync>\*\/)(.*)(\/\*<\/noddlsync>)\*\//sg, (m, p1, p2, p3) => {
       return `/*${" ".repeat(p1.length)}${p2.replace(/\/\*(.*)\*\//sg, "/+$1+/")}${" ".repeat(p3.length)}*/`
     })
-
-    console.log(input)
-
     input = this.filter(input)
 
     if (input.startsWith("\uFEFF")) {

@@ -43,7 +43,7 @@ export class MySqlLexer extends Lexer {
   }
 
   filter(input: string) {
-    return input.replace(/\/\*!(0|[0-9][1-9]*)?(.*?)\*\//g, (m, p1, p2) => {
+    return input.replace(/\/\*!(0|[0-9][1-9]*)?(.*?)\*\//sg, (m, p1, p2) => {
       if (this.options.version && p1) {
         if (semver.lt(this.options.version, toSemverString(p1))) {
           return m
