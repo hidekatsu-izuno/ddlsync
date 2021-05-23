@@ -207,6 +207,17 @@ export abstract class Lexer {
     const tokens = []
     let pos = 0
 
+    input = input.replace(/(\/\*<ddlsync>)(.*)(<\/ddlsync>\*\/)/sg, (m, p1, p2, p3) => {
+      return `${" ".repeat(p1.length)}${p2.replace(/\/\+(.*)\+\//sg, "/*$1*/")}${" ".repeat(p3.length)}`
+    })
+    input = input.replace(/\/\*(<noddlsync>\*\/)(.*)(\/\*<\/noddlsync>)\*\//sg, (m, p1, p2, p3) => {
+      return `/*${" ".repeat(p1.length)}${p2.replace(/\/\*(.*)\*\//sg, "/+$1+/")}${" ".repeat(p3.length)}*/`
+    })
+
+    console.log(input)
+
+    input = this.filter(input)
+
     if (input.startsWith("\uFEFF")) {
       pos = 1
     }
@@ -243,7 +254,7 @@ export abstract class Lexer {
         }
       }
 
-      this.process(token)
+      token = this.process(token)
 
       const prev = tokens[tokens.length - 1]
       if (token.type.options.skip) {
@@ -263,6 +274,10 @@ export abstract class Lexer {
     }
 
     return tokens
+  }
+
+  filter(input: string) {
+    return input
   }
 
   process(token: Token) {

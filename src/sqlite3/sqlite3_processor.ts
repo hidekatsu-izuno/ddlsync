@@ -511,7 +511,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
   }
 
   private async backupTableData(seq: number, schemaName: string, name: string) {
-    const backupDir = path.join(this.config.ddlsync.workDir, "backup")
+    const backupDir = path.join(this.config.workDir, "backup")
     await fs.promises.mkdir(backupDir, { recursive: true })
 
     const backupFileName = path.join(

@@ -13,8 +13,8 @@ export abstract class DdlSyncProcessor {
   }
 
   async execute() {
-    const files = await fg(this.config.ddlsync.include, {
-      ignore: this.config.ddlsync.exclude
+    const files = await fg(this.config.include, {
+      ignore: this.config.exclude
     })
 
     const stmts = []

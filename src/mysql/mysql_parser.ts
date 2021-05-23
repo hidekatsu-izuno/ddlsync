@@ -42,6 +42,17 @@ export class MySqlLexer extends Lexer {
     ])
   }
 
+  filter(input: string) {
+    return input.replace(/\/\*!(0|[0-9][1-9]*)?(.*?)\*\//g, (m, p1, p2) => {
+      if (this.options.version && p1) {
+        if (semver.lt(this.options.version, toSemverString(p1))) {
+          return m
+        }
+      }
+      return " ".repeat((p1 ? p1.length : 0) + 2) + p2 + "  "
+    })
+  }
+
   process(token: Token) {
     if (token.type === TokenType.Command) {
       const args = token.text.trim().split(/[ \t]+/g)
@@ -58,17 +69,7 @@ export class MySqlParser extends Parser {
     input: string,
     options: { [key: string]: any} = {},
   ) {
-    super(input.replace(
-      /\/\*!(0|[0-9][1-9]*)?(.*?)\*\//g,
-      (m, p1, p2) => {
-        if (options.version && p1) {
-          if (semver.lt(options.version, toSemverString(p1))) {
-            return m
-          }
-        }
-        return " ".repeat((p1 ? p1.length : 0) + 2) + p2 + "  "
-      }
-    ), new MySqlLexer(options), options)
+    super(input, new MySqlLexer(options), options)
   }
 
   root() {

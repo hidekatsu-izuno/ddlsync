@@ -26,8 +26,9 @@ Create Table "Sample1_C" (
   "B_Value" Blob,
   PRIMARY KEY("I_Value", "R_Value")
 );
-
-select 1;
+/*<ddlsync>
+select 1; /+aaa+/
+</ddlsync>*/
 
 create table xxx (
   item
@@ -41,9 +42,11 @@ insert into xxx (
 
 create table xxx2 AS select * from xxx;
 
-create table xxx4 (
+/*<noddlsync>*/
+create table xxx4 (/*aaa*/
   col1 text
   ,col2 text
 );
 
---insert into xxx4 (col1) values ('val1')
+insert into xxx4 (col1) values ('val1')
+/*</noddlsync>*/

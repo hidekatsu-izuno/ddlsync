@@ -9,10 +9,10 @@ const Extensions = ["ts", "js", "json", "yml", "coffee", "eg", "ls"]
 
 export async function createDddlSyncProcessor(args: string[], options: { [key: string]: any }) {
   const config = await initConfig(args, options)
-  if (config.client === "sqlite3" || config.type === "sqlite3") {
+  if (config.type === "sqlite3") {
     return new Sqlite3Processor(config)
   }
-  throw new Error(`Unsupported client: ${config.client}`)
+  throw new Error(`Unsupported database type: ${config.type}`)
 }
 
 async function initConfig(args: string[], options: { [key: string]: any }) {
