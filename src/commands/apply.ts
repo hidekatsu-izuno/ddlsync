@@ -8,6 +8,7 @@ export default (program: Command) => {
     .addOption(new Option("--include <pattern>", "set include file pattern without a config file.").default("ddl/**/*.sql"))
     .addOption(new Option("--exclude <pattern>", "set exclude file pattern without a config file."))
     .addOption(new Option("--workDir <dir>", "set working dir without a config file.").default("./.ddlsync"))
+    .addOption(new Option("--backupMode <mode>", "set backup mode without a config file.").default("table"))
     .action(async function (options) {
       await main([], { ...program.opts(), ...options })
     })

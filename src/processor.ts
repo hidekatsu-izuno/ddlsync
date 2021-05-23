@@ -36,7 +36,7 @@ export abstract class DdlSyncProcessor {
 
   abstract destroy(): Promise<void>
 
-  protected timestamp(format: string = "uuuuMMddHHmmssSSS") {
-    return formatDateTime(this.startTime, format)
+  protected timestamp(seq: number) {
+    return formatDateTime(this.startTime, "uuuuMMddHHmmss") + ("0000" + seq).slice(-4)
   }
 }

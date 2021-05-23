@@ -4,7 +4,7 @@ import sqlite3 from "better-sqlite3"
 import { Statement } from "../models"
 import { Token, TokenType } from "../parser"
 import { DdlSyncProcessor } from "../processor"
-import { AlterTableStatement, AttachDatabaseStatement, CreateIndexStatement, CreateTableStatement, CreateTriggerStatement, CreateViewStatement, DetachDatabaseStatement, DropIndexStatement, DropTableStatement, DropTriggerStatement, DropViewStatement, ExplainStatement, InsertStatement, NotNullColumnConstraint, PrimaryKeyColumnConstraint, PrimaryKeyTableConstraint, SortOrder, UniqueColumnConstraint, UniqueTableConstraint, UpdateStatement, SelectStatement,  DeleteStatement, AlterTableAction, GeneratedColumnConstraint, ColumnDef, getAffinityType, AffinityType } from "./sqlite3_models";
+import { AlterTableStatement, AttachDatabaseStatement, CreateIndexStatement, CreateTableStatement, CreateTriggerStatement, CreateViewStatement, DetachDatabaseStatement, DropIndexStatement, DropTableStatement, DropTriggerStatement, DropViewStatement, ExplainStatement, InsertStatement, NotNullColumnConstraint, PrimaryKeyColumnConstraint, PrimaryKeyTableConstraint, SortOrder, UniqueColumnConstraint, UniqueTableConstraint, UpdateStatement, SelectStatement,  DeleteStatement, AlterTableAction, GeneratedColumnConstraint, ColumnDef, getAffinityType, AffinityType, DefaultColumnConstraint } from "./sqlite3_models";
 import { Sqlite3Parser } from "./sqlite3_parser"
 import { lcase, ucase, bquote, dquote } from "../util/functions"
 import { writeGzippedCsv } from '../util/io'
@@ -220,8 +220,12 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
   }
 
   private tryUpdateStatement(seq: number, stmt: any, vdb: VDatabase) {
-    const schemaName = stmt.schemaName ||
-      (vdb.get("temp")?.get(stmt.name)?.dropped === false ? "temp" : "main")
+    let schemaName = stmt.schemaName
+    if (!schemaName) {
+      const tempObject = vdb.get("temp")?.get(stmt.name)
+      schemaName = tempObject && !tempObject.dropped ? "temp" : "main"
+    }
+
     const schema = vdb.get(schemaName)
     if (!schema) {
       throw new Error(`unknown database ${schemaName}`)
@@ -258,15 +262,19 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
           ) {
             if (this.hasData(obj.schemaName, obj.name)) {
               const columnMappings = this.mapColumns(stmt, oldStmt)
-              const backupTableName = `~${this.timestamp()} ${obj.name}`
+              const backupTableName = `~${this.timestamp(seq)} ${obj.name}`
 
-              if (columnMappings.compatible) {
-                const backupFilename = await this.backupTableData(obj.schemaName, obj.name)
+              if (!columnMappings.compatible && this.config.backupMode === "file") {
+                const backupFilename = await this.backupTableData(seq, obj.schemaName, obj.name)
                 console.log(`-- backup: ${obj.type} ${obj.schemaName}.${obj.name} is backuped to ${dquote(backupFilename)}. you may need to resolve manually`)
               }
 
               // backup src table
               this.runScript(`ALTER TABLE ${bquote(obj.schemaName)}.${bquote(obj.name)} RENAME TO ${bquote(backupTableName)}`)
+              if (!columnMappings.compatible && this.config.backupMode === "table") {
+                console.log(`-- backup: ${obj.type} ${obj.schemaName}.${obj.name} is backuped as table ${dquote(backupTableName)}. you may need to resolve manually`)
+              }
+
               // create new table
               this.runScript(this.toSQL(stmt))
               // restore data
@@ -275,8 +283,10 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
                 `SELECT ${columnMappings.srcColumns.join(", ")} ` +
                 `FROM ${bquote(obj.schemaName)}.${bquote(backupTableName)} ` +
                 `ORDER BY ${columnMappings.sortColumns.join(", ")}`, QueryType.UPDATE)
-              // drop backup table
-              this.runScript(`DROP TABLE IF EXISTS ${bquote(obj.schemaName)}.${bquote(backupTableName)}`)
+              if (columnMappings.compatible || this.config.backupMode === "file") {
+                // drop backup table
+                this.runScript(`DROP TABLE IF EXISTS ${bquote(obj.schemaName)}.${bquote(backupTableName)}`)
+              }
             } else {
               // drop object
               this.runScript(`DROP ${ucase(meta.type)} IF EXISTS ${bquote(obj.schemaName)}.${bquote(obj.name)}`)
@@ -285,17 +295,29 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
             }
           } else {
             // backup src table if object is a normal table
-            if (oldStmt instanceof CreateTableStatement && !oldStmt.virtual) {
-              if (this.hasData(obj.schemaName, obj.name)) {
-                const backupFilename = await this.backupTableData(obj.schemaName, obj.name)
+            if (
+              oldStmt instanceof CreateTableStatement && !oldStmt.virtual &&
+              this.hasData(obj.schemaName, obj.name)
+            ) {
+              // backup src table
+              if (this.config.backupMode === "file") {
+                const backupFilename = await this.backupTableData(seq, obj.schemaName, obj.name)
                 console.log(`-- backup: ${obj.type} ${obj.schemaName}.${obj.name} is backuped to ${dquote(backupFilename)}. you may need to resolve manually`)
+                this.runScript(`DROP ${ucase(meta.type)} IF EXISTS ${bquote(obj.schemaName)}.${bquote(obj.name)}`)
+              } else {
+                const backupTableName = `~${this.timestamp(seq)} ${obj.name}`
+                this.runScript(`ALTER TABLE ${bquote(obj.schemaName)}.${bquote(obj.name)} RENAME TO ${bquote(backupTableName)}`)
+                console.log(`-- backup: ${obj.type} ${obj.schemaName}.${obj.name} is backuped as table ${dquote(backupTableName)}. you may need to resolve manually`)
               }
-            }
 
-            // drop object
-            this.runScript(`DROP ${ucase(meta.type)} IF EXISTS ${bquote(obj.schemaName)}.${bquote(obj.name)}`)
-            // create new object
-            this.runScript(this.toSQL(stmt))
+              // create new object
+              this.runScript(this.toSQL(stmt))
+            } else {
+              // drop object
+              this.runScript(`DROP ${ucase(meta.type)} IF EXISTS ${bquote(obj.schemaName)}.${bquote(obj.name)}`)
+              // create new object
+              this.runScript(this.toSQL(stmt))
+            }
           }
         } else {
           console.log(`-- skip: ${obj.type} ${obj.schemaName}.${obj.name} is unchangeed`)
@@ -363,6 +385,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
       newTokens.push(new Token(TokenType.RightParen, ")"))
       tokens1 = newTokens
     }
+
     const tokens2 = oldStmt.tokens
     const startPos2 = oldStmt.markers.get("nameStart") || 0
 
@@ -392,24 +415,25 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     const destColumns = []
     let sortColumns = []
 
-    let pkeyColumns = new Map<string, string>()
+    let newPkeyColumns = new Map<string, string>()
     for (const newCnst of newStmt.constraints || []) {
-      if (pkeyColumns.size === 0 && newCnst instanceof PrimaryKeyTableConstraint) {
+      if (newPkeyColumns.size === 0 && newCnst instanceof PrimaryKeyTableConstraint) {
         for (const newCnstCols of newCnst.columns) {
           let sortColumn = bquote(newCnstCols.name || "")
           if (newCnstCols.sortOrder === SortOrder.DESC) {
             sortColumn += " DESC"
           }
-          pkeyColumns.set(lcase(newCnstCols.name || ""), sortColumn)
+          newPkeyColumns.set(lcase(newCnstCols.name || ""), sortColumn)
         }
       }
     }
     for (const newColumn of newStmt.columns || []) {
       let autoIncrement = false
       let notNull = false
+      let defaultValue = false
       let generated = false
       for (const newCnst of newColumn.constraints) {
-        if (pkeyColumns.size === 0 && newCnst instanceof PrimaryKeyColumnConstraint) {
+        if (newPkeyColumns.size === 0 && newCnst instanceof PrimaryKeyColumnConstraint) {
           if (newCnst.autoIncrement) {
             autoIncrement = true
           }
@@ -417,9 +441,11 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
           if (newCnst.sortOrder === SortOrder.DESC) {
             sortColumn += " DESC"
           }
-          pkeyColumns.set(lcase(newColumn.name), sortColumn)
+          newPkeyColumns.set(lcase(newColumn.name), sortColumn)
         } else if (newCnst instanceof NotNullColumnConstraint) {
           notNull = true
+        } else if (newCnst instanceof DefaultColumnConstraint) {
+          defaultValue = true
         } else if (newCnst instanceof GeneratedColumnConstraint) {
           generated = true
         }
@@ -433,7 +459,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
           srcColumns.push(bquote(oldColumn.name))
           destColumns.push(bquote(newColumn.name))
           droppedColumns.delete(lcase(newColumn.name))
-        } else if (autoIncrement) {
+        } else if (autoIncrement || defaultValue) {
           // skip
         } else if (notNull) {
           const atype = getAffinityType(newColumn.typeName)
@@ -451,8 +477,8 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
         }
       }
     }
-    if (pkeyColumns.size > 0) {
-      sortColumns = Array.from(pkeyColumns.values())
+    if (newPkeyColumns.size > 0) {
+      sortColumns = Array.from(newPkeyColumns.values())
     } else {
       sortColumns = destColumns
     }
@@ -461,7 +487,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
       compatible: droppedColumns.size === 0,
       srcColumns,
       destColumns,
-      sortColumns
+      sortColumns,
     }
   }
 
@@ -484,13 +510,13 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     }
   }
 
-  private async backupTableData(schemaName: string, name: string) {
+  private async backupTableData(seq: number, schemaName: string, name: string) {
     const backupDir = path.join(this.config.ddlsync.workDir, "backup")
     await fs.promises.mkdir(backupDir, { recursive: true })
 
     const backupFileName = path.join(
       backupDir,
-      `~${this.timestamp()}-${schemaName}-${name}.csv.gz`
+      `~${this.timestamp(seq)}-${schemaName}-${name}.csv.gz`
     )
 
     const stmt = this.con.prepare(`SELECT * FROM ${bquote(schemaName)}.${bquote(name)}`)

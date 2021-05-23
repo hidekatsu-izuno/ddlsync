@@ -129,7 +129,10 @@ async function initConfig(args: string[], options: { [key: string]: any }) {
     ddlSyncConfg.exclude = options.exclude
   }
   if (options.workDir) {
-    ddlSyncConfg.workDir = ddlSyncConfg.workDir
+    ddlSyncConfg.workDir = options.workDir
+  }
+  if (options.backupMode) {
+    ddlSyncConfg.backupMode = options.backupMode
   }
 
   // normalize config
