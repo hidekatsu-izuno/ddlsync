@@ -36,7 +36,7 @@ MIGRATE TABLE yyy MAP TO xxx
   MAP COLUMN zzz TO xxx
 */
 
-.help
+.help "a'"'b"'c de f
 
 create table xxx (
   item

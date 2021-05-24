@@ -368,9 +368,25 @@ export class Sqlite3Parser extends Parser {
     const start = this.pos
     const stmt = new CommandStatement()
     const token = this.consume(TokenType.Command)
-    const args = token.text.split(/ /g)
-    stmt.name = args[0]
-    stmt.args = args.slice(1)
+    const sep = token.text.indexOf(" ")
+    if (sep === -1) {
+      stmt.name = token.text
+    } else {
+      stmt.name = token.text.substring(0, sep)
+      const input = token.text.substring(sep)
+      const re = /([ \t]+)|"([^"]*)"|'([^']*)'|([^ \t"']+)/y
+      let pos = 0
+      while (pos < input.length) {
+        re.lastIndex = pos
+        const m = re.exec(input)
+        if (m) {
+          if (!m[1]) {
+            stmt.args.push(m[2] || m[3] || m[4])
+          }
+          pos = re.lastIndex
+        }
+      }
+    }
     stmt.tokens = this.tokens.slice(start, this.pos)
     return stmt
   }
