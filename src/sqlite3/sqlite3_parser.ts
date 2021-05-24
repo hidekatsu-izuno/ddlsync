@@ -7,7 +7,7 @@ import {
   ParseError,
   AggregateParseError,
 } from "../parser"
-import { AlterTableAction, AlterTableStatement, AnalyzeStatement, AttachDatabaseStatement, BeginTransactionStatement, CheckColumnConstraint, CheckTableConstraint, CollateColumnConstraint, ColumnDef, CommitTransactionStatement, ConflictAction, CreateIndexStatement, CreateTableStatement, CreateTriggerStatement, CreateViewStatement, DefaultColumnConstraint, DeleteStatement, DetachDatabaseStatement, DropIndexStatement, DropTableStatement, DropTriggerStatement, DropViewStatement, ExplainStatement, ForeignKeyTableConstraint, GeneratedColumnConstraint, IndexedColumn, InsertStatement, NotNullColumnConstraint, NullColumnConstraint, PragmaStatement, PrimaryKeyColumnConstraint, PrimaryKeyTableConstraint, ReferencesKeyColumnConstraint, ReindexStatement, ReleaseSavepointStatement, RollbackTransactionStatement, SavepointStatement, SelectStatement, SortOrder, StoreType, TransactionBehavior, UniqueColumnConstraint, UniqueTableConstraint, UpdateStatement, VacuumStatement } from "./sqlite3_models"
+import { AlterTableAction, AlterTableStatement, AnalyzeStatement, AttachDatabaseStatement, BeginTransactionStatement, CheckColumnConstraint, CheckTableConstraint, CollateColumnConstraint, ColumnDef, CommandStatment, CommitTransactionStatement, ConflictAction, CreateIndexStatement, CreateTableStatement, CreateTriggerStatement, CreateViewStatement, DefaultColumnConstraint, DeleteStatement, DetachDatabaseStatement, DropIndexStatement, DropTableStatement, DropTriggerStatement, DropViewStatement, ExplainStatement, ForeignKeyTableConstraint, GeneratedColumnConstraint, IndexedColumn, InsertStatement, NotNullColumnConstraint, NullColumnConstraint, PragmaStatement, PrimaryKeyColumnConstraint, PrimaryKeyTableConstraint, ReferencesKeyColumnConstraint, ReindexStatement, ReleaseSavepointStatement, RollbackTransactionStatement, SavepointStatement, SelectStatement, SortOrder, StoreType, TransactionBehavior, UniqueColumnConstraint, UniqueTableConstraint, UpdateStatement, VacuumStatement } from "./sqlite3_models"
 
 const KeywordMap = new Map<string, Keyword>()
 export class Keyword extends TokenType {
@@ -173,6 +173,7 @@ export class Sqlite3Lexer extends Lexer {
       { type: TokenType.BlockComment, re: /\/\*.*?\*\//sy },
       { type: TokenType.LineComment, re: /--.*/y },
       { type: TokenType.WhiteSpace, re: /[ \t]+/y },
+      { type: TokenType.Command, re: /^\..+$/my },
       { type: TokenType.LineBreak, re: /(?:\r\n?|\n)/y },
       { type: TokenType.SemiColon, re: /;/y },
       { type: TokenType.LeftParen, re: /\(/y },
@@ -315,8 +316,16 @@ export class Sqlite3Parser extends Parser {
   root() {
     const root = []
     const errors = []
-    for (let i = 0; i === 0 || this.consumeIf(TokenType.SemiColon); i++) {
-      if (this.peek() && !this.peekIf(TokenType.SemiColon)) {
+    for (let i = 0;
+      i === 0 ||
+      this.consumeIf(TokenType.SemiColon) ||
+      root[root.length - 1] instanceof CommandStatment;
+      i++
+    ) {
+      if (this.peekIf(TokenType.Command)) {
+        const stmt = this.command()
+        root.push(stmt)
+      } else if (this.peek() && !this.peekIf(TokenType.SemiColon)) {
         try {
           const stmt = this.statement()
           stmt.validate()
@@ -353,6 +362,17 @@ export class Sqlite3Parser extends Parser {
     }
 
     return root
+  }
+
+  command() {
+    const start = this.pos
+    const stmt = new CommandStatment()
+    const token = this.consume(TokenType.Command)
+    const args = token.text.split(/ /g)
+    stmt.name = args[0]
+    stmt.args = args.slice(1)
+    stmt.tokens = this.tokens.slice(start, this.pos)
+    return stmt
   }
 
   statement() {

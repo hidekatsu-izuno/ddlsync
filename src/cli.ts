@@ -5,6 +5,7 @@ import planCommand from "./commands/plan"
 import applyCommand from "./commands/apply"
 import testCommand from "./commands/test"
 import { exit } from "process"
+import { AggregateParseError } from "./parser"
 
 (async () => {
   const program = new Command() as Command;
@@ -21,6 +22,11 @@ import { exit } from "process"
       program.help()
     }
   } catch (e) {
+    if (e instanceof AggregateParseError) {
+      for (const detail of e.errors) {
+        console.log(colorette.red(detail.message))
+      }
+    }
     //console.log(colorette.red(e.message))
     //exit(1)
     throw e

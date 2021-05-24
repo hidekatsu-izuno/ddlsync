@@ -9,6 +9,19 @@ export abstract class ColumnConstraint {
   name?: string
 }
 
+export class CommandStatment extends Statement {
+  name: string = ""
+  args: string[] = []
+
+  validate() {
+  }
+
+  summary() {
+    return "." + this.name +
+      this.args.length ? this.args.join(" ") : ""
+  }
+}
+
 export class AttachDatabaseStatement extends Statement {
   name = ""
   expression = new Array<Token>()
