@@ -15,7 +15,7 @@ export class Sqlite3Lexer extends Lexer {
   constructor(
     private options: { [key: string]: any } = {}
   ) {
-    super(
+    super("sqlite3",
       [
         { type: TokenType.BlockComment, re: /\/\*.*?\*\//sy },
         { type: TokenType.LineComment, re: /--.*/y },
@@ -38,11 +38,10 @@ export class Sqlite3Lexer extends Lexer {
       ],
       [
         { type: Keyword.ABORT },
-        { type: Keyword.SCHEMA },
         { type: Keyword.ADD, reserved: true },
         { type: Keyword.ALL, reserved: true },
         { type: Keyword.ALTER, reserved: true },
-        { type: Keyword.ALWAYS, reserved: true },
+        { type: Keyword.ALWAYS, reserved: !options.compileOptions?.has("SQLITE_OMIT_GENERATED_COLUMNS") },
         { type: Keyword.AND, reserved: true },
         { type: Keyword.ANALYZE },
         { type: Keyword.AS, reserved: true },
@@ -60,7 +59,7 @@ export class Sqlite3Lexer extends Lexer {
         { type: Keyword.CONSTRAINT, reserved: true },
         { type: Keyword.CREATE, reserved: true },
         { type: Keyword.CROSS, reserved: true },
-        { type: Keyword.CURRENT, reserved: true },
+        { type: Keyword.CURRENT, reserved: !options.compileOptions?.has("SQLITE_OMIT_WINDOWFUNC") },
         { type: Keyword.CURRENT_DATE, reserved: true },
         { type: Keyword.CURRENT_TIME, reserved: true },
         { type: Keyword.CURRENT_TIMESTAMP, reserved: true },
@@ -75,8 +74,8 @@ export class Sqlite3Lexer extends Lexer {
         { type: Keyword.DROP },
         { type: Keyword.ELSE, reserved: true },
         { type: Keyword.ESCAPE, reserved: true },
-        { type: Keyword.EXCEPT, reserved: true },
-        { type: Keyword.EXCLUDE, reserved: true },
+        { type: Keyword.EXCEPT, reserved: options.compileOptions?.has("SQLITE_OMIT_COMPOUND_SELECT") },
+        { type: Keyword.EXCLUDE, reserved: !options.compileOptions?.has("SQLITE_OMIT_WINDOWFUNC") },
         { type: Keyword.EXCLUSIVE },
         { type: Keyword.EXISTS, reserved: true },
         { type: Keyword.END },
@@ -84,13 +83,13 @@ export class Sqlite3Lexer extends Lexer {
         { type: Keyword.FAIL },
         { type: Keyword.FALSE },
         { type: Keyword.FILTER, reserved: true },
-        { type: Keyword.FOLLOWING, reserved: true },
+        { type: Keyword.FOLLOWING, reserved: !options.compileOptions?.has("SQLITE_OMIT_WINDOWFUNC") },
         { type: Keyword.FOREIGN, reserved: true },
         { type: Keyword.FROM, reserved: true },
-        { type: Keyword.GENERATED, reserved: true },
+        { type: Keyword.GENERATED, reserved: !options.compileOptions?.has("SQLITE_OMIT_GENERATED_COLUMNS") },
         { type: Keyword.GLOB, reserved: true },
         { type: Keyword.GROUP, reserved: true },
-        { type: Keyword.GROUPS, reserved: true },
+        { type: Keyword.GROUPS, reserved: !options.compileOptions?.has("SQLITE_OMIT_WINDOWFUNC") },
         { type: Keyword.HAVING, reserved: true },
         { type: Keyword.IGNORE },
         { type: Keyword.IMMEDIATE },
@@ -99,7 +98,7 @@ export class Sqlite3Lexer extends Lexer {
         { type: Keyword.INDEXED, reserved: true },
         { type: Keyword.INNER, reserved: true },
         { type: Keyword.INSERT, reserved: true },
-        { type: Keyword.INTERSECT, reserved: true },
+        { type: Keyword.INTERSECT, reserved: options.compileOptions?.has("SQLITE_OMIT_COMPOUND_SELECT") },
         { type: Keyword.INTO, reserved: true },
         { type: Keyword.IF },
         { type: Keyword.IS, reserved: true },
@@ -118,16 +117,16 @@ export class Sqlite3Lexer extends Lexer {
         { type: Keyword.ON, reserved: true },
         { type: Keyword.OR, reserved: true },
         { type: Keyword.ORDER, reserved: true },
-        { type: Keyword.OTHERS, reserved: true },
+        { type: Keyword.OTHERS, reserved: !options.compileOptions?.has("SQLITE_OMIT_WINDOWFUNC") },
         { type: Keyword.OUTER, reserved: true },
         { type: Keyword.OVER, reserved: true },
-        { type: Keyword.PARTITION, reserved: true },
+        { type: Keyword.PARTITION, reserved: !options.compileOptions?.has("SQLITE_OMIT_WINDOWFUNC") },
         { type: Keyword.PRAGMA },
-        { type: Keyword.PRECEDING, reserved: true },
+        { type: Keyword.PRECEDING, reserved: !options.compileOptions?.has("SQLITE_OMIT_WINDOWFUNC") },
         { type: Keyword.PRIMARY, reserved: true },
         { type: Keyword.PLAN },
         { type: Keyword.QUERY },
-        { type: Keyword.RANGE, reserved: true },
+        { type: Keyword.RANGE, reserved: !options.compileOptions?.has("SQLITE_OMIT_WINDOWFUNC") },
         { type: Keyword.RECURSIVE },
         { type: Keyword.REFERENCES, reserved: true },
         { type: Keyword.REGEXP, reserved: true },
@@ -146,14 +145,14 @@ export class Sqlite3Lexer extends Lexer {
         { type: Keyword.TEMP },
         { type: Keyword.TEMPORARY, reserved: true },
         { type: Keyword.THEN, reserved: true },
-        { type: Keyword.TIES, reserved: true },
+        { type: Keyword.TIES, reserved: !options.compileOptions?.has("SQLITE_OMIT_WINDOWFUNC") },
         { type: Keyword.TO, reserved: true },
         { type: Keyword.TRANSACTION, reserved: true },
         { type: Keyword.TRIGGER },
         { type: Keyword.TRUE },
         { type: Keyword.USING },
-        { type: Keyword.UNBOUNDED, reserved: true },
-        { type: Keyword.UNION, reserved: true },
+        { type: Keyword.UNBOUNDED, reserved: !options.compileOptions?.has("SQLITE_OMIT_WINDOWFUNC") },
+        { type: Keyword.UNION, reserved: options.compileOptions?.has("SQLITE_OMIT_COMPOUND_SELECT") },
         { type: Keyword.UNIQUE, reserved: true },
         { type: Keyword.UPDATE, reserved: true },
         { type: Keyword.USING, reserved: true },
@@ -168,9 +167,9 @@ export class Sqlite3Lexer extends Lexer {
         { type: Keyword.WITHOUT },
       ],
       [
-        Operator.EQ,
-        Operator.PLUS,
-        Operator.MINUS,
+        { type: Operator.EQ },
+        { type: Operator.PLUS },
+        { type: Operator.MINUS },
       ]
     )
   }
@@ -505,7 +504,7 @@ export class Sqlite3Parser extends Parser {
         stmt.schemaName = stmt.name
         stmt.name = this.identifier()
       }
-      if (this.consumeIf(Keyword.EQ)) {
+      if (this.consumeIf(Operator.EQ)) {
         stmt.value = this.pragmaValue()
       } else if (this.consumeIf(TokenType.LeftParen)) {
         stmt.value = this.pragmaValue()
@@ -715,8 +714,8 @@ export class Sqlite3Parser extends Parser {
       ) {
         constraint.expression = [this.consume()]
       } else if (
-          this.peekIf(Keyword.PLUS) ||
-          this.peekIf(Keyword.MINUS) ||
+          this.peekIf(Operator.PLUS) ||
+          this.peekIf(Operator.MINUS) ||
           this.peekIf(TokenType.Number)
       ) {
         const start = this.pos
@@ -885,7 +884,7 @@ export class Sqlite3Parser extends Parser {
 
   pragmaValue() {
     const start = this.pos
-    if (this.consumeIf(Keyword.PLUS) || this.consumeIf(Keyword.MINUS)) {
+    if (this.consumeIf(Operator.PLUS) || this.consumeIf(Operator.MINUS)) {
       this.consume(TokenType.Number)
     } else if (this.consumeIf(TokenType.Number)) {
     } else if (this.consumeIf(TokenType.String) || this.consumeIf(TokenType.QuotedValue)) {
@@ -924,7 +923,7 @@ export class Sqlite3Parser extends Parser {
 
   numberValue() {
     let token, text
-    if (token = (this.consumeIf(Keyword.PLUS) || this.consumeIf(Keyword.MINUS))) {
+    if (token = (this.consumeIf(Operator.PLUS) || this.consumeIf(Operator.MINUS))) {
       text = token.text
       text += this.consume(TokenType.Number).text
     } else {

@@ -18,8 +18,7 @@ async function main(
   args: string[],
   options: { [key: string]: any }
 ) {
-  const processor = await createDddlSyncProcessor(args, options)
-  processor.dryrun = true
+  const processor = await createDddlSyncProcessor(args, options, true)
   try {
     await processor.execute()
   } finally {

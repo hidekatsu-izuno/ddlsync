@@ -7,10 +7,14 @@ import Sqlite3Processor from "../sqlite3/sqlite3_processor"
 
 const Extensions = ["ts", "js", "json", "yml", "coffee", "eg", "ls"]
 
-export async function createDddlSyncProcessor(args: string[], options: { [key: string]: any }) {
+export async function createDddlSyncProcessor(
+  args: string[],
+  options: { [key: string]: any },
+  dryrun: boolean = false
+) {
   const config = await initConfig(args, options)
   if (config.type === "sqlite3") {
-    return new Sqlite3Processor(config)
+    return new Sqlite3Processor(config, dryrun)
   }
   throw new Error(`Unsupported database type: ${config.type}`)
 }

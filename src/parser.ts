@@ -164,10 +164,6 @@ export class Keyword extends TokenType {
   static WITH = new Keyword("WITH")
   static WITHOUT = new Keyword("WITHOUT")
 
-  static EQ = new Keyword("=")
-  static PLUS = new Keyword("+")
-  static MINUS = new Keyword("-")
-
   constructor(
     name: string,
     options: { [key: string]: any } = {}
@@ -240,18 +236,19 @@ export class Token {
 
 export abstract class Lexer {
   private keywords = new Map<string, { type: Keyword, reserved?: boolean }>()
-  private operators = new Map<string, Keyword>()
+  private operators = new Map<string, { type: Operator }>()
 
   constructor(
+    private type: string,
     private patterns: {type: TokenType, re: RegExp | (() => RegExp) }[],
     keywords: { type: Keyword, reserved?: boolean }[],
-    operators: Operator[]
+    operators: { type: Operator }[]
   ) {
     for (const keyword of keywords) {
       this.keywords.set(keyword.type.name, keyword)
     }
     for (const operator of operators) {
-      this.operators.set(operator.name, operator)
+      this.operators.set(operator.type.name, operator)
     }
   }
 
@@ -259,10 +256,10 @@ export abstract class Lexer {
     const tokens = []
     let pos = 0
 
-    input = input.replace(/(\/\*<ddlsync>)(.*)(<\/ddlsync>\*\/)/sg, (m, p1, p2, p3) => {
+    input = input.replace(/(\/\*<ddlsync>)(.*?)(<\/ddlsync>\*\/)/sg, (m, p1, p2, p3) => {
       return `${" ".repeat(p1.length)}${p2.replace(/\/\+(.*)\+\//sg, "/*$1*/")}${" ".repeat(p3.length)}`
     })
-    input = input.replace(/\/\*(<noddlsync>\*\/)(.*)(\/\*<\/noddlsync>)\*\//sg, (m, p1, p2, p3) => {
+    input = input.replace(/\/\*(<noddlsync>\*\/)(.*?)(\/\*<\/noddlsync>)\*\//sg, (m, p1, p2, p3) => {
       return `/*${" ".repeat(p1.length)}${p2.replace(/\/\*(.*)\*\//sg, "/+$1+/")}${" ".repeat(p3.length)}*/`
     })
     input = this.filter(input)
@@ -303,7 +300,7 @@ export abstract class Lexer {
       } else if (token.type === TokenType.Operator) {
         const operator = this.operators.get(token.text)
         if (operator) {
-          token.subtype = operator
+          token.subtype = operator.type
         }
       }
 

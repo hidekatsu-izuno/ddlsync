@@ -12,17 +12,31 @@ import { writeGzippedCsv } from '../util/io'
 export default class Sqlite3Processor extends DdlSyncProcessor {
   private con
 
-  constructor(config: { [key: string]: any }) {
-    super(config)
+  constructor(
+    config: { [key: string]: any },
+    dryrun: boolean,
+  ) {
+    super(config, dryrun)
     this.con = sqlite3(config.database || ":memory:")
   }
 
-  async parse(input: string, options?: { [key: string]: any}) {
-    const parser = new Sqlite3Parser(input, options)
-    return await parser.root()
+  protected async init() {
+    const options = {} as any
+
+    options.compileOptions = new Set<string>()
+    for (const row of await this.con.prepare("PRAGMA compile_options").iterate()) {
+      options.compileOptions.add(row.compile_options)
+    }
+
+    return options
   }
 
-  async run(stmts: Statement[], dryrun: boolean = false) {
+  protected async parse(input: string, options: { [ key: string ]: any }) {
+    const parser = new Sqlite3Parser(input)
+    return parser.root()
+  }
+
+  protected async run(stmts: Statement[]) {
     const vdb = new VDatabase()
     vdb.add("main")
     vdb.add("temp")
@@ -250,7 +264,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
         // create new object if not exists
         this.runScript(this.toSQL(stmt))
       } else {
-        const oldStmt = (await this.parse(meta.sql || ""))[0]
+        const oldStmt = (new Sqlite3Parser(meta.sql || "")).root()[0]
         if (!oldStmt) {
           throw new Error(`Failed to get metadata: ${obj.schemaName}.${obj.name}`)
         }
