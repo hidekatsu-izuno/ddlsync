@@ -1,11 +1,9 @@
 import { Statement } from "../models"
 import {
   TokenType,
-  Keyword,
   Token,
   Lexer,
   Parser,
-  Operator,
   ParseError,
   AggregateParseError,
 } from "../parser"
@@ -14,7 +12,7 @@ export class MsSqlLexer extends Lexer {
   constructor(
     private options: { [key: string]: any } = {}
   ) {
-    super([
+    super("mssql", [
       { type: TokenType.WhiteSpace, re: /[ \t]+/y },
       { type: TokenType.BlockComment, re: /\/\*(?:(?!\/\*|\*\/).)*\*\//sy },
       { type: TokenType.LineComment, re: /--.*/y },

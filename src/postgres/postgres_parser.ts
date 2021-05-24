@@ -1,11 +1,9 @@
 import { Statement } from "../models"
 import {
   TokenType,
-  Keyword,
   Token,
   Lexer,
   Parser,
-  Operator,
   ParseError,
   AggregateParseError,
 } from "../parser"
@@ -14,7 +12,7 @@ export class PostgresLexer extends Lexer {
   constructor(
     private options: { [key: string]: any } = {}
   ) {
-    super([
+    super("postgres", [
       { type: TokenType.WhiteSpace, re: /[ \t]+/y },
       { type: TokenType.LineBreak, re: /(?:\r\n?|\n)/y },
       { type: TokenType.BlockComment, re: /\/\*(?:(?!\/\*|\*\/).)*\*\//sy },
