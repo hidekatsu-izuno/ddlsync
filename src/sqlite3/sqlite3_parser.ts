@@ -1,8 +1,6 @@
 import Decimal from "decimal.js"
 import {
   TokenType,
-  Keyword,
-  Operator,
   Token,
   Lexer,
   Parser,
@@ -11,167 +9,298 @@ import {
 } from "../parser"
 import { AlterTableAction, AlterTableStatement, AnalyzeStatement, AttachDatabaseStatement, BeginTransactionStatement, CheckColumnConstraint, CheckTableConstraint, CollateColumnConstraint, ColumnDef, CommitTransactionStatement, ConflictAction, CreateIndexStatement, CreateTableStatement, CreateTriggerStatement, CreateViewStatement, DefaultColumnConstraint, DeleteStatement, DetachDatabaseStatement, DropIndexStatement, DropTableStatement, DropTriggerStatement, DropViewStatement, ExplainStatement, ForeignKeyTableConstraint, GeneratedColumnConstraint, IndexedColumn, InsertStatement, NotNullColumnConstraint, NullColumnConstraint, PragmaStatement, PrimaryKeyColumnConstraint, PrimaryKeyTableConstraint, ReferencesKeyColumnConstraint, ReindexStatement, ReleaseSavepointStatement, RollbackTransactionStatement, SavepointStatement, SelectStatement, SortOrder, StoreType, TransactionBehavior, UniqueColumnConstraint, UniqueTableConstraint, UpdateStatement, VacuumStatement } from "./sqlite3_models"
 
+const KeywordMap = new Map<string, Keyword>()
+export class Keyword extends TokenType {
+  static ABORT = new Keyword("ABORT")
+  static ADD = new Keyword("ADD")
+  static ALL = new Keyword("ALL")
+  static ALTER = new Keyword("ALTER")
+  static ALWAYS = new Keyword("ALWAYS")
+  static AND = new Keyword("AND")
+  static ANALYZE = new Keyword("ANALYZE")
+  static AS = new Keyword("AS")
+  static ASC = new Keyword("ASC")
+  static ATTACH = new Keyword("ATTACH")
+  static AUTOINCREMENT = new Keyword("AUTOINCREMENT")
+  static BEGIN = new Keyword("BEGIN")
+  static BETWEEN = new Keyword("BETWEEN")
+  static CASE = new Keyword("CASE")
+  static CHECK = new Keyword("CHECK")
+  static COLLATE = new Keyword("COLLATE")
+  static COLUMN = new Keyword("COLUMN")
+  static COMMIT = new Keyword("COMMIT")
+  static CONFLICT = new Keyword("CONFLICT")
+  static CONSTRAINT = new Keyword("CONSTRAINT")
+  static CREATE = new Keyword("CREATE")
+  static CROSS = new Keyword("CROSS")
+  static CURRENT = new Keyword("CURRENT")
+  static CURRENT_DATE = new Keyword("CURRENT_DATE")
+  static CURRENT_TIME = new Keyword("CURRENT_TIME")
+  static CURRENT_TIMESTAMP = new Keyword("CURRENT_TIMESTAMP")
+  static DATABASE = new Keyword("DATABASE")
+  static DEFAULT = new Keyword("DEFAULT")
+  static DEFERRED = new Keyword("DEFERRED")
+  static DEFERRABLE = new Keyword("DEFERRABLE")
+  static DELETE = new Keyword("DELETE")
+  static DESC = new Keyword("DESC")
+  static DETACH = new Keyword("DETACH")
+  static DISTINCT = new Keyword("DISTINCT")
+  static DROP = new Keyword("DROP")
+  static ELSE = new Keyword("ELSE")
+  static ESCAPE = new Keyword("ESCAPE")
+  static EXCEPT = new Keyword("EXCEPT")
+  static EXISTS = new Keyword("EXISTS")
+  static EXCLUDE = new Keyword("EXCLUDE")
+  static EXCLUSIVE = new Keyword("EXCLUSIVE")
+  static END = new Keyword("END")
+  static EXPLAIN = new Keyword("EXPLAIN")
+  static FAIL = new Keyword("FAIL")
+  static FALSE = new Keyword("FALSE")
+  static FILTER = new Keyword("FILTER")
+  static FOLLOWING = new Keyword("FOLLOWING")
+  static FOREIGN = new Keyword("FOREIGN")
+  static FROM = new Keyword("FROM")
+  static GENERATED = new Keyword("GENERATED")
+  static GLOB = new Keyword("GLOB")
+  static GROUP = new Keyword("GROUP")
+  static GROUPS = new Keyword("GROUPS")
+  static HAVING = new Keyword("HAVING")
+  static IGNORE = new Keyword("IGNORE")
+  static IMMEDIATE = new Keyword("IMMEDIATE")
+  static IN = new Keyword("IN")
+  static INDEX = new Keyword("INDEX")
+  static INDEXED = new Keyword("INDEXED")
+  static INNER = new Keyword("INNER")
+  static INSERT = new Keyword("INSERT")
+  static INTERSECT = new Keyword("INTERSECT")
+  static INTO = new Keyword("INTO")
+  static IF = new Keyword("IF")
+  static IS = new Keyword("IS")
+  static ISNULL = new Keyword("ISNULL")
+  static JOIN = new Keyword("JOIN")
+  static KEY = new Keyword("KEY")
+  static LEFT = new Keyword("LEFT")
+  static LIMIT = new Keyword("LIMIT")
+  static MATERIALIZED = new Keyword("MATERIALIZED")
+  static NATURAL = new Keyword("NATURAL")
+  static NOT = new Keyword("NOT")
+  static NOTHING = new Keyword("NOTHING")
+  static NULL = new Keyword("NULL")
+  static NOTNULL = new Keyword("NOTNULL")
+  static ON = new Keyword("ON")
+  static OR = new Keyword("OR")
+  static ORDER = new Keyword("ORDER")
+  static OTHERS = new Keyword("OTHERS")
+  static OUTER = new Keyword("OUTER")
+  static OVER = new Keyword("OVER")
+  static PARTITION = new Keyword("PARTITION")
+  static PRAGMA = new Keyword("PRAGMA")
+  static PRECEDING = new Keyword("PRECEDING")
+  static PRIMARY = new Keyword("PRIMARY")
+  static PLAN = new Keyword("PLAN")
+  static QUERY = new Keyword("QUERY")
+  static RANGE = new Keyword("RANGE")
+  static RECURSIVE = new Keyword("RECURSIVE")
+  static REFERENCES = new Keyword("REFERENCES")
+  static REGEXP = new Keyword("REGEXP")
+  static RENAME = new Keyword("RENAME")
+  static RELEASE = new Keyword("RELEASE")
+  static REINDEX = new Keyword("REINDEX")
+  static REPLACE = new Keyword("REPLACE")
+  static RETURNING = new Keyword("RETURNING")
+  static RIGHT = new Keyword("RIGHT")
+  static ROLLBACK = new Keyword("ROLLBACK")
+  static ROWID = new Keyword("ROWID")
+  static SAVEPOINT = new Keyword("SAVEPOINT")
+  static SCHEMA = new Keyword("SCHEMA")
+  static SELECT = new Keyword("SELECT")
+  static SET = new Keyword("SET")
+  static TABLE = new Keyword("TABLE")
+  static TEMP = new Keyword("TEMP")
+  static TEMPORARY = new Keyword("TEMPORARY")
+  static THEN = new Keyword("THEN")
+  static TIES = new Keyword("TIES")
+  static TO = new Keyword("TO")
+  static TRANSACTION = new Keyword("TRANSACTION")
+  static TRIGGER = new Keyword("TRIGGER")
+  static TRUE = new Keyword("TRUE")
+  static USING = new Keyword("USING")
+  static UNBOUNDED = new Keyword("UNBOUNDED")
+  static UNION = new Keyword("UNION")
+  static UNIQUE = new Keyword("UNIQUE")
+  static UPDATE = new Keyword("UPDATE")
+  static VACUUM = new Keyword("VACUUM")
+  static VALUES = new Keyword("VALUES")
+  static VIEW = new Keyword("VIEW")
+  static VIRTUAL = new Keyword("VIRTUAL")
+  static WHEN = new Keyword("WHEN")
+  static WHERE = new Keyword("WHERE")
+  static WINDOW = new Keyword("WINDOW")
+  static WITH = new Keyword("WITH")
+  static WITHOUT = new Keyword("WITHOUT")
+
+  constructor(
+    name: string,
+    options: { [key: string]: any } = {}
+  ) {
+    super(name, options)
+    KeywordMap.set(name, this)
+  }
+}
+
+const OperatorMap = new Map<string, Operator>()
+export class Operator extends TokenType {
+  static EQ = new Operator("=")
+  static PLUS = new Operator("+")
+  static MINUS = new Operator("-")
+
+  constructor(
+    name: string,
+    options: { [key: string]: any } = {}
+  ) {
+    super(name, options)
+    OperatorMap.set(name, this)
+  }
+}
+
 export class Sqlite3Lexer extends Lexer {
+  private reserved = new Set<Keyword>()
+
   constructor(
     private options: { [key: string]: any } = {}
   ) {
-    super("sqlite3",
-      [
-        { type: TokenType.BlockComment, re: /\/\*.*?\*\//sy },
-        { type: TokenType.LineComment, re: /--.*/y },
-        { type: TokenType.WhiteSpace, re: /[ \t]+/y },
-        { type: TokenType.LineBreak, re: /(?:\r\n?|\n)/y },
-        { type: TokenType.SemiColon, re: /;/y },
-        { type: TokenType.LeftParen, re: /\(/y },
-        { type: TokenType.RightParen, re: /\)/y },
-        { type: TokenType.Comma, re: /,/y },
-        { type: TokenType.Number, re: /0[xX][0-9a-fA-F]+|((0|[1-9][0-9]*)(\.[0-9]+)?|(\.[0-9]+))([eE][+-]?[0-9]+)?/y },
-        { type: TokenType.Dot, re: /\./y },
-        { type: TokenType.String, re: /[Xx]'([^']|'')*'/y },
-        { type: TokenType.QuotedValue, re: /"([^"]|"")*"/y },
-        { type: TokenType.QuotedIdentifier, re: /(`([^`]|``)*`|\[[^\]]*\])/y },
-        { type: TokenType.BindVariable, re: /\?([1-9][0-9]*)?/y },
-        { type: TokenType.BindVariable, re: /[$@:#][a-zA-Z_\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*/y },
-        { type: TokenType.Identifier, re: /[a-zA-Z_\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*/y },
-        { type: TokenType.Operator, re: /\|\||<<|>>|<>|[=<>!]=?|[~&|*/%+-]/y },
-        { type: TokenType.Error, re: /./y },
-      ],
-      [
-        { type: Keyword.ABORT },
-        { type: Keyword.ADD, reserved: true },
-        { type: Keyword.ALL, reserved: true },
-        { type: Keyword.ALTER, reserved: true },
-        { type: Keyword.ALWAYS, reserved: !options.compileOptions?.has("SQLITE_OMIT_GENERATED_COLUMNS") },
-        { type: Keyword.AND, reserved: true },
-        { type: Keyword.ANALYZE },
-        { type: Keyword.AS, reserved: true },
-        { type: Keyword.ASC },
-        { type: Keyword.ATTACH },
-        { type: Keyword.AUTOINCREMENT, reserved: true },
-        { type: Keyword.BEGIN },
-        { type: Keyword.BETWEEN, reserved: true },
-        { type: Keyword.CASE, reserved: true },
-        { type: Keyword.CHECK, reserved: true },
-        { type: Keyword.COLLATE, reserved: true },
-        { type: Keyword.COLUMN },
-        { type: Keyword.COMMIT, reserved: true },
-        { type: Keyword.CONFLICT },
-        { type: Keyword.CONSTRAINT, reserved: true },
-        { type: Keyword.CREATE, reserved: true },
-        { type: Keyword.CROSS, reserved: true },
-        { type: Keyword.CURRENT, reserved: !options.compileOptions?.has("SQLITE_OMIT_WINDOWFUNC") },
-        { type: Keyword.CURRENT_DATE, reserved: true },
-        { type: Keyword.CURRENT_TIME, reserved: true },
-        { type: Keyword.CURRENT_TIMESTAMP, reserved: true },
-        { type: Keyword.DATABASE },
-        { type: Keyword.DEFAULT, reserved: true },
-        { type: Keyword.DEFERRABLE, reserved: true },
-        { type: Keyword.DEFERRED },
-        { type: Keyword.DELETE, reserved: true },
-        { type: Keyword.DESC },
-        { type: Keyword.DETACH },
-        { type: Keyword.DISTINCT, reserved: true },
-        { type: Keyword.DROP },
-        { type: Keyword.ELSE, reserved: true },
-        { type: Keyword.ESCAPE, reserved: true },
-        { type: Keyword.EXCEPT, reserved: options.compileOptions?.has("SQLITE_OMIT_COMPOUND_SELECT") },
-        { type: Keyword.EXCLUDE, reserved: !options.compileOptions?.has("SQLITE_OMIT_WINDOWFUNC") },
-        { type: Keyword.EXCLUSIVE },
-        { type: Keyword.EXISTS, reserved: true },
-        { type: Keyword.END },
-        { type: Keyword.EXPLAIN },
-        { type: Keyword.FAIL },
-        { type: Keyword.FALSE },
-        { type: Keyword.FILTER, reserved: true },
-        { type: Keyword.FOLLOWING, reserved: !options.compileOptions?.has("SQLITE_OMIT_WINDOWFUNC") },
-        { type: Keyword.FOREIGN, reserved: true },
-        { type: Keyword.FROM, reserved: true },
-        { type: Keyword.GENERATED, reserved: !options.compileOptions?.has("SQLITE_OMIT_GENERATED_COLUMNS") },
-        { type: Keyword.GLOB, reserved: true },
-        { type: Keyword.GROUP, reserved: true },
-        { type: Keyword.GROUPS, reserved: !options.compileOptions?.has("SQLITE_OMIT_WINDOWFUNC") },
-        { type: Keyword.HAVING, reserved: true },
-        { type: Keyword.IGNORE },
-        { type: Keyword.IMMEDIATE },
-        { type: Keyword.IN, reserved: true },
-        { type: Keyword.INDEX, reserved: true },
-        { type: Keyword.INDEXED, reserved: true },
-        { type: Keyword.INNER, reserved: true },
-        { type: Keyword.INSERT, reserved: true },
-        { type: Keyword.INTERSECT, reserved: options.compileOptions?.has("SQLITE_OMIT_COMPOUND_SELECT") },
-        { type: Keyword.INTO, reserved: true },
-        { type: Keyword.IF },
-        { type: Keyword.IS, reserved: true },
-        { type: Keyword.ISNULL, reserved: true },
-        { type: Keyword.JOIN, reserved: true },
-        { type: Keyword.KEY },
-        { type: Keyword.LEFT, reserved: true },
-        { type: Keyword.LIMIT, reserved: true },
-        { type: Keyword.MATERIALIZED },
-        { type: Keyword.NATURAL, reserved: true },
-        { type: Keyword.NOT, reserved: true },
-        { type: Keyword.NOTHING, reserved: true },
-        { type: Keyword.NOT, reserved: true },
-        { type: Keyword.NOTNULL, reserved: true },
-        { type: Keyword.NULL, reserved: true },
-        { type: Keyword.ON, reserved: true },
-        { type: Keyword.OR, reserved: true },
-        { type: Keyword.ORDER, reserved: true },
-        { type: Keyword.OTHERS, reserved: !options.compileOptions?.has("SQLITE_OMIT_WINDOWFUNC") },
-        { type: Keyword.OUTER, reserved: true },
-        { type: Keyword.OVER, reserved: true },
-        { type: Keyword.PARTITION, reserved: !options.compileOptions?.has("SQLITE_OMIT_WINDOWFUNC") },
-        { type: Keyword.PRAGMA },
-        { type: Keyword.PRECEDING, reserved: !options.compileOptions?.has("SQLITE_OMIT_WINDOWFUNC") },
-        { type: Keyword.PRIMARY, reserved: true },
-        { type: Keyword.PLAN },
-        { type: Keyword.QUERY },
-        { type: Keyword.RANGE, reserved: !options.compileOptions?.has("SQLITE_OMIT_WINDOWFUNC") },
-        { type: Keyword.RECURSIVE },
-        { type: Keyword.REFERENCES, reserved: true },
-        { type: Keyword.REGEXP, reserved: true },
-        { type: Keyword.RENAME },
-        { type: Keyword.RELEASE },
-        { type: Keyword.REINDEX },
-        { type: Keyword.REPLACE },
-        { type: Keyword.RETURNING, reserved: true },
-        { type: Keyword.RIGHT, reserved: true },
-        { type: Keyword.ROLLBACK },
-        { type: Keyword.ROWID },
-        { type: Keyword.SAVEPOINT },
-        { type: Keyword.SELECT, reserved: true },
-        { type: Keyword.SET, reserved: true },
-        { type: Keyword.TABLE, reserved: true },
-        { type: Keyword.TEMP },
-        { type: Keyword.TEMPORARY, reserved: true },
-        { type: Keyword.THEN, reserved: true },
-        { type: Keyword.TIES, reserved: !options.compileOptions?.has("SQLITE_OMIT_WINDOWFUNC") },
-        { type: Keyword.TO, reserved: true },
-        { type: Keyword.TRANSACTION, reserved: true },
-        { type: Keyword.TRIGGER },
-        { type: Keyword.TRUE },
-        { type: Keyword.USING },
-        { type: Keyword.UNBOUNDED, reserved: !options.compileOptions?.has("SQLITE_OMIT_WINDOWFUNC") },
-        { type: Keyword.UNION, reserved: options.compileOptions?.has("SQLITE_OMIT_COMPOUND_SELECT") },
-        { type: Keyword.UNIQUE, reserved: true },
-        { type: Keyword.UPDATE, reserved: true },
-        { type: Keyword.USING, reserved: true },
-        { type: Keyword.VACUUM },
-        { type: Keyword.VALUES, reserved: true },
-        { type: Keyword.VIEW },
-        { type: Keyword.VIRTUAL },
-        { type: Keyword.WHEN, reserved: true },
-        { type: Keyword.WHERE, reserved: true },
-        { type: Keyword.WINDOW, reserved: true },
-        { type: Keyword.WITH },
-        { type: Keyword.WITHOUT },
-      ],
-      [
-        { type: Operator.EQ },
-        { type: Operator.PLUS },
-        { type: Operator.MINUS },
-      ]
-    )
+    super("sqlite3", [
+      { type: TokenType.BlockComment, re: /\/\*.*?\*\//sy },
+      { type: TokenType.LineComment, re: /--.*/y },
+      { type: TokenType.WhiteSpace, re: /[ \t]+/y },
+      { type: TokenType.LineBreak, re: /(?:\r\n?|\n)/y },
+      { type: TokenType.SemiColon, re: /;/y },
+      { type: TokenType.LeftParen, re: /\(/y },
+      { type: TokenType.RightParen, re: /\)/y },
+      { type: TokenType.Comma, re: /,/y },
+      { type: TokenType.Number, re: /0[xX][0-9a-fA-F]+|((0|[1-9][0-9]*)(\.[0-9]+)?|(\.[0-9]+))([eE][+-]?[0-9]+)?/y },
+      { type: TokenType.Dot, re: /\./y },
+      { type: TokenType.String, re: /[Xx]'([^']|'')*'/y },
+      { type: TokenType.QuotedValue, re: /"([^"]|"")*"/y },
+      { type: TokenType.QuotedIdentifier, re: /(`([^`]|``)*`|\[[^\]]*\])/y },
+      { type: TokenType.BindVariable, re: /\?([1-9][0-9]*)?/y },
+      { type: TokenType.BindVariable, re: /[$@:#][a-zA-Z_\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*/y },
+      { type: TokenType.Identifier, re: /[a-zA-Z_\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*/y },
+      { type: TokenType.Operator, re: /\|\||<<|>>|<>|[=<>!]=?|[~&|*/%+-]/y },
+      { type: TokenType.Error, re: /./y },
+    ])
+
+    this.reserved.add(Keyword.ADD)
+    this.reserved.add(Keyword.ALL)
+    this.reserved.add(Keyword.ALTER)
+    this.reserved.add(Keyword.AND)
+    this.reserved.add(Keyword.AS)
+    this.reserved.add(Keyword.AUTOINCREMENT)
+    this.reserved.add(Keyword.BETWEEN)
+    this.reserved.add(Keyword.CASE)
+    this.reserved.add(Keyword.CHECK)
+    this.reserved.add(Keyword.COLLATE)
+    this.reserved.add(Keyword.COMMIT)
+    this.reserved.add(Keyword.CONSTRAINT)
+    this.reserved.add(Keyword.CREATE)
+    this.reserved.add(Keyword.CROSS)
+    this.reserved.add(Keyword.CURRENT_DATE)
+    this.reserved.add(Keyword.CURRENT_TIME)
+    this.reserved.add(Keyword.CURRENT_TIMESTAMP)
+    this.reserved.add(Keyword.DEFAULT)
+    this.reserved.add(Keyword.DEFERRABLE)
+    this.reserved.add(Keyword.DELETE)
+    this.reserved.add(Keyword.DISTINCT)
+    this.reserved.add(Keyword.ELSE)
+    this.reserved.add(Keyword.ESCAPE)
+    this.reserved.add(Keyword.EXISTS)
+    this.reserved.add(Keyword.FILTER)
+    this.reserved.add(Keyword.FOREIGN)
+    this.reserved.add(Keyword.FROM)
+    this.reserved.add(Keyword.GLOB)
+    this.reserved.add(Keyword.GROUP)
+    this.reserved.add(Keyword.HAVING)
+    this.reserved.add(Keyword.IN)
+    this.reserved.add(Keyword.INDEX)
+    this.reserved.add(Keyword.INDEXED)
+    this.reserved.add(Keyword.INNER)
+    this.reserved.add(Keyword.INSERT)
+    this.reserved.add(Keyword.INTO)
+    this.reserved.add(Keyword.IS)
+    this.reserved.add(Keyword.ISNULL)
+    this.reserved.add(Keyword.JOIN)
+    this.reserved.add(Keyword.LEFT)
+    this.reserved.add(Keyword.LIMIT)
+    this.reserved.add(Keyword.NATURAL)
+    this.reserved.add(Keyword.NOT)
+    this.reserved.add(Keyword.NOTHING)
+    this.reserved.add(Keyword.NOT)
+    this.reserved.add(Keyword.NOTNULL)
+    this.reserved.add(Keyword.NULL)
+    this.reserved.add(Keyword.ON)
+    this.reserved.add(Keyword.OR)
+    this.reserved.add(Keyword.ORDER)
+    this.reserved.add(Keyword.OUTER)
+    this.reserved.add(Keyword.OVER)
+    this.reserved.add(Keyword.PRIMARY)
+    this.reserved.add(Keyword.REFERENCES)
+    this.reserved.add(Keyword.REGEXP)
+    this.reserved.add(Keyword.RETURNING)
+    this.reserved.add(Keyword.RIGHT)
+    this.reserved.add(Keyword.SELECT)
+    this.reserved.add(Keyword.SET)
+    this.reserved.add(Keyword.TABLE)
+    this.reserved.add(Keyword.TEMPORARY)
+    this.reserved.add(Keyword.THEN)
+    this.reserved.add(Keyword.TO)
+    this.reserved.add(Keyword.TRANSACTION)
+    this.reserved.add(Keyword.UNIQUE)
+    this.reserved.add(Keyword.UPDATE)
+    this.reserved.add(Keyword.USING)
+    this.reserved.add(Keyword.VALUES)
+    this.reserved.add(Keyword.WHEN)
+    this.reserved.add(Keyword.WHERE)
+    this.reserved.add(Keyword.WINDOW)
+    if (!options.compileOptions?.has("SQLITE_OMIT_COMPOUND_SELECT")) {
+      this.reserved.add(Keyword.EXCEPT)
+      this.reserved.add(Keyword.INTERSECT)
+      this.reserved.add(Keyword.UNION)
+    }
+    if (options.compileOptions?.has("SQLITE_OMIT_WINDOWFUNC")) {
+      this.reserved.add(Keyword.CURRENT)
+      this.reserved.add(Keyword.EXCLUDE)
+      this.reserved.add(Keyword.FOLLOWING)
+      this.reserved.add(Keyword.GROUPS)
+      this.reserved.add(Keyword.OTHERS)
+      this.reserved.add(Keyword.PARTITION)
+      this.reserved.add(Keyword.PRECEDING)
+      this.reserved.add(Keyword.RANGE)
+      this.reserved.add(Keyword.TIES)
+      this.reserved.add(Keyword.UNBOUNDED)
+    }
+    if (options.compileOptions?.has("SQLITE_OMIT_GENERATED_COLUMNS")) {
+      this.reserved.add(Keyword.ALWAYS)
+      this.reserved.add(Keyword.GENERATED)
+    }
+  }
+
+  process(token: Token) {
+    if (token.type === TokenType.Identifier) {
+      const keyword = KeywordMap.get(token.text.toUpperCase())
+      if (keyword) {
+        if (this.reserved.has(keyword)) {
+          token.type = keyword
+        } else {
+          token.subtype = keyword
+        }
+      }
+    } else if (token.type === TokenType.Operator) {
+      const operator = OperatorMap.get(token.text.toUpperCase())
+      if (operator) {
+        token.subtype = operator
+      }
+    }
+    return token
   }
 }
 

@@ -35,156 +35,6 @@ export class TokenType {
   }
 }
 
-export class Keyword extends TokenType {
-  static ABORT = new Keyword("ABORT")
-  static ADD = new Keyword("ADD")
-  static ALL = new Keyword("ALL")
-  static ALTER = new Keyword("ALTER")
-  static ALWAYS = new Keyword("ALWAYS")
-  static AND = new Keyword("AND")
-  static ANALYZE = new Keyword("ANALYZE")
-  static AS = new Keyword("AS")
-  static ASC = new Keyword("ASC")
-  static ATTACH = new Keyword("ATTACH")
-  static AUTOINCREMENT = new Keyword("AUTOINCREMENT")
-  static BEGIN = new Keyword("BEGIN")
-  static BETWEEN = new Keyword("BETWEEN")
-  static CASE = new Keyword("CASE")
-  static CHECK = new Keyword("CHECK")
-  static COLLATE = new Keyword("COLLATE")
-  static COLUMN = new Keyword("COLUMN")
-  static COMMIT = new Keyword("COMMIT")
-  static CONFLICT = new Keyword("CONFLICT")
-  static CONSTRAINT = new Keyword("CONSTRAINT")
-  static CREATE = new Keyword("CREATE")
-  static CROSS = new Keyword("CROSS")
-  static CURRENT = new Keyword("CURRENT")
-  static CURRENT_DATE = new Keyword("CURRENT_DATE")
-  static CURRENT_TIME = new Keyword("CURRENT_TIME")
-  static CURRENT_TIMESTAMP = new Keyword("CURRENT_TIMESTAMP")
-  static DATABASE = new Keyword("DATABASE")
-  static DEFAULT = new Keyword("DEFAULT")
-  static DEFERRED = new Keyword("DEFERRED")
-  static DEFERRABLE = new Keyword("DEFERRABLE")
-  static DELETE = new Keyword("DELETE")
-  static DESC = new Keyword("DESC")
-  static DETACH = new Keyword("DETACH")
-  static DISTINCT = new Keyword("DISTINCT")
-  static DROP = new Keyword("DROP")
-  static ELSE = new Keyword("ELSE")
-  static ESCAPE = new Keyword("ESCAPE")
-  static EXCEPT = new Keyword("EXCEPT")
-  static EXISTS = new Keyword("EXISTS")
-  static EXCLUDE = new Keyword("EXCLUDE")
-  static EXCLUSIVE = new Keyword("EXCLUSIVE")
-  static END = new Keyword("END")
-  static EXPLAIN = new Keyword("EXPLAIN")
-  static FAIL = new Keyword("FAIL")
-  static FALSE = new Keyword("FALSE")
-  static FILTER = new Keyword("FILTER")
-  static FOLLOWING = new Keyword("FOLLOWING")
-  static FOREIGN = new Keyword("FOREIGN")
-  static FROM = new Keyword("FROM")
-  static GENERATED = new Keyword("GENERATED")
-  static GLOB = new Keyword("GLOB")
-  static GROUP = new Keyword("GROUP")
-  static GROUPS = new Keyword("GROUPS")
-  static HAVING = new Keyword("HAVING")
-  static IGNORE = new Keyword("IGNORE")
-  static IMMEDIATE = new Keyword("IMMEDIATE")
-  static IN = new Keyword("IN")
-  static INDEX = new Keyword("INDEX")
-  static INDEXED = new Keyword("INDEXED")
-  static INNER = new Keyword("INNER")
-  static INSERT = new Keyword("INSERT")
-  static INTERSECT = new Keyword("INTERSECT")
-  static INTO = new Keyword("INTO")
-  static IF = new Keyword("IF")
-  static IS = new Keyword("IS")
-  static ISNULL = new Keyword("ISNULL")
-  static JOIN = new Keyword("JOIN")
-  static KEY = new Keyword("KEY")
-  static LEFT = new Keyword("LEFT")
-  static LIMIT = new Keyword("LIMIT")
-  static MATERIALIZED = new Keyword("MATERIALIZED")
-  static NATURAL = new Keyword("NATURAL")
-  static NOT = new Keyword("NOT")
-  static NOTHING = new Keyword("NOTHING")
-  static NULL = new Keyword("NULL")
-  static NOTNULL = new Keyword("NOTNULL")
-  static ON = new Keyword("ON")
-  static OR = new Keyword("OR")
-  static ORDER = new Keyword("ORDER")
-  static OTHERS = new Keyword("OTHERS")
-  static OUTER = new Keyword("OUTER")
-  static OVER = new Keyword("OVER")
-  static PARTITION = new Keyword("PARTITION")
-  static PRAGMA = new Keyword("PRAGMA")
-  static PRECEDING = new Keyword("PRECEDING")
-  static PRIMARY = new Keyword("PRIMARY")
-  static PLAN = new Keyword("PLAN")
-  static QUERY = new Keyword("QUERY")
-  static RANGE = new Keyword("RANGE")
-  static RECURSIVE = new Keyword("RECURSIVE")
-  static REFERENCES = new Keyword("REFERENCES")
-  static REGEXP = new Keyword("REGEXP")
-  static RENAME = new Keyword("RENAME")
-  static RELEASE = new Keyword("RELEASE")
-  static REINDEX = new Keyword("REINDEX")
-  static REPLACE = new Keyword("REPLACE")
-  static RETURNING = new Keyword("RETURNING")
-  static RIGHT = new Keyword("RIGHT")
-  static ROLLBACK = new Keyword("ROLLBACK")
-  static ROWID = new Keyword("ROWID")
-  static SAVEPOINT = new Keyword("SAVEPOINT")
-  static SCHEMA = new Keyword("SCHEMA")
-  static SELECT = new Keyword("SELECT")
-  static SET = new Keyword("SET")
-  static TABLE = new Keyword("TABLE")
-  static TEMP = new Keyword("TEMP")
-  static TEMPORARY = new Keyword("TEMPORARY")
-  static THEN = new Keyword("THEN")
-  static TIES = new Keyword("TIES")
-  static TO = new Keyword("TO")
-  static TRANSACTION = new Keyword("TRANSACTION")
-  static TRIGGER = new Keyword("TRIGGER")
-  static TRUE = new Keyword("TRUE")
-  static USING = new Keyword("USING")
-  static UNBOUNDED = new Keyword("UNBOUNDED")
-  static UNION = new Keyword("UNION")
-  static UNIQUE = new Keyword("UNIQUE")
-  static UPDATE = new Keyword("UPDATE")
-  static VACUUM = new Keyword("VACUUM")
-  static VALUES = new Keyword("VALUES")
-  static VIEW = new Keyword("VIEW")
-  static VIRTUAL = new Keyword("VIRTUAL")
-  static WHEN = new Keyword("WHEN")
-  static WHERE = new Keyword("WHERE")
-  static WINDOW = new Keyword("WINDOW")
-  static WITH = new Keyword("WITH")
-  static WITHOUT = new Keyword("WITHOUT")
-
-  constructor(
-    name: string,
-    options: { [key: string]: any } = {}
-  ) {
-    super(name, options)
-  }
-}
-
-export class Operator extends TokenType {
-  static EQ = new Operator("=")
-  static PLUS = new Operator("+")
-  static MINUS = new Operator("-")
-
-  constructor(
-    name: string,
-    options: { [key: string]: any } = {}
-  ) {
-    super(name, options)
-  }
-}
-
 export class Token {
   public subtype?: TokenType
   public before: Token[] = []
@@ -235,21 +85,10 @@ export class Token {
 }
 
 export abstract class Lexer {
-  private keywords = new Map<string, { type: Keyword, reserved?: boolean }>()
-  private operators = new Map<string, { type: Operator }>()
-
   constructor(
     private type: string,
-    private patterns: {type: TokenType, re: RegExp | (() => RegExp) }[],
-    keywords: { type: Keyword, reserved?: boolean }[],
-    operators: { type: Operator }[]
+    private patterns: {type: TokenType, re: RegExp | (() => RegExp) }[]
   ) {
-    for (const keyword of keywords) {
-      this.keywords.set(keyword.type.name, keyword)
-    }
-    for (const operator of operators) {
-      this.operators.set(operator.type.name, operator)
-    }
   }
 
   lex(input: string) {
@@ -286,22 +125,6 @@ export abstract class Lexer {
 
       if (!token) {
         throw new Error(`Failed to tokenize: ${pos}`)
-      }
-
-      if (token.type === TokenType.Identifier) {
-        const keyword = this.keywords.get(token.text.toUpperCase())
-        if (keyword) {
-          if (keyword.reserved) {
-            token.type = keyword.type
-          } else {
-            token.subtype = keyword.type
-          }
-        }
-      } else if (token.type === TokenType.Operator) {
-        const operator = this.operators.get(token.text)
-        if (operator) {
-          token.subtype = operator.type
-        }
       }
 
       token = this.process(token)
@@ -353,7 +176,7 @@ export abstract class Parser {
     return this.tokens[this.pos + pos]
   }
 
-  peekIf(type?: TokenType | Keyword) {
+  peekIf(type?: TokenType) {
     const token = this.peek()
     if (!token) {
       return null
@@ -366,7 +189,7 @@ export abstract class Parser {
     return token
   }
 
-  consumeIf(type?: TokenType | Keyword) {
+  consumeIf(type?: TokenType) {
     const token = this.peekIf(type)
     if (token) {
       this.pos++
@@ -374,7 +197,7 @@ export abstract class Parser {
     return token
   }
 
-  consume(type?: TokenType | Keyword) {
+  consume(type?: TokenType) {
     const token = this.consumeIf(type)
     if (token == null) {
       throw this.createParseError()
