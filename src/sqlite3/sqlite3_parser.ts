@@ -2,10 +2,10 @@ import Decimal from "decimal.js"
 import {
   TokenType,
   Keyword,
+  Operator,
   Token,
   Lexer,
   Parser,
-  Operator,
   ParseError,
   AggregateParseError,
 } from "../parser"
@@ -15,26 +15,164 @@ export class Sqlite3Lexer extends Lexer {
   constructor(
     private options: { [key: string]: any } = {}
   ) {
-    super([
-      { type: TokenType.BlockComment, re: /\/\*.*?\*\//sy },
-      { type: TokenType.LineComment, re: /--.*/y },
-      { type: TokenType.WhiteSpace, re: /[ \t]+/y },
-      { type: TokenType.LineBreak, re: /(?:\r\n?|\n)/y },
-      { type: TokenType.SemiColon, re: /;/y },
-      { type: TokenType.LeftParen, re: /\(/y },
-      { type: TokenType.RightParen, re: /\)/y },
-      { type: TokenType.Comma, re: /,/y },
-      { type: TokenType.Number, re: /0[xX][0-9a-fA-F]+|((0|[1-9][0-9]*)(\.[0-9]+)?|(\.[0-9]+))([eE][+-]?[0-9]+)?/y },
-      { type: TokenType.Dot, re: /\./y },
-      { type: TokenType.String, re: /[Xx]'([^']|'')*'/y },
-      { type: TokenType.QuotedValue, re: /"([^"]|"")*"/y },
-      { type: TokenType.QuotedIdentifier, re: /(`([^`]|``)*`|\[[^\]]*\])/y },
-      { type: TokenType.BindVariable, re: /\?([1-9][0-9]*)?/y },
-      { type: TokenType.BindVariable, re: /[$@:#][a-zA-Z_\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*/y },
-      { type: TokenType.Identifier, re: /[a-zA-Z_\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*/y },
-      { type: TokenType.Operator, re: /\|\||<<|>>|<>|[=<>!]=?|[~&|*/%+-]/y },
-      { type: TokenType.Error, re: /./y },
-    ])
+    super(
+      [
+        { type: TokenType.BlockComment, re: /\/\*.*?\*\//sy },
+        { type: TokenType.LineComment, re: /--.*/y },
+        { type: TokenType.WhiteSpace, re: /[ \t]+/y },
+        { type: TokenType.LineBreak, re: /(?:\r\n?|\n)/y },
+        { type: TokenType.SemiColon, re: /;/y },
+        { type: TokenType.LeftParen, re: /\(/y },
+        { type: TokenType.RightParen, re: /\)/y },
+        { type: TokenType.Comma, re: /,/y },
+        { type: TokenType.Number, re: /0[xX][0-9a-fA-F]+|((0|[1-9][0-9]*)(\.[0-9]+)?|(\.[0-9]+))([eE][+-]?[0-9]+)?/y },
+        { type: TokenType.Dot, re: /\./y },
+        { type: TokenType.String, re: /[Xx]'([^']|'')*'/y },
+        { type: TokenType.QuotedValue, re: /"([^"]|"")*"/y },
+        { type: TokenType.QuotedIdentifier, re: /(`([^`]|``)*`|\[[^\]]*\])/y },
+        { type: TokenType.BindVariable, re: /\?([1-9][0-9]*)?/y },
+        { type: TokenType.BindVariable, re: /[$@:#][a-zA-Z_\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*/y },
+        { type: TokenType.Identifier, re: /[a-zA-Z_\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*/y },
+        { type: TokenType.Operator, re: /\|\||<<|>>|<>|[=<>!]=?|[~&|*/%+-]/y },
+        { type: TokenType.Error, re: /./y },
+      ],
+      [
+        { type: Keyword.ABORT },
+        { type: Keyword.SCHEMA },
+        { type: Keyword.ADD, reserved: true },
+        { type: Keyword.ALL, reserved: true },
+        { type: Keyword.ALTER, reserved: true },
+        { type: Keyword.ALWAYS, reserved: true },
+        { type: Keyword.AND, reserved: true },
+        { type: Keyword.ANALYZE },
+        { type: Keyword.AS, reserved: true },
+        { type: Keyword.ASC },
+        { type: Keyword.ATTACH },
+        { type: Keyword.AUTOINCREMENT, reserved: true },
+        { type: Keyword.BEGIN },
+        { type: Keyword.BETWEEN, reserved: true },
+        { type: Keyword.CASE, reserved: true },
+        { type: Keyword.CHECK, reserved: true },
+        { type: Keyword.COLLATE, reserved: true },
+        { type: Keyword.COLUMN },
+        { type: Keyword.COMMIT, reserved: true },
+        { type: Keyword.CONFLICT },
+        { type: Keyword.CONSTRAINT, reserved: true },
+        { type: Keyword.CREATE, reserved: true },
+        { type: Keyword.CROSS, reserved: true },
+        { type: Keyword.CURRENT, reserved: true },
+        { type: Keyword.CURRENT_DATE, reserved: true },
+        { type: Keyword.CURRENT_TIME, reserved: true },
+        { type: Keyword.CURRENT_TIMESTAMP, reserved: true },
+        { type: Keyword.DATABASE },
+        { type: Keyword.DEFAULT, reserved: true },
+        { type: Keyword.DEFERRABLE, reserved: true },
+        { type: Keyword.DEFERRED },
+        { type: Keyword.DELETE, reserved: true },
+        { type: Keyword.DESC },
+        { type: Keyword.DETACH },
+        { type: Keyword.DISTINCT, reserved: true },
+        { type: Keyword.DROP },
+        { type: Keyword.ELSE, reserved: true },
+        { type: Keyword.ESCAPE, reserved: true },
+        { type: Keyword.EXCEPT, reserved: true },
+        { type: Keyword.EXCLUDE, reserved: true },
+        { type: Keyword.EXCLUSIVE },
+        { type: Keyword.EXISTS, reserved: true },
+        { type: Keyword.END },
+        { type: Keyword.EXPLAIN },
+        { type: Keyword.FAIL },
+        { type: Keyword.FALSE },
+        { type: Keyword.FILTER, reserved: true },
+        { type: Keyword.FOLLOWING, reserved: true },
+        { type: Keyword.FOREIGN, reserved: true },
+        { type: Keyword.FROM, reserved: true },
+        { type: Keyword.GENERATED, reserved: true },
+        { type: Keyword.GLOB, reserved: true },
+        { type: Keyword.GROUP, reserved: true },
+        { type: Keyword.GROUPS, reserved: true },
+        { type: Keyword.HAVING, reserved: true },
+        { type: Keyword.IGNORE },
+        { type: Keyword.IMMEDIATE },
+        { type: Keyword.IN, reserved: true },
+        { type: Keyword.INDEX, reserved: true },
+        { type: Keyword.INDEXED, reserved: true },
+        { type: Keyword.INNER, reserved: true },
+        { type: Keyword.INSERT, reserved: true },
+        { type: Keyword.INTERSECT, reserved: true },
+        { type: Keyword.INTO, reserved: true },
+        { type: Keyword.IF },
+        { type: Keyword.IS, reserved: true },
+        { type: Keyword.ISNULL, reserved: true },
+        { type: Keyword.JOIN, reserved: true },
+        { type: Keyword.KEY },
+        { type: Keyword.LEFT, reserved: true },
+        { type: Keyword.LIMIT, reserved: true },
+        { type: Keyword.MATERIALIZED },
+        { type: Keyword.NATURAL, reserved: true },
+        { type: Keyword.NOT, reserved: true },
+        { type: Keyword.NOTHING, reserved: true },
+        { type: Keyword.NOT, reserved: true },
+        { type: Keyword.NOTNULL, reserved: true },
+        { type: Keyword.NULL, reserved: true },
+        { type: Keyword.ON, reserved: true },
+        { type: Keyword.OR, reserved: true },
+        { type: Keyword.ORDER, reserved: true },
+        { type: Keyword.OTHERS, reserved: true },
+        { type: Keyword.OUTER, reserved: true },
+        { type: Keyword.OVER, reserved: true },
+        { type: Keyword.PARTITION, reserved: true },
+        { type: Keyword.PRAGMA },
+        { type: Keyword.PRECEDING, reserved: true },
+        { type: Keyword.PRIMARY, reserved: true },
+        { type: Keyword.PLAN },
+        { type: Keyword.QUERY },
+        { type: Keyword.RANGE, reserved: true },
+        { type: Keyword.RECURSIVE },
+        { type: Keyword.REFERENCES, reserved: true },
+        { type: Keyword.REGEXP, reserved: true },
+        { type: Keyword.RENAME },
+        { type: Keyword.RELEASE },
+        { type: Keyword.REINDEX },
+        { type: Keyword.REPLACE },
+        { type: Keyword.RETURNING, reserved: true },
+        { type: Keyword.RIGHT, reserved: true },
+        { type: Keyword.ROLLBACK },
+        { type: Keyword.ROWID },
+        { type: Keyword.SAVEPOINT },
+        { type: Keyword.SELECT, reserved: true },
+        { type: Keyword.SET, reserved: true },
+        { type: Keyword.TABLE, reserved: true },
+        { type: Keyword.TEMP },
+        { type: Keyword.TEMPORARY, reserved: true },
+        { type: Keyword.THEN, reserved: true },
+        { type: Keyword.TIES, reserved: true },
+        { type: Keyword.TO, reserved: true },
+        { type: Keyword.TRANSACTION, reserved: true },
+        { type: Keyword.TRIGGER },
+        { type: Keyword.TRUE },
+        { type: Keyword.USING },
+        { type: Keyword.UNBOUNDED, reserved: true },
+        { type: Keyword.UNION, reserved: true },
+        { type: Keyword.UNIQUE, reserved: true },
+        { type: Keyword.UPDATE, reserved: true },
+        { type: Keyword.USING, reserved: true },
+        { type: Keyword.VACUUM },
+        { type: Keyword.VALUES, reserved: true },
+        { type: Keyword.VIEW },
+        { type: Keyword.VIRTUAL },
+        { type: Keyword.WHEN, reserved: true },
+        { type: Keyword.WHERE, reserved: true },
+        { type: Keyword.WINDOW, reserved: true },
+        { type: Keyword.WITH },
+        { type: Keyword.WITHOUT },
+      ],
+      [
+        Operator.EQ,
+        Operator.PLUS,
+        Operator.MINUS,
+      ]
+    )
   }
 }
 
@@ -367,7 +505,7 @@ export class Sqlite3Parser extends Parser {
         stmt.schemaName = stmt.name
         stmt.name = this.identifier()
       }
-      if (this.consumeIf(Operator.EQ)) {
+      if (this.consumeIf(Keyword.EQ)) {
         stmt.value = this.pragmaValue()
       } else if (this.consumeIf(TokenType.LeftParen)) {
         stmt.value = this.pragmaValue()
@@ -577,8 +715,8 @@ export class Sqlite3Parser extends Parser {
       ) {
         constraint.expression = [this.consume()]
       } else if (
-          this.peekIf(Operator.PLUS) ||
-          this.peekIf(Operator.MINUS) ||
+          this.peekIf(Keyword.PLUS) ||
+          this.peekIf(Keyword.MINUS) ||
           this.peekIf(TokenType.Number)
       ) {
         const start = this.pos
@@ -747,7 +885,7 @@ export class Sqlite3Parser extends Parser {
 
   pragmaValue() {
     const start = this.pos
-    if (this.consumeIf(Operator.PLUS) || this.consumeIf(Operator.MINUS)) {
+    if (this.consumeIf(Keyword.PLUS) || this.consumeIf(Keyword.MINUS)) {
       this.consume(TokenType.Number)
     } else if (this.consumeIf(TokenType.Number)) {
     } else if (this.consumeIf(TokenType.String) || this.consumeIf(TokenType.QuotedValue)) {
@@ -786,7 +924,7 @@ export class Sqlite3Parser extends Parser {
 
   numberValue() {
     let token, text
-    if (token = (this.consumeIf(Operator.PLUS) || this.consumeIf(Operator.MINUS))) {
+    if (token = (this.consumeIf(Keyword.PLUS) || this.consumeIf(Keyword.MINUS))) {
       text = token.text
       text += this.consume(TokenType.Number).text
     } else {

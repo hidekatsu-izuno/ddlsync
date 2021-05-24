@@ -1,5 +1,5 @@
 import { Statement } from "../models"
-import { Token } from "../parser"
+import { Token, TokenType } from "../parser"
 
 export abstract class TableConstraint {
   name?: string

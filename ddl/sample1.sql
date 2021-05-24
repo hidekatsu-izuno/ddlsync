@@ -30,6 +30,12 @@ Create Table "Sample1_C" (
 select 1; /+aaa+/
 </ddlsync>*/
 
+/*
+MIGRATE TABLE yyy MAP TO xxx
+  MAP COLUMN xxx TO yyy
+  MAP COLUMN zzz TO xxx
+*/
+
 create table xxx (
   item
 );

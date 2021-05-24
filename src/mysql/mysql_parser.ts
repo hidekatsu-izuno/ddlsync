@@ -11,6 +11,7 @@ import {
   AggregateParseError,
 } from "../parser"
 import { escapeRegExp } from "../util/functions"
+import { CreateDatabaseStatement, CreateTableStatement } from "./mysql_models"
 
 export class MySqlLexer extends Lexer {
   private delimiter = /;/y
@@ -73,8 +74,66 @@ export class MySqlParser extends Parser {
   }
 
   root() {
-    const root: Statement[] = []
+    const root = []
+    const errors = []
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Delimiter); i++) {
+      if (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        try {
+          const stmt = this.statement()
+          stmt.validate()
+          root.push(stmt)
+        } catch (e) {
+          if (e instanceof ParseError) {
+            errors.push(e)
+
+            // skip tokens
+            while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+              this.consume()
+            }
+          } else {
+            throw e
+          }
+        }
+      }
+    }
+
+    if (this.peek() != null) {
+      try {
+        throw this.createParseError()
+      } catch (e) {
+        if (e instanceof ParseError) {
+          errors.push(e)
+        } else {
+          throw e
+        }
+      }
+    }
+
+    if (errors.length) {
+      throw new AggregateParseError(errors, `${errors.length} error found`)
+    }
+
     return root
+  }
+
+  statement() {
+    const start = this.pos
+
+    let stmt
+    if (this.consumeIf(Keyword.CREATE)) {
+      if (this.consumeIf(Keyword.DATABASE) || this.consumeIf(Keyword.SCHEMA)) {
+        stmt = new CreateDatabaseStatement()
+        if (this.consumeIf(Keyword.IF)) {
+          stmt.markers.set("ifNotExistsStart", this.pos - start - 1)
+          this.consume(Keyword.NOT)
+          this.consume(Keyword.EXISTS)
+          stmt.ifNotExists = true
+          stmt.markers.set("ifNotExistsEnd", this.pos - start)
+        }
+        //TODO
+      }
+    }
+    return new CreateTableStatement()
   }
 }
 
