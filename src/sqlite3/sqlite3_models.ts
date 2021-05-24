@@ -1,5 +1,5 @@
 import { Statement } from "../models"
-import { Token, TokenType } from "../parser"
+import { Token } from "../parser"
 
 export abstract class TableConstraint {
   name?: string
@@ -9,7 +9,7 @@ export abstract class ColumnConstraint {
   name?: string
 }
 
-export class CommandStatment extends Statement {
+export class CommandStatement extends Statement {
   name: string = ""
   args: string[] = []
 
@@ -17,8 +17,7 @@ export class CommandStatment extends Statement {
   }
 
   summary() {
-    return "." + this.name +
-      this.args.length ? this.args.join(" ") : ""
+    return this.name + (this.args.length ? " " + this.args.join(" ") : "")
   }
 }
 

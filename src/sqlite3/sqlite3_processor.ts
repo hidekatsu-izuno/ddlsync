@@ -4,10 +4,37 @@ import sqlite3 from "better-sqlite3"
 import { Statement } from "../models"
 import { Token, TokenType } from "../parser"
 import { DdlSyncProcessor } from "../processor"
-import { AlterTableStatement, AttachDatabaseStatement, CreateIndexStatement, CreateTableStatement, CreateTriggerStatement, CreateViewStatement, DetachDatabaseStatement, DropIndexStatement, DropTableStatement, DropTriggerStatement, DropViewStatement, ExplainStatement, InsertStatement, NotNullColumnConstraint, PrimaryKeyColumnConstraint, PrimaryKeyTableConstraint, SortOrder, UniqueColumnConstraint, UniqueTableConstraint, UpdateStatement, SelectStatement,  DeleteStatement, AlterTableAction, GeneratedColumnConstraint, ColumnDef, getAffinityType, AffinityType, DefaultColumnConstraint } from "./sqlite3_models";
+import {
+  CommandStatement,
+  AlterTableStatement,
+  AttachDatabaseStatement,
+  CreateIndexStatement,
+  CreateTableStatement,
+  CreateTriggerStatement,
+  CreateViewStatement,
+  DetachDatabaseStatement,
+  DropIndexStatement,
+  DropTableStatement,
+  DropTriggerStatement,
+  DropViewStatement,
+  InsertStatement,
+  NotNullColumnConstraint,
+  PrimaryKeyColumnConstraint,
+  PrimaryKeyTableConstraint,
+  SortOrder,
+  UpdateStatement,
+  SelectStatement,
+  DeleteStatement,
+  AlterTableAction,
+  GeneratedColumnConstraint,
+  ColumnDef,
+  getAffinityType,
+  AffinityType,
+  DefaultColumnConstraint
+} from "./sqlite3_models";
 import { Sqlite3Parser } from "./sqlite3_parser"
 import { lcase, ucase, bquote, dquote } from "../util/functions"
-import { writeGzippedCsv } from '../util/io'
+import { writeGzippedCsv } from "../util/io"
 
 export default class Sqlite3Processor extends DdlSyncProcessor {
   private con
@@ -31,7 +58,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     return options
   }
 
-  protected async parse(input: string, options: { [ key: string ]: any }) {
+  protected async parse(input: string, options: { [key: string]: any }) {
     const parser = new Sqlite3Parser(input)
     return parser.root()
   }
@@ -70,18 +97,21 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
         case DeleteStatement:
           refs[i] = this.tryUpdateStatement(i, stmt, vdb)
         default:
-          // no handle
+        // no handle
       }
     }
 
     for (const [i, stmt] of stmts.entries()) {
-      console.log(`-- ## statement ${i+1}: ${stmt.summary()}`)
+      console.log(`-- ## statement ${i + 1}: ${stmt.summary()}`)
       switch (stmt.constructor) {
+        case CommandStatement:
+          await this.runCommandStatement(i, stmt as CommandStatement)
+          break
         case CreateTableStatement:
         case CreateViewStatement:
         case CreateTriggerStatement:
         case CreateIndexStatement:
-            await this.runCreateObjectStatement(i, stmt, refs[i] as VObject)
+          await this.runCreateObjectStatement(i, stmt, refs[i] as VObject)
           break
         case InsertStatement:
         case UpdateStatement:
@@ -98,7 +128,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     }
   }
 
-  async destroy()  {
+  async destroy() {
     this.con.close()
   }
 
@@ -251,6 +281,10 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     }
 
     return table
+  }
+
+  private async runCommandStatement(seq: number, stmt: CommandStatement) {
+    console.log(`-- skip: unknown command "${stmt.name}"`)
   }
 
   private async runCreateObjectStatement(seq: number, stmt: Statement, obj: VObject) {
@@ -534,7 +568,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     )
 
     const stmt = this.con.prepare(`SELECT * FROM ${bquote(schemaName)}.${bquote(name)}`)
-    await writeGzippedCsv(backupFileName, (async function *() {
+    await writeGzippedCsv(backupFileName, (async function* () {
       yield stmt.columns().map(column => column.name);
       yield* stmt.raw().iterate();
     })())
