@@ -26,15 +26,17 @@ Create Table "Sample1_C" (
   "B_Value" Blob,
   PRIMARY KEY("I_Value", "R_Value")
 );
-/*<ddlsync>
+
 select 1; /+aaa+/
-</ddlsync>*/
+
 
 /*
 MIGRATE TABLE yyy MAP TO xxx
   MAP COLUMN xxx TO yyy
   MAP COLUMN zzz TO xxx
 */
+
+.help
 
 create table xxx (
   item
