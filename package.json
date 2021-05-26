@@ -60,6 +60,7 @@
     "testEnvironment": "node"
   },
   "optionalDependencies": {
-    "better-sqlite3": "^7.4.0"
+    "better-sqlite3": "^7.4.0",
+    "mysql2": "^2.2.5"
   }
 }
