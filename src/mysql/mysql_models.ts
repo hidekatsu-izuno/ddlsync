@@ -7,9 +7,26 @@ export enum Algortihm {
   TEMPTABLE = "TEMPTABLE",
 }
 
-export enum VariableScope {
+export enum TransactionCharacteristic {
+  ISOLATION_LEVEL_REPEATABLE_READ = "ISOLATION_LEVEL_REPEATABLE_READ",
+  ISOLATION_LEVEL_READ_COMMITTED = "ISOLATION_LEVEL_READ_COMMITTED",
+  ISOLATION_LEVEL_READ_UNCOMMITTED = "ISOLATION_LEVEL_READ_UNCOMMITTED",
+  ISOLATION_LEVEL_SERIALIZABLE = "ISOLATION_LEVEL_SERIALIZABLE",
+  READ_WRITE = "READ_WRITE",
+  READ_ONLY = "READ_ONLY",
+}
+
+export enum VariableType {
   GLOBAL = "GLOBAL",
-  SESSION = "SESSION"
+  SESSION = "SESSION",
+  USER_DEFINED = "USER_DEFINED"
+}
+
+export enum Concurrency {
+  LOW_PRIORITY = "LOW_PRIORITY",
+  DELAYED = "DELAYED",
+  HIGH_PRIORITY = "HIGH_PRIORITY",
+  CONCURRENT = "CONCURRENT",
 }
 
 export class CreateDatabaseStatement extends Statement {
@@ -442,6 +459,15 @@ export class DropEventStatement extends Statement {
   }
 }
 
+export class TruncateTableStatement extends Statement {
+  schemaName?: string
+  name = ""
+
+  summary() {
+    return ""
+  }
+}
+
 export class StartTransactionStatement extends Statement {
   summary() {
     return "START TRANSACTION"
@@ -451,6 +477,14 @@ export class StartTransactionStatement extends Statement {
 export class BeginStatement extends Statement {
   summary() {
     return "BEGIN"
+  }
+}
+
+export class SetTransactionStatement extends Statement {
+  type?: VariableType
+  characteristic = TransactionCharacteristic.ISOLATION_LEVEL_READ_COMMITTED
+  summary() {
+    return "SET TRANSCTION"
   }
 }
 
@@ -664,6 +698,80 @@ export class UseStatement extends Statement {
   }
 }
 
+export class InsertStatement extends Statement {
+  schemaName?: string
+  name = ""
+  concurrency?: Concurrency
+  ignore = false
+
+  summary() {
+    return ""
+  }
+}
+
+export class UpdateStatement extends Statement {
+  schemaName?: string
+  name = ""
+  concurrency?: Concurrency
+  ignore = false
+
+  summary() {
+    return ""
+  }
+}
+
+export class ReplaceStatement extends Statement {
+  schemaName?: string
+  name = ""
+  concurrency?: Concurrency
+  ignore = false
+
+  summary() {
+    return ""
+  }
+}
+
+export class DeleteStatement extends Statement {
+  schemaName?: string
+  name = ""
+  concurrency?: Concurrency
+  quick = false
+  ignore = false
+
+  summary() {
+    return ""
+  }
+}
+
+export class LoadDataInfileStatement extends Statement {
+  concurrency?: Concurrency
+  local = false
+
+  summary() {
+    return ""
+  }
+}
+
+export class LoadXmlInfileStatement extends Statement {
+  concurrency?: Concurrency
+  local = false
+
+  summary() {
+    return ""
+  }
+}
+
+export class SetCharacterSetStatement extends Statement {
+  summary() {
+    return ""
+  }
+}
+
+export class SetNamesStatement extends Statement {
+  summary() {
+    return ""
+  }
+}
 
 export class SetStatement extends Statement {
   variableAssignments = new Array<VariableAssignment>()
@@ -674,7 +782,7 @@ export class SetStatement extends Statement {
 }
 
 export class VariableAssignment {
-  scope = VariableScope.SESSION
+  type?: VariableType
   name = ""
   value?: Token[]
 }
@@ -697,6 +805,12 @@ export class DoStatement extends Statement {
   }
 }
 
+export class HandlerStatement extends Statement {
+  summary() {
+    return "HANDLER"
+  }
+}
+
 export class ShowStatement extends Statement {
   summary() {
     return "SHOW"
@@ -709,6 +823,41 @@ export class HelpStatement extends Statement {
   }
 }
 
+export class BinlogStatement extends Statement {
+  summary() {
+    return "BINLOG"
+  }
+}
+
+export class CacheIndexStatement extends Statement {
+  summary() {
+    return "CACHE INDEX"
+  }
+}
+
+export class FlushStatement extends Statement {
+  summary() {
+    return "FLUSH"
+  }
+}
+
+export class KillStatement extends Statement {
+  summary() {
+    return "KILL"
+  }
+}
+
+export class LoadIndexIntoCacheStatement extends Statement {
+  summary() {
+    return "LOAD INDEX INTO CACHE"
+  }
+}
+
+export class ResetStatement extends Statement {
+  summary() {
+    return "LOAD INDEX INTO CACHE"
+  }
+}
 
 export class OtherStatement extends Statement {
   summary() {
