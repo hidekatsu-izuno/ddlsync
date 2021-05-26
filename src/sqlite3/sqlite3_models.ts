@@ -10,11 +10,8 @@ export abstract class ColumnConstraint {
 }
 
 export class CommandStatement extends Statement {
-  name: string = ""
+  name = ""
   args: string[] = []
-
-  validate() {
-  }
 
   summary() {
     return this.name + (this.args.length ? " " + this.args.join(" ") : "")
@@ -25,9 +22,6 @@ export class AttachDatabaseStatement extends Statement {
   name = ""
   expression = new Array<Token>()
 
-  validate() {
-  }
-
   summary() {
     return "ATTACHE DATABASE " +
       this.name
@@ -37,9 +31,6 @@ export class AttachDatabaseStatement extends Statement {
 export class DetachDatabaseStatement extends Statement {
   name = ""
 
-  validate() {
-  }
-
   summary() {
     return "DETACHE DATABASE " +
       this.name
@@ -48,7 +39,7 @@ export class DetachDatabaseStatement extends Statement {
 
 export class CreateTableStatement extends Statement {
   schemaName?: string
-  name: string = ""
+  name = ""
   temporary = false
   virtual = false
   ifNotExists = false
@@ -102,9 +93,6 @@ export class AlterTableStatement extends Statement {
   newColumnName?: string
   newColumn?: ColumnDef
 
-  validate() {
-  }
-
   summary() {
     return "ALTER TABLE " +
       (this.schemaName ? this.schemaName + "." : "") +
@@ -120,11 +108,8 @@ export class AlterTableStatement extends Statement {
 
 export class DropTableStatement extends Statement {
   schemaName?: string
-  name: string = ""
+  name = ""
   ifExists = false
-
-  validate() {
-  }
 
   summary() {
     return "DROP TABLE " +
@@ -160,9 +145,6 @@ export class DropViewStatement extends Statement {
   name = ""
   ifExists = false
 
-  validate() {
-  }
-
   summary() {
     return "DROP VIEW " +
       (this.schemaName ? this.schemaName + "." : "") +
@@ -196,9 +178,6 @@ export class DropTriggerStatement extends Statement {
   name = ""
   ifExists = false
 
-  validate() {
-  }
-
   summary() {
     return "DROP TRIGGER " +
       (this.schemaName ? this.schemaName + "." : "") +
@@ -213,9 +192,6 @@ export class CreateIndexStatement extends Statement {
   unique = false
   ifNotExists = false
   columns = new Array<IndexedColumn>()
-
-  validate() {
-  }
 
   summary() {
     return "CREATE " +
@@ -232,9 +208,6 @@ export class DropIndexStatement extends Statement {
   name = ""
   ifExists = false
 
-  validate() {
-  }
-
   summary() {
     return "DROP INDEX " +
       (this.schemaName ? this.schemaName + "." : "") +
@@ -246,9 +219,6 @@ export class ReindexStatement extends Statement {
   schemaName?: string
   name = ""
 
-  validate() {
-  }
-
   summary() {
     return "REINDEX " +
       (this.schemaName ? this.schemaName + "." : "") +
@@ -256,12 +226,19 @@ export class ReindexStatement extends Statement {
   }
 }
 
+export class VacuumStatement extends Statement {
+  schemaName?: string
+  fileName?: string
+
+  summary() {
+    return "VACUUM" +
+      (this.schemaName ? " " + this.schemaName : "")
+  }
+}
+
 export class AnalyzeStatement extends Statement {
   schemaName?: string
   name = ""
-
-  validate() {
-  }
 
   summary() {
     return "ANALYZE " +
@@ -270,11 +247,18 @@ export class AnalyzeStatement extends Statement {
   }
 }
 
+export class ExplainStatement extends Statement {
+  constructor() {
+    super()
+  }
+
+  summary() {
+    return "EXPLAIN"
+  }
+}
+
 export class BeginTransactionStatement extends Statement {
   transactionBehavior = TransactionBehavior.DEFERRED
-
-  validate() {
-  }
 
   summary() {
     return "BEGIN TRANSACTION"
@@ -283,9 +267,6 @@ export class BeginTransactionStatement extends Statement {
 
 export class SavepointStatement extends Statement {
   name: string = ""
-
-  validate() {
-  }
 
   summary() {
     return "SAVEPOINT " +
@@ -296,9 +277,6 @@ export class SavepointStatement extends Statement {
 export class ReleaseSavepointStatement extends Statement {
   savePointName = ""
 
-  validate() {
-  }
-
   summary() {
     return "RELEASE SAVEPOINT " +
       this.savePointName
@@ -306,9 +284,6 @@ export class ReleaseSavepointStatement extends Statement {
 }
 
 export class CommitTransactionStatement extends Statement {
-  validate() {
-  }
-
   summary() {
     return "COMMIT TRANSACTION"
   }
@@ -316,26 +291,9 @@ export class CommitTransactionStatement extends Statement {
 
 export class RollbackTransactionStatement extends Statement {
   savePointName?: string
-
-  validate() {
-  }
-
   summary() {
     return "ROLLBACK TRANSACTION" +
       (this.savePointName ? " TO SAVEPOINT " + this.savePointName : "")
-  }
-}
-
-export class VacuumStatement extends Statement {
-  schemaName?: string
-  fileName?: string
-
-  validate() {
-  }
-
-  summary() {
-    return "VACUUM" +
-      (this.schemaName ? " " + this.schemaName : "")
   }
 }
 
@@ -343,9 +301,6 @@ export class PragmaStatement extends Statement {
   schemaName?: string
   name = ""
   value?: Token[]
-
-  validate() {
-  }
 
   summary() {
     return (this.value ? " SET" : " GET") +
@@ -360,9 +315,6 @@ export class InsertStatement extends Statement {
   name = ""
   conflictAction = ConflictAction.ABORT
 
-  validate() {
-  }
-
   summary() {
     return "INSERT INTO " +
       (this.schemaName ? this.schemaName + "." : "") +
@@ -375,9 +327,6 @@ export class UpdateStatement extends Statement {
   name = ""
   conflictAction = ConflictAction.ABORT
 
-  validate() {
-  }
-
   summary() {
     return "UPDATE " +
       (this.schemaName ? this.schemaName + "." : "") +
@@ -389,9 +338,6 @@ export class DeleteStatement extends Statement {
   schemaName?: string
   name = ""
 
-  validate() {
-  }
-
   summary() {
     return "DELETE FROM " +
       (this.schemaName ? this.schemaName + "." : "") +
@@ -400,24 +346,18 @@ export class DeleteStatement extends Statement {
 }
 
 export class SelectStatement extends Statement {
-  validate() {
-  }
-
   summary() {
     return "SELECT"
   }
 }
 
-export class ExplainStatement extends Statement {
-  constructor(public statement: Statement) {
+export class OtherStatement extends Statement {
+  constructor() {
     super()
   }
 
-  validate() {
-  }
-
   summary() {
-    return "EXPLAIN"
+    return "UNKNOWN"
   }
 }
 
@@ -525,11 +465,11 @@ export enum TransactionBehavior {
 }
 
 export enum AffinityType {
-  INTEGER,
-  TEXT,
-  BLOB,
-  REAL,
-  NUMERIC,
+  INTEGER = "INTEGER",
+  TEXT = "TEXT",
+  BLOB = "BLOB",
+  REAL = "REAL",
+  NUMERIC = "NUMERIC",
 }
 
 export function getAffinityType(type?: string) {

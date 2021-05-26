@@ -7,7 +7,56 @@ import {
   ParseError,
   AggregateParseError,
 } from "../parser"
-import { AlterTableAction, AlterTableStatement, AnalyzeStatement, AttachDatabaseStatement, BeginTransactionStatement, CheckColumnConstraint, CheckTableConstraint, CollateColumnConstraint, ColumnDef, CommandStatement, CommitTransactionStatement, ConflictAction, CreateIndexStatement, CreateTableStatement, CreateTriggerStatement, CreateViewStatement, DefaultColumnConstraint, DeleteStatement, DetachDatabaseStatement, DropIndexStatement, DropTableStatement, DropTriggerStatement, DropViewStatement, ExplainStatement, ForeignKeyTableConstraint, GeneratedColumnConstraint, IndexedColumn, InsertStatement, NotNullColumnConstraint, NullColumnConstraint, PragmaStatement, PrimaryKeyColumnConstraint, PrimaryKeyTableConstraint, ReferencesKeyColumnConstraint, ReindexStatement, ReleaseSavepointStatement, RollbackTransactionStatement, SavepointStatement, SelectStatement, SortOrder, StoreType, TransactionBehavior, UniqueColumnConstraint, UniqueTableConstraint, UpdateStatement, VacuumStatement } from "./sqlite3_models"
+import { dequote } from "../util/functions"
+import {
+  AlterTableAction,
+  AlterTableStatement,
+  AnalyzeStatement,
+  AttachDatabaseStatement,
+  CheckColumnConstraint,
+  CheckTableConstraint,
+  CollateColumnConstraint,
+  ColumnDef,
+  CommandStatement,
+  ConflictAction,
+  CreateIndexStatement,
+  CreateTableStatement,
+  CreateTriggerStatement,
+  CreateViewStatement,
+  DefaultColumnConstraint,
+  DeleteStatement,
+  DetachDatabaseStatement,
+  DropIndexStatement,
+  DropTableStatement,
+  DropTriggerStatement,
+  DropViewStatement,
+  PragmaStatement,
+  ForeignKeyTableConstraint,
+  GeneratedColumnConstraint,
+  IndexedColumn,
+  InsertStatement,
+  NotNullColumnConstraint,
+  NullColumnConstraint,
+  SelectStatement,
+  OtherStatement,
+  PrimaryKeyColumnConstraint,
+  PrimaryKeyTableConstraint,
+  ReferencesKeyColumnConstraint,
+  ReindexStatement,
+  SortOrder,
+  StoreType,
+  UniqueColumnConstraint,
+  UniqueTableConstraint,
+  UpdateStatement,
+  VacuumStatement,
+  BeginTransactionStatement,
+  SavepointStatement,
+  ReleaseSavepointStatement,
+  ExplainStatement,
+  TransactionBehavior,
+  CommitTransactionStatement,
+  RollbackTransactionStatement,
+} from "./sqlite3_models"
 
 const KeywordMap = new Map<string, Keyword>()
 export class Keyword extends TokenType {
@@ -169,27 +218,16 @@ export class Keyword extends TokenType {
   static WITH = new Keyword("WITH")
   static WITHOUT = new Keyword("WITHOUT")
 
+  static OPE_EQ = new Keyword("=")
+  static OPE_PLUS = new Keyword("+")
+  static OPE_MINUS = new Keyword("-")
+
   constructor(
     name: string,
     options: { [key: string]: any } = {}
   ) {
     super(name, options)
     KeywordMap.set(name, this)
-  }
-}
-
-const OperatorMap = new Map<string, Operator>()
-export class Operator extends TokenType {
-  static EQ = new Operator("=")
-  static PLUS = new Operator("+")
-  static MINUS = new Operator("-")
-
-  constructor(
-    name: string,
-    options: { [key: string]: any } = {}
-  ) {
-    super(name, options)
-    OperatorMap.set(name, this)
   }
 }
 
@@ -233,7 +271,10 @@ export class Sqlite3Lexer extends Lexer {
   }
 
   process(token: Token) {
-    if (token.type === TokenType.Identifier) {
+    if (
+      token.type === TokenType.Identifier ||
+      token.type === TokenType.Operator
+    ) {
       const keyword = KeywordMap.get(token.text.toUpperCase())
       if (keyword) {
         if (this.reserved.has(keyword)) {
@@ -241,11 +282,6 @@ export class Sqlite3Lexer extends Lexer {
         } else {
           token.subtype = keyword
         }
-      }
-    } else if (token.type === TokenType.Operator) {
-      const operator = OperatorMap.get(token.text.toUpperCase())
-      if (operator) {
-        token.subtype = operator
       }
     }
     return token
@@ -341,14 +377,6 @@ export class Sqlite3Parser extends Parser {
   statement() {
     const start = this.pos
 
-    let explain = false
-    if (this.consumeIf(Keyword.EXPLAIN)) {
-      if (this.consumeIf(Keyword.QUERY)) {
-        this.consume(Keyword.PLAN)
-      }
-      explain = true
-    }
-
     let stmt
     if (this.consumeIf(Keyword.CREATE)) {
       if (this.consumeIf(Keyword.TEMP) || this.consumeIf(Keyword.TEMPORARY)) {
@@ -443,9 +471,13 @@ export class Sqlite3Parser extends Parser {
             }
 
             this.consume(TokenType.RightParen)
-            if (this.consumeIf(Keyword.WITHOUT)) {
-              if (this.consume(Keyword.ROWID)) {
-                stmt.withoutRowid = true
+            while (this.peek() && !this.peekIf(TokenType.SemiColon)) {
+              if (this.consumeIf(Keyword.WITHOUT)) {
+                if (this.consume(Keyword.ROWID)) {
+                  stmt.withoutRowid = true
+                }
+              } else {
+                this.consume()
               }
             }
           } else if (this.consumeIf(Keyword.AS)) {
@@ -466,7 +498,9 @@ export class Sqlite3Parser extends Parser {
           }
           this.consume(TokenType.RightParen)
         }
+        stmt.markers.set("selectStart", this.pos - start)
         this.selectClause()
+        stmt.markers.set("selectEnd", this.pos - start)
       } else if (stmt instanceof CreateTriggerStatement) {
         while (this.peek() && !this.peekIf(TokenType.SemiColon)) {
           if (this.consumeIf(Keyword.BEGIN)) {
@@ -556,33 +590,6 @@ export class Sqlite3Parser extends Parser {
       this.consumeIf(Keyword.DATABASE)
       stmt = new DetachDatabaseStatement()
       stmt.name = this.identifier()
-    } else if (this.consumeIf(Keyword.BEGIN)) {
-      stmt = new BeginTransactionStatement()
-      if (this.consumeIf(Keyword.DEFERRED)) {
-        stmt.transactionBehavior = TransactionBehavior.DEFERRED
-      } else if (this.consumeIf(Keyword.IMMEDIATE)) {
-        stmt.transactionBehavior = TransactionBehavior.IMMEDIATE
-      } else if (this.consumeIf(Keyword.EXCLUSIVE)) {
-        stmt.transactionBehavior = TransactionBehavior.EXCLUSIVE
-      }
-      this.consume(Keyword.TRANSACTION)
-    } else if (this.consumeIf(Keyword.SAVEPOINT)) {
-      stmt = new SavepointStatement()
-      stmt.name = this.identifier()
-    } else if (this.consumeIf(Keyword.RELEASE)) {
-      stmt = new ReleaseSavepointStatement()
-      this.consumeIf(Keyword.SAVEPOINT)
-      stmt.savePointName = this.identifier()
-    } else if (this.consumeIf(Keyword.COMMIT) || this.consumeIf(Keyword.END)) {
-      this.consumeIf(Keyword.TRANSACTION)
-      stmt = new CommitTransactionStatement()
-    } else if (this.consumeIf(Keyword.ROLLBACK)) {
-      this.consumeIf(Keyword.TRANSACTION)
-      stmt = new RollbackTransactionStatement()
-      if (this.consumeIf(Keyword.TO)) {
-        this.consumeIf(Keyword.SAVEPOINT)
-        stmt.savePointName = this.identifier()
-      }
     } else if (this.consumeIf(Keyword.ANALYZE)) {
       stmt = new AnalyzeStatement()
       stmt.name = this.identifier()
@@ -616,13 +623,42 @@ export class Sqlite3Parser extends Parser {
         stmt.schemaName = stmt.name
         stmt.name = this.identifier()
       }
-      if (this.consumeIf(Operator.EQ)) {
+      if (this.consumeIf(Keyword.OPE_EQ)) {
         stmt.value = this.pragmaValue()
       } else if (this.consumeIf(TokenType.LeftParen)) {
         stmt.value = this.pragmaValue()
         this.consume(TokenType.RightParen)
       }
-  } else {
+    } else if (this.consumeIf(Keyword.EXPLAIN)) {
+      stmt = new ExplainStatement()
+    } else if (this.consumeIf(Keyword.BEGIN)) {
+      stmt = new BeginTransactionStatement()
+      if (this.consumeIf(Keyword.DEFERRED)) {
+        stmt.transactionBehavior = TransactionBehavior.DEFERRED
+      } else if (this.consumeIf(Keyword.IMMEDIATE)) {
+        stmt.transactionBehavior = TransactionBehavior.IMMEDIATE
+      } else if (this.consumeIf(Keyword.EXCLUSIVE)) {
+        stmt.transactionBehavior = TransactionBehavior.EXCLUSIVE
+      }
+      this.consume(Keyword.TRANSACTION)
+    } else if (this.consumeIf(Keyword.SAVEPOINT)) {
+      stmt = new SavepointStatement()
+      stmt.name = this.identifier()
+    } else if (this.consumeIf(Keyword.RELEASE)) {
+      stmt = new ReleaseSavepointStatement()
+      this.consumeIf(Keyword.SAVEPOINT)
+      stmt.savePointName = this.identifier()
+    } else if (this.consumeIf(Keyword.COMMIT) || this.consumeIf(Keyword.END)) {
+      this.consumeIf(Keyword.TRANSACTION)
+      stmt = new CommitTransactionStatement()
+    } else if (this.consumeIf(Keyword.ROLLBACK)) {
+      this.consumeIf(Keyword.TRANSACTION)
+      stmt = new RollbackTransactionStatement()
+      if (this.consumeIf(Keyword.TO)) {
+        this.consumeIf(Keyword.SAVEPOINT)
+        stmt.savePointName = this.identifier()
+      }
+    } else {
       if (this.peekIf(Keyword.WITH)) {
         this.withClause()
       }
@@ -642,9 +678,6 @@ export class Sqlite3Parser extends Parser {
           stmt.schemaName = stmt.name
           stmt.name = this.identifier()
         }
-        while (this.peek() && !this.peekIf(TokenType.SemiColon)) {
-          this.consume()
-        }
       } else if (this.consumeIf(Keyword.UPDATE)) {
         stmt = new UpdateStatement()
         if (this.consumeIf(Keyword.OR)) {
@@ -655,9 +688,6 @@ export class Sqlite3Parser extends Parser {
           stmt.schemaName = stmt.name
           stmt.name = this.identifier()
         }
-        while (this.peek() && !this.peekIf(TokenType.SemiColon)) {
-          this.consume()
-        }
       } else if (this.consumeIf(Keyword.DELETE)) {
         this.consume(Keyword.FROM)
         stmt = new DeleteStatement()
@@ -666,27 +696,43 @@ export class Sqlite3Parser extends Parser {
           stmt.schemaName = stmt.name
           stmt.name = this.identifier()
         }
-        while (this.peek() && !this.peekIf(TokenType.SemiColon)) {
-          this.consume()
-        }
       } else if (this.peekIf(Keyword.SELECT)) {
         stmt = new SelectStatement()
         this.selectClause()
-      } else {
-        throw this.createParseError()
       }
     }
 
-    if (explain) {
-      stmt = new ExplainStatement(stmt)
+    if (!stmt) {
+      stmt = new OtherStatement()
     }
-
     if (typeof this.options.filename === "string") {
       stmt.filename = this.options.filename
+    }
+    while (this.peek() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
     }
     stmt.tokens = this.tokens.slice(start, this.pos)
 
     return stmt
+  }
+
+  withClause() {
+    const start = this.pos
+    this.consume(Keyword.WITH)
+    this.consumeIf(Keyword.RECURSIVE)
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      this.identifier()
+      this.consume(Keyword.AS)
+      if (this.consumeIf(Keyword.NOT)) {
+        this.consume(Keyword.MATERIALIZED)
+      } else {
+        this.consumeIf(Keyword.MATERIALIZED)
+      }
+      this.consume(TokenType.LeftParen)
+      this.selectClause()
+      this.consume(TokenType.RightParen)
+    }
+    return this.tokens.slice(start, this.pos)
   }
 
   selectClause() {
@@ -707,25 +753,6 @@ export class Sqlite3Parser extends Parser {
         this.consume()
       }
     }
-  }
-
-  withClause() {
-    const start = this.pos
-    this.consume(Keyword.WITH)
-    this.consumeIf(Keyword.RECURSIVE)
-    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-      this.identifier()
-      this.consume(Keyword.AS)
-      if (this.consumeIf(Keyword.NOT)) {
-        this.consume(Keyword.MATERIALIZED)
-      } else {
-        this.consumeIf(Keyword.MATERIALIZED)
-      }
-      this.consume(TokenType.LeftParen)
-      this.selectClause()
-      this.consume(TokenType.RightParen)
-    }
-    return this.tokens.slice(start, this.pos)
   }
 
   columnDef() {
@@ -826,8 +853,8 @@ export class Sqlite3Parser extends Parser {
       ) {
         constraint.expression = [this.consume()]
       } else if (
-          this.peekIf(Operator.PLUS) ||
-          this.peekIf(Operator.MINUS) ||
+          this.peekIf(Keyword.OPE_PLUS) ||
+          this.peekIf(Keyword.OPE_MINUS) ||
           this.peekIf(TokenType.Number)
       ) {
         const start = this.pos
@@ -996,7 +1023,7 @@ export class Sqlite3Parser extends Parser {
 
   pragmaValue() {
     const start = this.pos
-    if (this.consumeIf(Operator.PLUS) || this.consumeIf(Operator.MINUS)) {
+    if (this.consumeIf(Keyword.OPE_PLUS) || this.consumeIf(Keyword.OPE_MINUS)) {
       this.consume(TokenType.Number)
     } else if (this.consumeIf(TokenType.Number)) {
     } else if (this.consumeIf(TokenType.String) || this.consumeIf(TokenType.QuotedValue)) {
@@ -1010,9 +1037,9 @@ export class Sqlite3Parser extends Parser {
   identifier() {
     let token, text
     if (token = this.consumeIf(TokenType.QuotedIdentifier)) {
-      text = toStringValue(token)
+      text = dequote(token.text)
     } else if (token = this.consumeIf(TokenType.QuotedValue)) {
-      text = toStringValue(token)
+      text = dequote(token.text)
     } else if (token = this.consumeIf(TokenType.Identifier)) {
       text = token.text
     } else {
@@ -1024,9 +1051,9 @@ export class Sqlite3Parser extends Parser {
   stringValue() {
     let token, text
     if (token = this.consumeIf(TokenType.String)) {
-      text = toStringValue(token)
+      text = dequote(token.text)
     } else if (token = this.consumeIf(TokenType.QuotedValue)) {
-      text = toStringValue(token)
+      text = dequote(token.text)
     } else {
       throw this.createParseError()
     }
@@ -1035,7 +1062,7 @@ export class Sqlite3Parser extends Parser {
 
   numberValue() {
     let token, text
-    if (token = (this.consumeIf(Operator.PLUS) || this.consumeIf(Operator.MINUS))) {
+    if (token = (this.consumeIf(Keyword.OPE_PLUS) || this.consumeIf(Keyword.OPE_MINUS))) {
       text = token.text
       text += this.consume(TokenType.Number).text
     } else {
@@ -1065,24 +1092,4 @@ export class Sqlite3Parser extends Parser {
     }
     return this.tokens.slice(start, this.pos)
   }
-}
-
-const ReplaceReMap: {[key: string]: RegExp} = {
-  '"': /""/g,
-  "'": /''/g,
-  "`": /``/g,
-}
-
-function toStringValue(token: Token) {
-  let text = token.text
-  if (text.length >= 2) {
-    const c = text.charAt(0)
-    const re = ReplaceReMap[c]
-    let value = text.substring(1, text.length - 1)
-    if (re != null) {
-      value = value.replace(re, c)
-    }
-    return value
-  }
-  return text
 }

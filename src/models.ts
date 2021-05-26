@@ -5,7 +5,9 @@ export abstract class Statement {
   tokens = new Array<Token>()
   markers = new Map<string, number>()
 
-  abstract validate(): void
+  validate() {
+
+  }
 
   abstract summary(): string
 }

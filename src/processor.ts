@@ -30,14 +30,14 @@ export abstract class DdlSyncProcessor {
       }
     }
 
-    await this.run(stmts)
+    await this.run(stmts, options)
   }
 
   protected abstract init(): Promise<{ [ key: string ]: any }>
 
   protected abstract parse(input: string, options: { [ key: string ]: any }): Promise<Statement[]>
 
-  protected abstract run(stmts: Statement[]): Promise<void>
+  protected abstract run(stmts: Statement[], options: { [key: string]: any }): Promise<void>
 
   abstract destroy(): Promise<void>
 

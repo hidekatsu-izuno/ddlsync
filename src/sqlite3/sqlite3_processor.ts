@@ -30,7 +30,10 @@ import {
   ColumnDef,
   getAffinityType,
   AffinityType,
-  DefaultColumnConstraint
+  DefaultColumnConstraint,
+  AnalyzeStatement,
+  VacuumStatement,
+  ReindexStatement
 } from "./sqlite3_models";
 import { Sqlite3Parser } from "./sqlite3_parser"
 import { lcase, ucase, bquote, dquote } from "../util/functions"
@@ -55,6 +58,11 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
       options.compileOptions.add(row.compile_options)
     }
 
+    options.collationList = new Set<string>()
+    for (const row of await this.con.prepare("PRAGMA collation_list").iterate()) {
+      options.collationList.add(row.name)
+    }
+
     return options
   }
 
@@ -63,10 +71,13 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     return parser.root()
   }
 
-  protected async run(stmts: Statement[]) {
+  protected async run(stmts: Statement[], options: { [key: string]: any }) {
     const vdb = new VDatabase()
-    vdb.add("main")
-    vdb.add("temp")
+    vdb.schemas.set("main", new VSchema("main"))
+    vdb.schemas.set("temp", new VSchema("temp"))
+    for (const collation of options.collationList) {
+      vdb.collations.set(ucase(collation), new VCollation(collation))
+    }
 
     const refs = []
     for (const [i, stmt] of stmts.entries()) {
@@ -92,10 +103,18 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
         case DropIndexStatement:
           refs[i] = this.tryDropObjectStatement(i, stmt, vdb)
           break
+        case VacuumStatement:
+          refs[i] = this.checkVacuumStatement(i, stmt as VacuumStatement, vdb)
+          break
         case InsertStatement:
         case UpdateStatement:
         case DeleteStatement:
-          refs[i] = this.tryUpdateStatement(i, stmt, vdb)
+        case AnalyzeStatement:
+          refs[i] = this.checkManipulateObjectStatement(i, stmt, vdb, "table")
+          break
+        case ReindexStatement:
+          refs[i] = this.checkReindexStatement(i, stmt as ReindexStatement, vdb)
+          break
         default:
         // no handle
       }
@@ -133,7 +152,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
   }
 
   private tryAttachDatabaseStatement(seq: number, stmt: AttachDatabaseStatement, vdb: VDatabase) {
-    let schema = vdb.get(stmt.name)
+    let schema = vdb.schemas.get(lcase(stmt.name))
     if (schema) {
       if (schema.dropped) {
         throw new Error(`multiple attach for same database name is not supported: ${stmt.name}`)
@@ -141,11 +160,13 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
       throw new Error(`database ${stmt.name} is already in use`)
     }
 
-    return vdb.add(stmt.name)
+    const vschema = new VSchema(stmt.name)
+    vdb.schemas.set(lcase(stmt.name), vschema)
+    return vschema
   }
 
   private tryDetachDatabaseStatement(seq: number, stmt: DetachDatabaseStatement, vdb: VDatabase) {
-    const schema = vdb.get(stmt.name)
+    const schema = vdb.schemas.get(lcase(stmt.name))
     if (!schema || schema.dropped) {
       throw new Error(`no such database: ${stmt.name}`)
     }
@@ -163,14 +184,14 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     let schemaName = stmt.schemaName
     if (!schemaName) {
       if (type === "index") {
-        const tempObject = vdb.get("temp")?.get(stmt.name)
+        const tempObject = vdb.schemas.get("temp")?.get(stmt.name)
         schemaName = tempObject && !tempObject.dropped ? "temp" : "main"
       } else {
         schemaName = stmt.temporary ? "temp" : "main"
       }
     }
 
-    const schema = vdb.get(schemaName)
+    const schema = vdb.schemas.get(lcase(schemaName))
     if (!schema) {
       throw new Error(`unknown database ${schemaName}`)
     }
@@ -193,11 +214,11 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
   private tryAlterTableStatement(seq: number, stmt: AlterTableStatement, vdb: VDatabase) {
     let schemaName = stmt.schemaName
     if (!schemaName) {
-      const tempObject = vdb.get("temp")?.get(stmt.name)
+      const tempObject = vdb.schemas.get("temp")?.get(stmt.name)
       schemaName = tempObject && !tempObject.dropped ? "temp" : "main"
     }
 
-    const schema = vdb.get(schemaName)
+    const schema = vdb.schemas.get(lcase(schemaName))
     if (!schema) {
       throw new Error(`unknown database ${schemaName}`)
     }
@@ -227,11 +248,11 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     const type = lcase(stmt.constructor.name.replace(/^Drop([a-zA-Z0-9]+)Statement$/, "$1"))
     let schemaName = stmt.schemaName
     if (!schemaName) {
-      const tempObject = vdb.get("temp")?.get(stmt.name)
+      const tempObject = vdb.schemas.get("temp")?.get(stmt.name)
       schemaName = tempObject && !tempObject.dropped ? "temp" : "main"
     }
 
-    const schema = vdb.get(schemaName)
+    const schema = vdb.schemas.get(lcase(schemaName))
     if (!schema) {
       throw new Error(`unknown database ${schemaName}`)
     }
@@ -263,24 +284,56 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     return object
   }
 
-  private tryUpdateStatement(seq: number, stmt: any, vdb: VDatabase) {
+  private checkVacuumStatement(seq: number, stmt: VacuumStatement, vdb: VDatabase) {
+    if (stmt.schemaName) {
+      const schema = vdb.schemas.get(lcase(stmt.schemaName))
+      if (!schema) {
+        throw new Error(`unknown database ${stmt.schemaName}`)
+      }
+      return schema
+    }
+  }
+
+  private checkReindexStatement(seq: number, stmt: ReindexStatement, vdb: VDatabase) {
     let schemaName = stmt.schemaName
     if (!schemaName) {
-      const tempObject = vdb.get("temp")?.get(stmt.name)
+      const tempObject = vdb.schemas.get("temp")?.get(stmt.name)
       schemaName = tempObject && !tempObject.dropped ? "temp" : "main"
     }
 
-    const schema = vdb.get(schemaName)
+    const schema = vdb.schemas.get(lcase(schemaName))
     if (!schema) {
       throw new Error(`unknown database ${schemaName}`)
     }
 
-    const table = schema.get(stmt.name)
-    if (!table || table.dropped || table.type !== "table") {
-      throw new Error(`no such table: ${schemaName}.${stmt.name}`)
+    const obj = schema.get(stmt.name)
+    if (!obj || obj.dropped || !(obj.type === "table" || obj.type === "index")) {
+      let collation = vdb.collations.get(ucase(stmt.name))
+      if (!collation) {
+        throw new Error(`no such target: ${schemaName}.${stmt.name}`)
+      }
+      return collation
+    }
+    return obj
+  }
+
+  private checkManipulateObjectStatement(seq: number, stmt: any, vdb: VDatabase, type: string) {
+    let schemaName = stmt.schemaName
+    if (!schemaName) {
+      const tempObject = vdb.schemas.get("temp")?.get(stmt.name)
+      schemaName = tempObject && !tempObject.dropped ? "temp" : "main"
     }
 
-    return table
+    const schema = vdb.schemas.get(lcase(schemaName))
+    if (!schema) {
+      throw new Error(`unknown database ${schemaName}`)
+    }
+
+    const obj = schema.get(stmt.name)
+    if (!obj || obj.dropped || obj.type !== type) {
+      throw new Error(`no such ${type}: ${schemaName}.${stmt.name}`)
+    }
+    return obj
   }
 
   private async runCommandStatement(seq: number, stmt: CommandStatement) {
@@ -584,21 +637,8 @@ enum QueryType {
 }
 
 class VDatabase {
-  private schemas = new Map<string, VSchema>()
-
-  add(name: string) {
-    const schema = new VSchema(name)
-    this.schemas.set(lcase(schema.name), schema)
-    return schema
-  }
-
-  get(name: string) {
-    return this.schemas.get(lcase(name))
-  }
-
-  [Symbol.iterator]() {
-    return this.schemas.values()
-  }
+  schemas = new Map<string, VSchema>()
+  collations = new Map<string, VCollation>()
 }
 
 class VSchema {
@@ -622,6 +662,13 @@ class VSchema {
 
   [Symbol.iterator]() {
     return this.objects.values()
+  }
+}
+
+class VCollation {
+  constructor(
+    public name: string,
+  ) {
   }
 }
 
