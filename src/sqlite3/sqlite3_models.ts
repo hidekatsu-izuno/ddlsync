@@ -12,29 +12,15 @@ export abstract class ColumnConstraint {
 export class CommandStatement extends Statement {
   name = ""
   args: string[] = []
-
-  summary() {
-    return this.name + (this.args.length ? " " + this.args.join(" ") : "")
-  }
 }
 
 export class AttachDatabaseStatement extends Statement {
   name = ""
   expression = new Array<Token>()
-
-  summary() {
-    return "ATTACHE DATABASE " +
-      this.name
-  }
 }
 
 export class DetachDatabaseStatement extends Statement {
   name = ""
-
-  summary() {
-    return "DETACHE DATABASE " +
-      this.name
-  }
 }
 
 export class CreateTableStatement extends Statement {
@@ -73,15 +59,6 @@ export class CreateTableStatement extends Statement {
       throw new Error(`PRIMARY KEY missing on table ${this.name}`)
     }
   }
-
-  summary() {
-    return "CREATE " +
-      (this.temporary ? "TEMPORARY " : "") +
-      (this.virtual ? "VIRTUAL " : "") +
-      "TABLE " +
-      (this.schemaName ? this.schemaName + "." : "") +
-      this.name
-  }
 }
 
 export class AlterTableStatement extends Statement {
@@ -92,30 +69,12 @@ export class AlterTableStatement extends Statement {
   columnName?: string
   newColumnName?: string
   newColumn?: ColumnDef
-
-  summary() {
-    return "ALTER TABLE " +
-      (this.schemaName ? this.schemaName + "." : "") +
-      this.name + " " +
-      (
-        this.alterTableAction === AlterTableAction.ADD_COLUMN ? "ADD COLUMN" :
-        this.alterTableAction === AlterTableAction.RENAME_COLUMN ? "RENAME COLUMN" :
-        this.alterTableAction === AlterTableAction.DROP_COLUMN ? "DROP COLUMN" :
-        "RENAME TO " + this.newTableName
-      )
-  }
 }
 
 export class DropTableStatement extends Statement {
   schemaName?: string
   name = ""
   ifExists = false
-
-  summary() {
-    return "DROP TABLE " +
-      (this.schemaName ? this.schemaName + "." : "") +
-      this.name
-  }
 }
 
 export class CreateViewStatement extends Statement {
@@ -130,26 +89,12 @@ export class CreateViewStatement extends Statement {
       throw new Error("temporary table name must be unqualified")
     }
   }
-
-  summary() {
-    return "CREATE " +
-      (this.temporary ? "TEMPORARY " : "") +
-      "VIEW " +
-      (this.schemaName ? this.schemaName + "." : "") +
-      this.name + " "
-  }
 }
 
 export class DropViewStatement extends Statement {
   schemaName?: string
   name = ""
   ifExists = false
-
-  summary() {
-    return "DROP VIEW " +
-      (this.schemaName ? this.schemaName + "." : "") +
-      this.name
-  }
 }
 
 export class CreateTriggerStatement extends Statement {
@@ -163,26 +108,12 @@ export class CreateTriggerStatement extends Statement {
       throw new Error("temporary table name must be unqualified")
     }
   }
-
-  summary() {
-    return "CREATE " +
-      (this.temporary ? "TEMPORARY " : "") +
-      "TRIGGER " +
-      (this.schemaName ? this.schemaName + "." : "") +
-      this.name + " "
-  }
 }
 
 export class DropTriggerStatement extends Statement {
   schemaName?: string
   name = ""
   ifExists = false
-
-  summary() {
-    return "DROP TRIGGER " +
-      (this.schemaName ? this.schemaName + "." : "") +
-      this.name
-  }
 }
 
 export class CreateIndexStatement extends Statement {
@@ -192,172 +123,83 @@ export class CreateIndexStatement extends Statement {
   unique = false
   ifNotExists = false
   columns = new Array<IndexedColumn>()
-
-  summary() {
-    return "CREATE " +
-      (this.unique ? "UNIQUE " : "") +
-      "INDEX " +
-      (this.schemaName ? this.schemaName + "." : "") +
-      this.name + " " +
-      "ON " + this.tableName
-  }
 }
 
 export class DropIndexStatement extends Statement {
   schemaName?: string
   name = ""
   ifExists = false
-
-  summary() {
-    return "DROP INDEX " +
-      (this.schemaName ? this.schemaName + "." : "") +
-      this.name
-  }
 }
 
 export class ReindexStatement extends Statement {
   schemaName?: string
   name = ""
-
-  summary() {
-    return "REINDEX " +
-      (this.schemaName ? this.schemaName + "." : "") +
-      this.name
-  }
 }
 
 export class VacuumStatement extends Statement {
   schemaName?: string
   fileName?: string
-
-  summary() {
-    return "VACUUM" +
-      (this.schemaName ? " " + this.schemaName : "")
-  }
 }
 
 export class AnalyzeStatement extends Statement {
   schemaName?: string
   name = ""
-
-  summary() {
-    return "ANALYZE " +
-      (this.schemaName ? this.schemaName + "." : "") +
-      this.name
-  }
 }
 
 export class ExplainStatement extends Statement {
   constructor() {
     super()
   }
-
-  summary() {
-    return "EXPLAIN"
-  }
 }
 
 export class BeginTransactionStatement extends Statement {
   transactionBehavior = TransactionBehavior.DEFERRED
-
-  summary() {
-    return "BEGIN TRANSACTION"
-  }
 }
 
 export class SavepointStatement extends Statement {
   name: string = ""
-
-  summary() {
-    return "SAVEPOINT " +
-      this.name
-  }
 }
 
 export class ReleaseSavepointStatement extends Statement {
   savePointName = ""
-
-  summary() {
-    return "RELEASE SAVEPOINT " +
-      this.savePointName
-  }
 }
 
 export class CommitTransactionStatement extends Statement {
-  summary() {
-    return "COMMIT TRANSACTION"
-  }
 }
 
 export class RollbackTransactionStatement extends Statement {
   savePointName?: string
-  summary() {
-    return "ROLLBACK TRANSACTION" +
-      (this.savePointName ? " TO SAVEPOINT " + this.savePointName : "")
-  }
 }
 
 export class PragmaStatement extends Statement {
   schemaName?: string
   name = ""
   value?: Token[]
-
-  summary() {
-    return (this.value ? " SET" : " GET") +
-      " PRAGMA " +
-      (this.schemaName ? this.schemaName + "." : "") +
-      this.name
-  }
 }
 
 export class InsertStatement extends Statement {
   schemaName?: string
   name = ""
   conflictAction = ConflictAction.ABORT
-
-  summary() {
-    return "INSERT INTO " +
-      (this.schemaName ? this.schemaName + "." : "") +
-      this.name
-  }
 }
 
 export class UpdateStatement extends Statement {
   schemaName?: string
   name = ""
   conflictAction = ConflictAction.ABORT
-
-  summary() {
-    return "UPDATE " +
-      (this.schemaName ? this.schemaName + "." : "") +
-      this.name
-  }
 }
 
 export class DeleteStatement extends Statement {
   schemaName?: string
   name = ""
-
-  summary() {
-    return "DELETE FROM " +
-      (this.schemaName ? this.schemaName + "." : "") +
-      this.name
-  }
 }
 
 export class SelectStatement extends Statement {
-  summary() {
-    return "SELECT"
-  }
 }
 
 export class OtherStatement extends Statement {
   constructor() {
     super()
-  }
-
-  summary() {
-    return "UNKNOWN"
   }
 }
 

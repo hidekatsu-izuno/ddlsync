@@ -4,6 +4,7 @@ import interpret from "interpret"
 import colorette from "colorette"
 import io from "../util/io"
 import Sqlite3Processor from "../sqlite3/sqlite3_processor"
+import MysqlProcessor from "../mysql/mysql_processor"
 
 const Extensions = ["ts", "js", "json", "yml", "coffee", "eg", "ls"]
 
@@ -15,6 +16,8 @@ export async function createDddlSyncProcessor(
   const config = await initConfig(args, options)
   if (config.type === "sqlite3") {
     return new Sqlite3Processor(config, dryrun)
+  } else if (config.type === "mysql") {
+    return new MysqlProcessor(config, dryrun)
   }
   throw new Error(`Unsupported database type: ${config.type}`)
 }
