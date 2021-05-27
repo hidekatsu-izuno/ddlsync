@@ -60,6 +60,13 @@ export class DropDatabaseStatement extends Statement {
 export class CreateServerStatement extends Statement {
   name = ""
   wrapperName = ""
+  host?: string
+  database?: string
+  user?: string
+  password?: string
+  socket?: string
+  owner?: string
+  port?: string
 
   validate() {
     if (this.wrapperName !== "mysql") {

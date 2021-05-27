@@ -8,7 +8,7 @@ import {
   ParseError,
   AggregateParseError,
 } from "../parser"
-import { escapeRegExp, lcase } from "../util/functions"
+import { escapeRegExp, lcase, ucase } from "../util/functions"
 import {
   CreateDatabaseStatement,
   AlterDatabaseStatement,
@@ -263,6 +263,7 @@ export class Keyword extends TokenType {
   static HOUR_MICROSECOND = new Keyword("HOUR_MICROSECOND", { reserved: true })
   static HOUR_MINUTE = new Keyword("HOUR_MINUTE", { reserved: true })
   static HOUR_SECOND = new Keyword("HOUR_SECOND", { reserved: true })
+  static HOST = new Keyword("HOST")
   static IF = new Keyword("IF", { reserved: true })
   static IGNORE = new Keyword("IGNORE", { reserved: true })
   static IMPORT = new Keyword("IMPORT")
@@ -371,6 +372,7 @@ export class Keyword extends TokenType {
   static OVER = new Keyword("OVER", { reserved: function(options: { [ key:string]:any}) {
     return semver.satisfies(">=8.0.2", options.version || "0")
   } })
+  static OWNER = new Keyword("OWNER")
   static PARSE_GCOL_EXPR = new Keyword("PARSE_GCOL_EXPR", { reserved: function(options: { [ key:string]:any}) {
     return semver.satisfies("<8.0.0", options.version || "0")
   } })
@@ -380,6 +382,7 @@ export class Keyword extends TokenType {
     return semver.satisfies(">=8.0.2", options.version || "0")
   } })
   static PLUGIN = new Keyword("PLUGIN")
+  static PORT = new Keyword("PORT")
   static PRECISION = new Keyword("PRECISION", { reserved: true })
   static PREPARE = new Keyword("PREPARE")
   static PRIMARY = new Keyword("PRIMARY", { reserved: true })
@@ -446,6 +449,7 @@ export class Keyword extends TokenType {
   static SIGNAL = new Keyword("SIGNAL", { reserved: true })
   static SLAVE = new Keyword("SLAVE")
   static SMALLINT = new Keyword("SMALLINT", { reserved: true })
+  static SOCKET = new Keyword("SOCKET")
   static SPATIAL = new Keyword("SPATIAL", { reserved: true })
   static SPECIFIC = new Keyword("SPECIFIC", { reserved: true })
   static SQL = new Keyword("SQL", { reserved: true })
@@ -565,7 +569,8 @@ export class MysqlLexer extends Lexer {
       { type: TokenType.String, re: () => this.sqlModes.has("ANSI_QUOTES") ? /([bBnN]|_[a-zA-Z]+)?'([^']|'')*'/y :  /([bBnN]|_[a-zA-Z]+)?('([^']|'')*'|"([^"]|"")*")/y },
       { type: TokenType.QuotedIdentifier, re: () => this.sqlModes.has("ANSI_QUOTES") ? /"([^"]|"")*"|`([^`]|``)*`/y : /`([^`]|``)*`/y },
       { type: TokenType.BindVariable, re: /\?/y },
-      { type: TokenType.Variable, re: /@@?([a-zA-Z_$\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_$#\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*|'([^']|'')*'|"([^"]|"")*")/y },
+      { type: TokenType.SessionVariable, re: /@@([a-zA-Z_$\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_$#\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*|'([^']|'')*'|"([^"]|"")*")/y },
+      { type: TokenType.UserDefinedVariable, re: /@([a-zA-Z_$\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_$#\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*|'([^']|'')*'|"([^"]|"")*")/y },
       { type: TokenType.Identifier, re: /[a-zA-Z_$\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_$#\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*/y },
       { type: TokenType.Operator, re: /\|\|&&|<=>|<<|>>|<>|->>?|[=<>!:]=?|[~&|^*/%+-]/y },
       { type: TokenType.Error, re: /./y },
@@ -616,7 +621,7 @@ export class MysqlLexer extends Lexer {
     if (
       token.type === TokenType.Identifier ||
       token.type === TokenType.Operator ||
-      token.type === TokenType.Variable
+      token.type === TokenType.SessionVariable
     ) {
       const keyword = KeywordMap.get(token.text.toUpperCase())
       if (keyword) {
@@ -1022,7 +1027,25 @@ export class MySqlParser extends Parser {
         stmt.wrapperName = this.identifier()
         this.consume(Keyword.OPTIONS)
         this.consume(TokenType.LeftParen)
-        // TOOD
+        for (let i = 0; i === 0 || this.consume(TokenType.Comma); i++) {
+          if (this.consumeIf(Keyword.HOST)) {
+            stmt.host = this.stringValue()
+          } else if (this.consumeIf(Keyword.DATABASE)) {
+            stmt.database = this.stringValue()
+          } else if (this.consumeIf(Keyword.USER)) {
+            stmt.user = this.stringValue()
+          } else if (this.consumeIf(Keyword.PASSWORD)) {
+            stmt.password = this.stringValue()
+          } else if (this.consumeIf(Keyword.SOCKET)) {
+            stmt.socket = this.stringValue()
+          } else if (this.consumeIf(Keyword.OWNER)) {
+            stmt.owner = this.stringValue()
+          } else if (this.consumeIf(Keyword.PORT)) {
+            stmt.port = this.numberValue()
+          } else {
+            throw this.createParseError()
+          }
+        }
         this.consume(TokenType.RightParen)
       } else if (stmt instanceof CreateResourceGroupStatement) {
 
@@ -1447,7 +1470,9 @@ export class MySqlParser extends Parser {
       } else if (this.consumeIf(Keyword.NAMES)) {
         stmt = new SetNamesStatement()
       } else {
-        if (this.consumeIf(Keyword.GLOBAL)) {
+        if (this.consumeIf(Keyword.TRANSACTION)) {
+          stmt = new SetTransactionStatement()
+        } else if (this.consumeIf(Keyword.GLOBAL)) {
           if (this.consumeIf(Keyword.TRANSACTION)) {
             stmt = new SetTransactionStatement()
             stmt.type = VariableType.GLOBAL
@@ -1481,19 +1506,18 @@ export class MySqlParser extends Parser {
           va.type = VariableType.SESSION
           this.consume(Keyword.Dot)
           va.name = this.identifier()
-        } else if (this.peekIf(TokenType.Variable)) {
+        } else if (this.peekIf(TokenType.SessionVariable)) {
           stmt = new SetStatement()
           const va = new VariableAssignment()
           const name = this.consume().text
-          if (/^@@/.test(name)) {
-            va.type = VariableType.SESSION
-            va.name = name.substring(2)
-          } else {
-            va.type = VariableType.USER_DEFINED
-            va.name = name.substring(1)
-          }
-        } else if (this.consumeIf(Keyword.TRANSACTION)) {
-          stmt = new SetTransactionStatement()
+          va.type = VariableType.SESSION
+          va.name = name.substring(2)
+        } else if (this.peekIf(TokenType.UserDefinedVariable)) {
+          stmt = new SetStatement()
+          const va = new VariableAssignment()
+          const name = this.consume().text
+          va.type = VariableType.USER_DEFINED
+          va.name = name.substring(1)
         } else {
           throw this.createParseError()
         }
@@ -1547,15 +1571,14 @@ export class MySqlParser extends Parser {
               va.type = VariableType.SESSION
               this.consume(Keyword.Dot)
               va.name = this.identifier()
-            } else if (this.peekIf(TokenType.Variable)) {
+            } else if (this.peekIf(TokenType.SessionVariable)) {
               const name = this.consume().text
-              if (/^@@/.test(name)) {
-                va.type = VariableType.SESSION
-                va.name = name.substring(2)
-              } else {
-                va.type = VariableType.USER_DEFINED
-                va.name = name.substring(1)
-              }
+              va.type = VariableType.SESSION
+              va.name = name.substring(2)
+            } else if (this.peekIf(TokenType.UserDefinedVariable)) {
+              const name = this.consume().text
+              va.type = VariableType.USER_DEFINED
+              va.name = name.substring(1)
             } else {
               throw this.createParseError()
             }
@@ -1613,6 +1636,17 @@ export class MySqlParser extends Parser {
       text = unescape(dequote(token.text))
     } else if (token = this.consumeIf(TokenType.Identifier)) {
       text = lcase(token.text)
+    } else if (token = this.consumeIf(Keyword.VAR_GLOBAL)) {
+      this.consume(Keyword.Dot)
+      text = "@@GLOBAL." + lcase(this.consume(TokenType.Identifier).text)
+    } else if (this.peekIf(Keyword.VAR_LOCAL) || this.peekIf(Keyword.VAR_SESSION)) {
+      this.consume()
+      this.consume(Keyword.Dot)
+      text = "@@SESSION." + lcase(this.consume(TokenType.Identifier).text)
+    } else if (token = this.consumeIf(TokenType.SessionVariable)) {
+      text = token.text.toLowerCase()
+    } else if (token = this.consumeIf(TokenType.UserDefinedVariable)) {
+      text = token.text.toLowerCase()
     } else {
       throw this.createParseError()
     }
