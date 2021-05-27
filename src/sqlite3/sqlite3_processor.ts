@@ -36,7 +36,7 @@ import {
   ReindexStatement
 } from "./sqlite3_models";
 import { Sqlite3Parser } from "./sqlite3_parser"
-import { lcase, ucase, bquote, dquote } from "../util/functions"
+import { lcase, ucase } from "../util/functions"
 import { writeGzippedCsv } from "../util/io"
 
 export default class Sqlite3Processor extends DdlSyncProcessor {
@@ -68,7 +68,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
 
   protected async parse(input: string, options: { [key: string]: any }) {
     const parser = new Sqlite3Parser(input)
-    return parser.root()
+    return await parser.root()
   }
 
   protected async run(stmts: Statement[], options: { [key: string]: any }) {
@@ -351,7 +351,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
         // create new object if not exists
         this.runScript(this.toSQL(stmt))
       } else {
-        const oldStmt = (new Sqlite3Parser(meta.sql || "")).root()[0]
+        const oldStmt = (await (new Sqlite3Parser(meta.sql || "")).root())[0]
         if (!oldStmt) {
           throw new Error(`Failed to get metadata: ${obj.schemaName}.${obj.name}`)
         }
@@ -682,4 +682,12 @@ class VObject {
     public tableName?: string,
   ) {
   }
+}
+
+function dquote(text: string) {
+  return '"' + text.replace(/"/g, '""') + '"'
+}
+
+function bquote(text: string) {
+  return "`" + text.replace(/`/g, "``") + "`"
 }

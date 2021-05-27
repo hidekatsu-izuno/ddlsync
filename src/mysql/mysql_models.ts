@@ -29,6 +29,17 @@ export enum Concurrency {
   CONCURRENT = "CONCURRENT",
 }
 
+export enum IndexType {
+  UNIQUE = "UNIQUE",
+  FULLTEXT = "FULLTEXT",
+  SPATIAL = "SPATIAL",
+}
+
+export class CommandStatement extends Statement {
+  name = ""
+  args: string[] = []
+}
+
 export class CreateDatabaseStatement extends Statement {
   name = ""
   ifNotExists = false
@@ -43,10 +54,18 @@ export class AlterDatabaseStatement extends Statement {
 
 export class DropDatabaseStatement extends Statement {
   name = ""
+  ifExists = false
 }
 
 export class CreateServerStatement extends Statement {
   name = ""
+  wrapperName = ""
+
+  validate() {
+    if (this.wrapperName !== "mysql") {
+      throw new Error(`Unsupported wrapper name: ${this.wrapperName}`)
+    }
+  }
 }
 
 export class AlterServerStatement extends Statement {
@@ -55,6 +74,7 @@ export class AlterServerStatement extends Statement {
 
 export class DropServerStatement extends Statement {
   name = ""
+  ifExists = false
 }
 
 export class CreateResourceGroupStatement extends Statement {
@@ -107,6 +127,7 @@ export class CreateSpatialReferenceSystemStatement extends Statement {
 
 export class DropSpatialReferenceSystemStatement extends Statement {
   srid = ""
+  ifExists = false
 }
 
 export class CreateRoleStatement extends Statement {
@@ -122,6 +143,7 @@ export class SetRoleStatement extends Statement {
 
 export class DropRoleStatement extends Statement {
   name = ""
+  ifExists = false
 }
 
 export class CreateUserStatement extends Statement {
@@ -131,6 +153,7 @@ export class CreateUserStatement extends Statement {
 
 export class AlterUserStatement extends Statement {
   name = ""
+  ifExists = false
 }
 
 export class RenameUserStatement extends Statement {
@@ -142,6 +165,7 @@ export class SetPasswordStatement extends Statement {
 
 export class DropUserStatement extends Statement {
   name = ""
+  ifExists = false
 }
 
 export class CreateTableStatement extends Statement {
@@ -166,12 +190,13 @@ export class DropTableStatement extends Statement {
   schemaName?: string
   name = ""
   temporary = false
+  ifExists = false
 }
 
 export class CreateIndexStatement extends Statement {
   schemaName?: string
   name = ""
-  spatial = false
+  type?: IndexType
 }
 
 export class DropIndexStatement extends Statement {
@@ -201,6 +226,7 @@ export class AlterViewStatement extends Statement {
 export class DropViewStatement extends Statement {
   schemaName?: string
   name = ""
+  ifExists = false
 }
 
 export class CreateProcedureStatement extends Statement {
@@ -218,6 +244,7 @@ export class AlterProcedureStatement extends Statement {
 export class DropProcedureStatement extends Statement {
   schemaName?: string
   name = ""
+  ifExists = false
 }
 
 export class CreateFunctionStatement extends Statement {
@@ -236,6 +263,7 @@ export class AlterFunctionStatement extends Statement {
 export class DropFunctionStatement extends Statement {
   schemaName?: string
   name = ""
+  ifExists = false
 }
 
 export class CreateTriggerStatement extends Statement {
@@ -265,6 +293,7 @@ export class AlterEventStatement extends Statement {
 export class DropEventStatement extends Statement {
   schemaName?: string
   name = ""
+  ifExists = false
 }
 
 export class TruncateTableStatement extends Statement {

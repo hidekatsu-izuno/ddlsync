@@ -8,7 +8,7 @@ import {
   ParseError,
   AggregateParseError,
 } from "../parser"
-import { dequote, escapeRegExp } from "../util/functions"
+import { escapeRegExp, lcase } from "../util/functions"
 import {
   CreateDatabaseStatement,
   AlterDatabaseStatement,
@@ -122,6 +122,8 @@ import {
   VariableType,
   Concurrency,
   TransactionCharacteristic,
+  IndexType,
+  CommandStatement,
 } from "./mysql_models"
 
 
@@ -359,6 +361,7 @@ export class Keyword extends TokenType {
   static OPTIMIZE = new Keyword("OPTIMIZE", { reserved: true })
   static OPTIMIZER_COSTS = new Keyword("OPTIMIZER_COSTS", { reserved: true })
   static OPTION = new Keyword("OPTION", { reserved: true })
+  static OPTIONS = new Keyword("OPTIONS")
   static OPTIONALLY = new Keyword("OPTIONALLY", { reserved: true })
   static OR = new Keyword("OR", { reserved: true })
   static ORDER = new Keyword("ORDER", { reserved: true })
@@ -509,6 +512,7 @@ export class Keyword extends TokenType {
     return semver.satisfies(">=8.0.2", options.version || "0")
   } })
   static WITH = new Keyword("WITH", { reserved: true })
+  static WRAPPER = new Keyword("WRAPPER")
   static WRITE = new Keyword("WRITE", { reserved: true })
   static XA = new Keyword("XA")
   static XML = new Keyword("XML")
@@ -533,9 +537,14 @@ export class Keyword extends TokenType {
     KeywordMap.set(name, this)
   }
 }
-export class MySqlLexer extends Lexer {
+
+const COMMAND_PATTERN = "^(\\?|\\\\[!-~]|clear|connect|delimiter|edit|ego|exit|go|help|nopager|notee|pager|print|prompt|quit|rehash|source|status|system|tee|use|charset|warnings|nowarning)(?:[ \\t]*.*?)"
+
+export class MysqlLexer extends Lexer {
   private reserved = new Set<Keyword>()
-  private delimiter = /;/y
+  private reCommand = new RegExp(COMMAND_PATTERN + "(;|$)", "iy")
+  private reDelimiter = new RegExp(";", "y")
+  private sqlModes
 
   constructor(
     private options: { [key: string]: any } = {}
@@ -544,24 +553,28 @@ export class MySqlLexer extends Lexer {
       { type: TokenType.HintComment, re: /\/\*\+.*?\*\//sy },
       { type: TokenType.BlockComment, re: /\/\*.*?\*\//sy },
       { type: TokenType.LineComment, re: /(#.*|--([ \t].*)$)/my },
-      { type: TokenType.Command, re: /^[ \t]*delimiter(?:[ \t]+.*)?$/imy },
+      { type: TokenType.Command, re: () => this.reCommand },
       { type: TokenType.WhiteSpace, re: /[ \t]+/y },
       { type: TokenType.LineBreak, re: /(?:\r\n?|\n)/y },
-      { type: TokenType.Delimiter, re: () => this.delimiter },
+      { type: TokenType.Delimiter, re: () => this.reDelimiter },
       { type: TokenType.LeftParen, re: /\(/y },
       { type: TokenType.RightParen, re: /\)/y },
       { type: TokenType.Comma, re: /,/y },
       { type: TokenType.Number, re: /0[xX][0-9a-fA-F]+|((0|[1-9][0-9]*)(\.[0-9]+)?|(\.[0-9]+))([eE][+-]?[0-9]+)?/y },
       { type: TokenType.Dot, re: /\./y },
-      { type: TokenType.String, re: /([bBnN]|_[a-zA-Z]+)?'([^']|'')*'/y },
-      { type: TokenType.QuotedValue, re: /([bBnN]|_[a-zA-Z]+)?"([^"]|"")*"/y },
-      { type: TokenType.QuotedIdentifier, re: /`([^`]|``)*`/y },
+      { type: TokenType.String, re: () => this.sqlModes.has("ANSI_QUOTES") ? /([bBnN]|_[a-zA-Z]+)?'([^']|'')*'/y :  /([bBnN]|_[a-zA-Z]+)?('([^']|'')*'|"([^"]|"")*")/y },
+      { type: TokenType.QuotedIdentifier, re: () => this.sqlModes.has("ANSI_QUOTES") ? /"([^"]|"")*"|`([^`]|``)*`/y : /`([^`]|``)*`/y },
       { type: TokenType.BindVariable, re: /\?/y },
       { type: TokenType.Variable, re: /@@?([a-zA-Z_$\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_$#\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*|'([^']|'')*'|"([^"]|"")*")/y },
       { type: TokenType.Identifier, re: /[a-zA-Z_$\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_$#\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*/y },
       { type: TokenType.Operator, re: /\|\|&&|<=>|<<|>>|<>|->>?|[=<>!:]=?|[~&|^*/%+-]/y },
       { type: TokenType.Error, re: /./y },
     ])
+
+    this.sqlModes = new Set<string>()
+    for (const sqlMode of (options.sqlModes || [])) {
+      this.sqlModes.add(sqlMode)
+    }
 
     for (const keyword of KeywordMap.values()) {
       if (typeof keyword.options.reserved === "function") {
@@ -574,7 +587,21 @@ export class MySqlLexer extends Lexer {
     }
   }
 
-  filter(input: string) {
+  setDelimiter(delimiter: string) {
+    const sep = escapeRegExp(delimiter)
+    this.reCommand = new RegExp(`${COMMAND_PATTERN}(?:[ \\t]+.*?)?(${sep}|$)`, "iy")
+    this.reDelimiter = new RegExp(sep, "y")
+  }
+
+  setSqlModes(modes: string[]) {
+    const sqlModes = new Set<string>()
+    for (const mode of modes) {
+      sqlModes.add(mode)
+    }
+    this.sqlModes = sqlModes
+  }
+
+  protected filter(input: string) {
     return input.replace(/\/\*!(0|[0-9][1-9]*)?(.*?)\*\//sg, (m, p1, p2) => {
       if (this.options.version && p1) {
         if (semver.lt(this.options.version, toSemverString(p1))) {
@@ -585,13 +612,8 @@ export class MySqlLexer extends Lexer {
     })
   }
 
-  process(token: Token) {
-    if (token.type === TokenType.Command) {
-      const args = token.text.trim().split(/[ \t]+/g)
-      if (/^delimiter$/i.test(args[0]) && args[1]) {
-        this.delimiter = new RegExp(escapeRegExp(args[1]), "y")
-      }
-    } else if (
+  protected process(token: Token) {
+    if (
       token.type === TokenType.Identifier ||
       token.type === TokenType.Operator ||
       token.type === TokenType.Variable
@@ -614,14 +636,22 @@ export class MySqlParser extends Parser {
     input: string,
     options: { [key: string]: any } = {},
   ) {
-    super(input, new MySqlLexer(options), options)
+    super(input, new MysqlLexer(options), options)
   }
 
-  root() {
+  async root() {
     const root = []
     const errors = []
-    for (let i = 0; i === 0 || this.consumeIf(TokenType.Delimiter); i++) {
-      if (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+    for (
+      let i = 0;
+      i === 0 || this.consumeIf(TokenType.Delimiter) ||
+      root[root.length - 1] instanceof CommandStatement;
+      i++
+    ) {
+      if (this.consumeIf(TokenType.Command)) {
+        const stmt = this.command()
+        root.push(stmt)
+      } else if (this.peek() && !this.peekIf(TokenType.Delimiter)) {
         try {
           const stmt = this.statement()
           stmt.validate()
@@ -660,6 +690,114 @@ export class MySqlParser extends Parser {
     return root
   }
 
+  command() {
+    const start = this.pos
+    const stmt = new CommandStatement()
+    const text = (this.peek()?.text || "").split(/[ \t]/)
+    if (/^(?|\\?|[hH][eE][lL][pP])$/.test(text[0])) {
+      stmt.name = "help"
+    } else if (/^(\\c|[cC][lL][eE][aA][rR])$/.test(text[0])) {
+      stmt.name = "clear"
+    } else if (/^(\\d|[dD][eE][lL][iI][mM][iI][tT][eE][rR])$/.test(text[0])) {
+      stmt.name = "delimiter"
+    } else if (/^(\\e|[eE][dD][iI][tT])$/.test(text[0])) {
+      stmt.name = "edit"
+    } else if (/^(\\G|[eE][gG][oO])$/.test(text[0])) {
+      stmt.name = "ego"
+    } else if (/^(\\q|[eE][xX][iI][tT])$/.test(text[0])) {
+      stmt.name = "exit"
+    } else if (/^(\\q|[gG][oO])$/.test(text[0])) {
+      stmt.name = "go"
+    } else if (/^(\\q|[nN][oO][pP][aA][gG][eE][rR])$/.test(text[0])) {
+      stmt.name = "nopager"
+    } else if (/^(\\q|[nN][oO][tT][eE][eE])$/.test(text[0])) {
+      stmt.name = "notee"
+    } else if (/^(\\q|[pP][aA][gG][eE][rR])$/.test(text[0])) {
+      stmt.name = "pager"
+    } else if (/^(\\q|[pP][rR][iI][nN][tT])$/.test(text[0])) {
+      stmt.name = "print"
+    } else if (/^(\\q|[pP][rR][oO][mM][pP][tT])$/.test(text[0])) {
+      stmt.name = "prompt"
+    } else if (/^(\\q|[qQ][uU][iI][tT])$/.test(text[0])) {
+      stmt.name = "quit"
+    } else if (/^(\\q|[rR][eE][hH][aA][sS][sH])$/.test(text[0])) {
+      stmt.name = "rehash"
+    } else if (/^(\\q|[sS][oO][uU][rR][cC][eE])$/.test(text[0])) {
+      stmt.name = "source"
+    } else if (/^(\\q|[sS][tT][aA][tT][uU][sS])$/.test(text[0])) {
+      stmt.name = "status"
+    } else if (/^(\\q|[sS][yY][sS][tT][eE][mM])$/.test(text[0])) {
+      stmt.name = "system"
+    } else if (/^(\\q|[tT][eE][eE])$/.test(text[0])) {
+      stmt.name = "tee"
+    } else if (/^(\\q|[uU][sS][eE])$/.test(text[0])) {
+      stmt.name = "use"
+    } else if (/^(\\q|[cC][hH][aA][rR][sS][eE][tT])$/.test(text[0])) {
+      stmt.name = "charset"
+    } else if (/^(\\q|[wW][aA][rR][nN][iI][nN][gG][sS])$/.test(text[0])) {
+      stmt.name = "warnings"
+    } else if (/^(\\q|[nN][oO][wW][aA][rR][nN][iI][nN][gG])$/.test(text[0])) {
+      stmt.name = "nowarning"
+    } else {
+      throw this.createParseError()
+    }
+
+    if (stmt.name === "prompt") {
+      stmt.args.push(text[1])
+    } else if (
+      stmt.name === "help" ||
+      stmt.name === "pager" ||
+      stmt.name === "prompt" ||
+      stmt.name === "source" ||
+      stmt.name === "system" ||
+      stmt.name === "tee"
+    ) {
+      const re = /[ \t]+|'(''|[^']+)*'|([^ \t']+)/y
+      let pos = 0
+      while (pos < text[1].length) {
+        re.lastIndex = pos
+        const m = re.exec(text[1])
+        if (m) {
+          if (m[1] || m[2]) {
+            stmt.args.push(m[1].replace(/''/g, "'").replace(/\\(.)/g, "$1") || m[2])
+          }
+          pos = re.lastIndex
+        }
+      }
+    } else if (
+      stmt.name === "connect" ||
+      stmt.name === "delimiter" ||
+      stmt.name === "use" ||
+      stmt.name === "charset"
+    ) {
+      const re = /[ \t]+|'(''|[^']+)*'|`(``|[^`]+)*`|([^ \t']+)/y
+      let pos = 0
+      while (pos < text[1].length) {
+        re.lastIndex = pos
+        const m = re.exec(text[1])
+        if (m) {
+          if (m[1] || m[2] || m[3]) {
+            stmt.args.push(m[1].replace(/''/g, "'").replace(/\\(.)/g, "$1") ||
+              m[2].replace(/``/g, "`") ||
+              m[3])
+          }
+          pos = re.lastIndex
+        }
+      }
+    } else {
+      throw this.createParseError()
+    }
+
+    if (stmt.name === "delimiter") {
+      const lexer = this.lexer as MysqlLexer
+      lexer.setDelimiter(stmt.args[0])
+    }
+
+    this.consume()
+    stmt.tokens = this.tokens.slice(start, this.pos)
+    return stmt
+  }
+
   statement() {
     const start = this.pos
 
@@ -667,6 +805,11 @@ export class MySqlParser extends Parser {
     if (this.consumeIf(Keyword.CREATE)) {
       if (this.consumeIf(Keyword.DATABASE) || this.consumeIf(Keyword.SCHEMA)) {
         stmt = new CreateDatabaseStatement()
+        if (this.consumeIf(Keyword.IF)) {
+          this.consume(Keyword.NOT)
+          this.consume(Keyword.EXISTS)
+          stmt.ifNotExists = true
+        }
       } else if (this.consumeIf(Keyword.SERVER)) {
         stmt = new CreateServerStatement()
       } else if (this.consumeIf(Keyword.RESOURCE)) {
@@ -683,14 +826,36 @@ export class MySqlParser extends Parser {
         this.consume(Keyword.TABLESPACE)
       } else if (this.consumeIf(Keyword.ROLE)) {
         stmt = new CreateRoleStatement()
+        if (this.consumeIf(Keyword.IF)) {
+          this.consume(Keyword.NOT)
+          this.consume(Keyword.EXISTS)
+          stmt.ifNotExists = true
+        }
       } else if (this.consumeIf(Keyword.USER)) {
         stmt = new CreateUserStatement()
+        if (this.consumeIf(Keyword.IF)) {
+          this.consume(Keyword.NOT)
+          this.consume(Keyword.EXISTS)
+          stmt.ifNotExists = true
+        }
       } else if (this.peekIf(Keyword.TEMPORARY) || this.peekIf(Keyword.TABLE)) {
         stmt = new CreateTableStatement()
         if (this.consumeIf(Keyword.TEMPORARY)) {
           stmt.temporary = true
         }
         this.consume(Keyword.TABLE)
+        if (this.consumeIf(Keyword.IF)) {
+          this.consume(Keyword.NOT)
+          this.consume(Keyword.EXISTS)
+          stmt.ifNotExists = true
+        }
+      } else if (this.peekIf(Keyword.UNIQUE) || this.peekIf(Keyword.FULLTEXT) || this.peekIf(Keyword.INDEX)) {
+        stmt = new CreateIndexStatement()
+        if (this.consumeIf(Keyword.UNIQUE)) {
+          stmt.type = IndexType.UNIQUE
+        } else if (this.consumeIf(Keyword.FULLTEXT)) {
+          stmt.type = IndexType.FULLTEXT
+        }
       } else {
         let orReplace = false
         if (this.consumeIf(Keyword.OR)) {
@@ -769,6 +934,11 @@ export class MySqlParser extends Parser {
         ) {
           stmt = new CreateEventStatement()
           stmt.definer = definer
+          if (this.consumeIf(Keyword.IF)) {
+            this.consume(Keyword.NOT)
+            this.consume(Keyword.EXISTS)
+            stmt.ifNotExists = true
+          }
         } else if (
           !algorithm && !definer && !aggregate &&!sqlSecurityDefiner && !sqlSecurityInvoker &&
           this.consumeIf(Keyword.SPATIAL)
@@ -777,32 +947,22 @@ export class MySqlParser extends Parser {
             stmt = new CreateSpatialReferenceSystemStatement()
             stmt.orReplace = orReplace
             this.consume(Keyword.SYSTEM)
+            if (!stmt.orReplace && this.consumeIf(Keyword.IF)) {
+              this.consume(Keyword.NOT)
+              this.consume(Keyword.EXISTS)
+              stmt.ifNotExists = true
+            }
           } else if (
             !orReplace &&
             this.consumeIf(Keyword.INDEX)
           ) {
             stmt = new CreateIndexStatement()
-            stmt.spatial = true
+            stmt.type = IndexType.SPATIAL
           } else {
             throw this.createParseError()
           }
         } else {
           throw this.createParseError()
-        }
-      }
-
-      if (
-        stmt instanceof CreateDatabaseStatement ||
-        stmt instanceof CreateTableStatement ||
-        stmt instanceof CreateEventStatement ||
-        stmt instanceof CreateSpatialReferenceSystemStatement && !stmt.orReplace
-      ) {
-        if (this.consumeIf(Keyword.IF)) {
-          stmt.markers.set("ifNotExistsStart", this.pos - start - 1)
-          this.consume(Keyword.NOT)
-          this.consume(Keyword.EXISTS)
-          stmt.ifNotExists = true
-          stmt.markers.set("ifNotExistsEnd", this.pos - start)
         }
       }
 
@@ -814,6 +974,7 @@ export class MySqlParser extends Parser {
           this.consumeIf(TokenType.Dot) && (
             stmt instanceof CreateTableStatement ||
             stmt instanceof CreateIndexStatement ||
+            stmt instanceof CreateViewStatement ||
             stmt instanceof CreateProcedureStatement ||
             stmt instanceof CreateFunctionStatement ||
             stmt instanceof CreateTriggerStatement ||
@@ -836,10 +997,10 @@ export class MySqlParser extends Parser {
           if (this.consumeIf(Keyword.CHARACTER)) {
             this.consume(Keyword.SET)
             this.consumeIf(Keyword.OPE_EQ)
-            stmt.characterSet = dequote(this.consume(TokenType.String).text)
+            stmt.characterSet = this.stringValue()
           } else if (this.consumeIf(Keyword.COLLATE)) {
             this.consumeIf(Keyword.OPE_EQ)
-            stmt.collate = dequote(this.consume(TokenType.String).text)
+            stmt.collate = this.stringValue()
           } else if (this.consumeIf(Keyword.ENCRYPTION)) {
             this.consumeIf(Keyword.OPE_EQ)
             const value = this.stringValue()
@@ -854,6 +1015,17 @@ export class MySqlParser extends Parser {
             throw new Error()
           }
         }
+      } else if (stmt instanceof CreateServerStatement) {
+        this.consume(Keyword.FOREIGN)
+        this.consume(Keyword.DATA)
+        this.consume(Keyword.WRAPPER)
+        stmt.wrapperName = this.identifier()
+        this.consume(Keyword.OPTIONS)
+        this.consume(TokenType.LeftParen)
+        // TOOD
+        this.consume(TokenType.RightParen)
+      } else if (stmt instanceof CreateResourceGroupStatement) {
+
       }
     } else if (this.consumeIf(Keyword.ALTER)) {
       if (this.consumeIf(Keyword.DATABASE) || this.consumeIf(Keyword.SCHEMA)) {
@@ -876,6 +1048,10 @@ export class MySqlParser extends Parser {
         this.consume(Keyword.TABLESPACE)
       } else if (this.consumeIf(Keyword.USER)) {
         stmt = new AlterUserStatement()
+        if (this.consumeIf(Keyword.IF)) {
+          this.consume(Keyword.EXISTS)
+          stmt.ifExists = true
+        }
       } else if (this.consumeIf(Keyword.TABLE)) {
         stmt = new AlterTableStatement()
       } else {
@@ -952,8 +1128,16 @@ export class MySqlParser extends Parser {
     } else if (this.consumeIf(Keyword.DROP)) {
       if (this.consumeIf(Keyword.DATABASE) || this.consumeIf(Keyword.SCHEMA)) {
         stmt = new DropDatabaseStatement()
+        if (this.consumeIf(Keyword.IF)) {
+          this.consume(Keyword.EXISTS)
+          stmt.ifExists = true
+        }
       } else if (this.consumeIf(Keyword.SERVER)) {
         stmt = new DropServerStatement()
+        if (this.consumeIf(Keyword.IF)) {
+          this.consume(Keyword.EXISTS)
+          stmt.ifExists = true
+        }
       } else if (this.consumeIf(Keyword.RESOURCE)) {
         stmt = new DropResourceGroupStatement()
         this.consume(Keyword.GROUP)
@@ -968,28 +1152,60 @@ export class MySqlParser extends Parser {
         this.consume(Keyword.TABLESPACE)
       } else if (this.consumeIf(Keyword.ROLE)) {
         stmt = new DropRoleStatement()
+        if (this.consumeIf(Keyword.IF)) {
+          this.consume(Keyword.EXISTS)
+          stmt.ifExists = true
+        }
       } else if (this.consumeIf(Keyword.USER)) {
         stmt = new DropUserStatement()
+        if (this.consumeIf(Keyword.IF)) {
+          this.consume(Keyword.EXISTS)
+          stmt.ifExists = true
+        }
       } else if (this.peekIf(Keyword.TEMPORARY) || this.peekIf(Keyword.TABLE)) {
         stmt = new DropTableStatement()
         if (this.consumeIf(Keyword.TEMPORARY)) {
           stmt.temporary = true
         }
         this.consume(Keyword.TABLE)
+        if (this.consumeIf(Keyword.IF)) {
+          this.consume(Keyword.EXISTS)
+          stmt.ifExists = true
+        }
       } else if (this.consumeIf(Keyword.VIEW)) {
         stmt = new DropViewStatement()
+        if (this.consumeIf(Keyword.IF)) {
+          this.consume(Keyword.EXISTS)
+          stmt.ifExists = true
+        }
       } else if (this.consumeIf(Keyword.PROCEDURE)) {
         stmt = new DropProcedureStatement()
+        if (this.consumeIf(Keyword.IF)) {
+          this.consume(Keyword.EXISTS)
+          stmt.ifExists = true
+        }
       } else if (this.consumeIf(Keyword.FUNCTION)) {
         stmt = new DropFunctionStatement()
+        if (this.consumeIf(Keyword.IF)) {
+          this.consume(Keyword.EXISTS)
+          stmt.ifExists = true
+        }
       } else if (this.consumeIf(Keyword.TRIGGER)) {
         stmt = new DropTriggerStatement()
       } else if (this.consumeIf(Keyword.EVENT)) {
         stmt = new DropEventStatement()
+        if (this.consumeIf(Keyword.IF)) {
+          this.consume(Keyword.EXISTS)
+          stmt.ifExists = true
+        }
       } else if (this.consumeIf(Keyword.SPATIAL)) {
         stmt = new DropSpatialReferenceSystemStatement()
         this.consume(Keyword.REFERENCE)
         this.consume(Keyword.SYSTEM)
+        if (this.consumeIf(Keyword.IF)) {
+          this.consume(Keyword.EXISTS)
+          stmt.ifExists = true
+        }
       } else if (this.consumeIf(Keyword.INDEX)) {
         stmt = new DropIndexStatement()
       } else if (this.consumeIf(Keyword.PREPARE)) {
@@ -1394,11 +1610,9 @@ export class MySqlParser extends Parser {
   identifier() {
     let token, text
     if (token = this.consumeIf(TokenType.QuotedIdentifier)) {
-      text = dequote(token.text)
-    } else if (token = this.consumeIf(TokenType.QuotedValue)) {
-      text = dequote(token.text)
+      text = unescape(dequote(token.text))
     } else if (token = this.consumeIf(TokenType.Identifier)) {
-      text = token.text
+      text = lcase(token.text)
     } else {
       throw this.createParseError()
     }
@@ -1431,8 +1645,6 @@ export class MySqlParser extends Parser {
     let token, text
     if (token = this.consumeIf(TokenType.String)) {
       text = dequote(token.text)
-    } else if (token = this.consumeIf(TokenType.QuotedValue)) {
-      text = dequote(token.text)
     } else {
       throw this.createParseError()
     }
@@ -1461,4 +1673,42 @@ function toSemverString(version: string) {
   const minor = Math.trunc(value / 100 % 100)
   const patch = Math.trunc(value % 100)
   return `${major}.${minor}.${patch}`
+}
+
+const ReplaceReMap: {[key: string]: RegExp} = {
+  '"': /""|\\(.)/g,
+  "'": /''|\\(.)/g,
+  "`": /``/g,
+}
+
+function dequote(text: string) {
+  if (text.length >= 2) {
+    const sc = text.charAt(0)
+    const ec = text.charAt(text.length-1)
+    if (sc === "[" && ec === "]" || sc === ec) {
+      const re = ReplaceReMap[sc]
+      let value = text.substring(1, text.length - 1)
+      if (re != null) {
+        value = value.replace(re, (m, g1) => {
+          switch (m) {
+            case '""': return '"'
+            case "''": return "'"
+            case '``': return "`"
+            case '\\"': return '"'
+            case "\\'": return "'"
+            case "\\0": return "\0"
+            case "\\b": return "\b"
+            case "\\n": return "\n"
+            case "\\r": return "\r"
+            case "\\t": return "\t"
+            case "\\Z": return "\x1A"
+            case "\\\\": return "\\"
+            default: return g1
+          }
+        })
+      }
+      return value
+    }
+  }
+  return text
 }

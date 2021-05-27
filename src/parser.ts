@@ -149,11 +149,11 @@ export abstract class Lexer {
     return tokens
   }
 
-  filter(input: string) {
+  protected filter(input: string) {
     return input
   }
 
-  process(token: Token) {
+  protected process(token: Token) {
     return token
   }
 }
@@ -164,13 +164,13 @@ export abstract class Parser {
 
   constructor(
     protected input: string,
-    lexer: Lexer,
+    protected lexer: Lexer,
     protected options: { [key: string]: any} = {},
   ) {
     this.tokens = lexer.lex(input)
   }
 
-  abstract root(): Statement[]
+  abstract root(): Promise<Statement[]>
 
   peek(pos: number = 0) {
     return this.tokens[this.pos + pos]

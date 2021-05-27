@@ -7,7 +7,6 @@ import {
   ParseError,
   AggregateParseError,
 } from "../parser"
-import { dequote } from "../util/functions"
 import {
   AlterTableAction,
   AlterTableStatement,
@@ -56,6 +55,7 @@ import {
   TransactionBehavior,
   CommitTransactionStatement,
   RollbackTransactionStatement,
+  IndexType,
 } from "./sqlite3_models"
 
 const KeywordMap = new Map<string, Keyword>()
@@ -270,7 +270,7 @@ export class Sqlite3Lexer extends Lexer {
     }
   }
 
-  process(token: Token) {
+  protected process(token: Token) {
     if (
       token.type === TokenType.Identifier ||
       token.type === TokenType.Operator
@@ -296,7 +296,7 @@ export class Sqlite3Parser extends Parser {
     super(input, new Sqlite3Lexer(options), options)
   }
 
-  root() {
+  async root() {
     const root = []
     const errors = []
     for (let i = 0;
@@ -407,7 +407,7 @@ export class Sqlite3Parser extends Parser {
       } else if (this.consumeIf(Keyword.UNIQUE)) {
         this.consume(Keyword.INDEX)
         stmt = new CreateIndexStatement()
-        stmt.unique = true
+        stmt.type = IndexType.UNIQUE
       } else {
         throw this.createParseError()
       }
@@ -516,7 +516,7 @@ export class Sqlite3Parser extends Parser {
         stmt.tableName = this.identifier()
         this.consume(TokenType.LeftParen)
         for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-          stmt.columns.push(this.indexedColumn(stmt.unique))
+          stmt.columns.push(this.indexedColumn(stmt.type === IndexType.UNIQUE))
         }
         this.consume(TokenType.RightParen)
         if (this.consumeIf(Keyword.WHERE)) {
@@ -1006,7 +1006,7 @@ export class Sqlite3Parser extends Parser {
     return tokens.map(token => token.text).join();
   }
 
-  indexedColumn(unique: boolean) {
+  indexedColumn(unique = false) {
     const column = new IndexedColumn()
     if (unique) {
       column.name = this.identifier()
@@ -1092,4 +1092,26 @@ export class Sqlite3Parser extends Parser {
     }
     return this.tokens.slice(start, this.pos)
   }
+}
+
+const ReplaceReMap: {[key: string]: RegExp} = {
+  '"': /""/g,
+  "'": /''/g,
+  "`": /``/g,
+}
+
+function dequote(text: string) {
+  if (text.length >= 2) {
+    const sc = text.charAt(0)
+    const ec = text.charAt(text.length-1)
+    if (sc === "[" && ec === "]" || sc === ec) {
+      const re = ReplaceReMap[sc]
+      let value = text.substring(1, text.length - 1)
+      if (re != null) {
+        value = value.replace(re, sc)
+      }
+      return value
+    }
+  }
+  return text
 }

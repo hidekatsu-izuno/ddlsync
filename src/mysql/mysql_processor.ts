@@ -22,16 +22,23 @@ export default class MysqlProcessor extends DdlSyncProcessor {
 
   protected async init() {
     const options = {} as any
-    const result = await this.con.promise().query("SELECT version() AS version") as [any[], any[]]
-    if (result[0].length) {
-      options.version = result[0][0].version
+
+    const versions = await this.con.promise().query("SELECT version() AS version") as [any[], any[]]
+    if (versions[0].length) {
+      options.version = versions[0][0].version
     }
+
+    const sqlModes = await this.con.promise().query("SELECT @@sql_mode AS sql_mode") as [any[], any[]]
+    if (sqlModes[0].length) {
+      options.sqlModes = (sqlModes[0][0].sql_mode || "").split(/,/g)
+    }
+
     return options
   }
 
   protected async parse(input: string, options: { [key: string]: any }) {
     const parser = new MySqlParser(input)
-    return parser.root()
+    return await parser.root()
   }
 
   protected async run(stmts: Statement[], options: { [key: string]: any }) {
@@ -40,4 +47,12 @@ export default class MysqlProcessor extends DdlSyncProcessor {
   async destroy() {
     this.con.destroy()
   }
+}
+
+function dquote(text: string) {
+  return '"' + text.replace(/"/g, '""') + '"'
+}
+
+function bquote(text: string) {
+  return "`" + text.replace(/`/g, "``") + "`"
 }

@@ -1,6 +1,10 @@
 import { Statement } from "../models"
 import { Token } from "../parser"
 
+export enum IndexType {
+  UNIQUE = "UNIQUE"
+}
+
 export abstract class TableConstraint {
   name?: string
 }
@@ -120,7 +124,7 @@ export class CreateIndexStatement extends Statement {
   schemaName?: string
   name = ""
   tableName = ""
-  unique = false
+  type?: IndexType
   ifNotExists = false
   columns = new Array<IndexedColumn>()
 }
