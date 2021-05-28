@@ -412,35 +412,38 @@ export class Sqlite3Parser extends Parser {
 
     let stmt
     if (this.consumeIf(Keyword.CREATE)) {
-      if (this.consumeIf(Keyword.TEMP) || this.consumeIf(Keyword.TEMPORARY)) {
-        if (this.consumeIf(Keyword.TABLE)) {
-          stmt = new CreateTableStatement()
-          stmt.temporary = true
-        } else if (this.consumeIf(Keyword.VIEW)) {
-          stmt = new CreateViewStatement()
-          stmt.temporary = true
-        } else if (this.consumeIf(Keyword.TRIGGER)) {
-          stmt = new CreateTriggerStatement()
-          stmt.temporary = true
-        } else {
-          throw this.createParseError()
-        }
-      } else if (this.consumeIf(Keyword.VIRTUAL)) {
-        this.consume(Keyword.TABLE)
+      if (
+        this.consumeIf(Keyword.TEMPORARY, Keyword.TABLE) ||
+        this.consumeIf(Keyword.TEMP, Keyword.TABLE)
+      ) {
+        stmt = new CreateTableStatement()
+        stmt.temporary = true
+      } else if (this.consumeIf(Keyword.VIRTUAL, Keyword.TABLE)) {
         stmt = new CreateTableStatement()
         stmt.virtual = true
       } else if (this.consumeIf(Keyword.TABLE)) {
         stmt = new CreateTableStatement()
+      } else if (
+        this.consumeIf(Keyword.TEMPORARY, Keyword.VIEW) ||
+        this.consumeIf(Keyword.TEMP, Keyword.VIEW)
+      ) {
+        stmt = new CreateViewStatement()
+        stmt.temporary = true
       } else if (this.consumeIf(Keyword.VIEW)) {
         stmt = new CreateViewStatement()
+      } else if (
+        this.consumeIf(Keyword.TEMPORARY, Keyword.TRIGGER) ||
+        this.consumeIf(Keyword.TEMP, Keyword.TRIGGER)
+      ) {
+        stmt = new CreateTriggerStatement()
+        stmt.temporary = true
       } else if (this.consumeIf(Keyword.TRIGGER)) {
         stmt = new CreateTriggerStatement()
-      } else if (this.consumeIf(Keyword.INDEX)) {
-        stmt = new CreateIndexStatement()
-      } else if (this.consumeIf(Keyword.UNIQUE)) {
-        this.consume(Keyword.INDEX)
+      } else if (this.consumeIf(Keyword.UNIQUE, Keyword.INDEX)) {
         stmt = new CreateIndexStatement()
         stmt.type = IndexType.UNIQUE
+      } else if (this.consumeIf(Keyword.INDEX)) {
+        stmt = new CreateIndexStatement()
       } else {
         throw this.createParseError()
       }
