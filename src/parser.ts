@@ -1,50 +1,17 @@
+import { options } from "colorette"
 import { Statement } from "./models"
 
-export class TokenType {
-  static Delimiter = new TokenType("Delimiter")
-  static Command = new TokenType("Command")
-  static WhiteSpace = new TokenType("WhiteSpace", { skip: true })
-  static LineBreak = new TokenType("LineBreak", { skip: true })
-  static HintComment = new TokenType("HintComment", { skip: true })
-  static BlockComment = new TokenType("BlockComment", { skip: true })
-  static LineComment = new TokenType("LineComment", { skip: true })
-  static SemiColon = new TokenType("SemiColon")
-  static LeftParen = new TokenType("LeftParen")
-  static RightParen = new TokenType("RightParen")
-  static LeftBracket = new TokenType("LeftBracket")
-  static RightBracket = new TokenType("RightBracket")
-  static Comma = new TokenType("Comma")
-  static Dot = new TokenType("Dot")
-  static At = new TokenType("At")
-  static Operator = new TokenType("Operator", { operator: true })
-  static Number = new TokenType("Number")
-  static Size = new TokenType("Size")
-  static String = new TokenType("String")
-  static BindVariable = new TokenType("BindVariable")
-  static SessionVariable = new TokenType("SessionVariable")
-  static UserDefinedVariable = new TokenType("UserVariable")
-  static QuotedValue = new TokenType("QuotedValue")
-  static QuotedIdentifier = new TokenType("QuotedIdentifier")
-  static Identifier = new TokenType("Identifier")
-  static Error = new TokenType("Error")
-
-  constructor(
-    public name: string,
-    public options: { [key: string]: any } = {}
-  ) {}
-
-  toString() {
-    return this.name
-  }
+export interface ITokenType {
+  options: { [key: string]: any }
 }
 
 export class Token {
-  public subtype?: TokenType
+  public subtype?: ITokenType
   public before: Token[] = []
   public after: Token[] = []
 
   constructor(
-    public type: TokenType,
+    public type: ITokenType,
     public text: string,
     public start: number = -1,
     public end: number = -1,
@@ -90,7 +57,7 @@ export class Token {
 export abstract class Lexer {
   constructor(
     private type: string,
-    private patterns: {type: TokenType, re: RegExp | (() => RegExp) }[]
+    private patterns: {type: ITokenType, re: RegExp | (() => RegExp) }[]
   ) {
   }
 
@@ -179,7 +146,7 @@ export abstract class Parser {
     return this.tokens[this.pos + pos]
   }
 
-  peekIf(type?: TokenType) {
+  peekIf(type?: ITokenType) {
     const token = this.peek()
     if (!token) {
       return null
@@ -192,7 +159,7 @@ export abstract class Parser {
     return token
   }
 
-  consumeIf(type?: TokenType) {
+  consumeIf(type?: ITokenType) {
     const token = this.peekIf(type)
     if (token) {
       this.pos++
@@ -200,7 +167,7 @@ export abstract class Parser {
     return token
   }
 
-  consume(type?: TokenType) {
+  consume(type?: ITokenType) {
     const token = this.consumeIf(type)
     if (token == null) {
       throw this.createParseError()

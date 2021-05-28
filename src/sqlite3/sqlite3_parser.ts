@@ -1,6 +1,6 @@
 import Decimal from "decimal.js"
 import {
-  TokenType,
+  ITokenType,
   Token,
   Lexer,
   Parser,
@@ -58,8 +58,38 @@ import {
   IndexType,
 } from "./sqlite3_models"
 
+export class TokenType implements ITokenType {
+  static Command = new TokenType("Command")
+  static WhiteSpace = new TokenType("WhiteSpace", { skip: true })
+  static LineBreak = new TokenType("LineBreak", { skip: true })
+  static BlockComment = new TokenType("BlockComment", { skip: true })
+  static LineComment = new TokenType("LineComment", { skip: true })
+  static SemiColon = new TokenType("SemiColon")
+  static LeftParen = new TokenType("LeftParen")
+  static RightParen = new TokenType("RightParen")
+  static Comma = new TokenType("Comma")
+  static Dot = new TokenType("Dot")
+  static Operator = new TokenType("Operator")
+  static Number = new TokenType("Number")
+  static String = new TokenType("String")
+  static BindVariable = new TokenType("BindVariable")
+  static QuotedValue = new TokenType("QuotedValue")
+  static QuotedIdentifier = new TokenType("QuotedIdentifier")
+  static Identifier = new TokenType("Identifier")
+  static Error = new TokenType("Error")
+
+  constructor(
+    public name: string,
+    public options: { [key: string]: any } = {}
+  ) {}
+
+  toString() {
+    return this.name
+  }
+}
+
 const KeywordMap = new Map<string, Keyword>()
-export class Keyword extends TokenType {
+export class Keyword implements ITokenType {
   static ABORT = new Keyword("ABORT")
   static ADD = new Keyword("ADD", { reserved: true })
   static ALL = new Keyword("ALL", { reserved: true })
@@ -223,11 +253,14 @@ export class Keyword extends TokenType {
   static OPE_MINUS = new Keyword("-")
 
   constructor(
-    name: string,
-    options: { [key: string]: any } = {}
+    public name: string,
+    public options: { [key: string]: any } = {}
   ) {
-    super(name, options)
     KeywordMap.set(name, this)
+  }
+
+  toString() {
+    return this.name
   }
 }
 

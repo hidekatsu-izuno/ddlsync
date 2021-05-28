@@ -1,7 +1,7 @@
 import Decimal from "decimal.js"
 import semver from "semver"
 import {
-  TokenType,
+  ITokenType,
   Token,
   Lexer,
   Parser,
@@ -134,9 +134,44 @@ import {
   StorageType,
 } from "./mysql_models"
 
+export class TokenType implements ITokenType {
+  static Delimiter = new TokenType("Delimiter")
+  static Command = new TokenType("Command")
+  static WhiteSpace = new TokenType("WhiteSpace", { skip: true })
+  static LineBreak = new TokenType("LineBreak", { skip: true })
+  static HintComment = new TokenType("HintComment", { skip: true })
+  static BlockComment = new TokenType("BlockComment", { skip: true })
+  static LineComment = new TokenType("LineComment", { skip: true })
+  static SemiColon = new TokenType("SemiColon")
+  static LeftParen = new TokenType("LeftParen")
+  static RightParen = new TokenType("RightParen")
+  static Comma = new TokenType("Comma")
+  static Dot = new TokenType("Dot")
+  static At = new TokenType("At")
+  static Operator = new TokenType("Operator")
+  static Number = new TokenType("Number")
+  static Size = new TokenType("Size")
+  static String = new TokenType("String")
+  static BindVariable = new TokenType("BindVariable")
+  static SessionVariable = new TokenType("SessionVariable")
+  static UserDefinedVariable = new TokenType("UserVariable")
+  static QuotedValue = new TokenType("QuotedValue")
+  static QuotedIdentifier = new TokenType("QuotedIdentifier")
+  static Identifier = new TokenType("Identifier")
+  static Error = new TokenType("Error")
+
+  constructor(
+    public name: string,
+    public options: { [key: string]: any } = {}
+  ) {}
+
+  toString() {
+    return this.name
+  }
+}
 
 const KeywordMap = new Map<string, Keyword>()
-export class Keyword extends TokenType {
+export class Keyword implements ITokenType {
   static ACCESSIBLE = new Keyword("ACCESSIBLE", { reserved: true })
   static ADD = new Keyword("ADD", { reserved: true })
   static AGGREGATE = new Keyword("AGGREGATE")
@@ -600,11 +635,14 @@ export class Keyword extends TokenType {
   static VAR_LOCAL = new Keyword("@@LOCAL")
 
   constructor(
-    name: string,
-    options: { [key: string]: any } = {}
+    public name: string,
+    public options: { [key: string]: any } = {}
   ) {
-    super(name, options)
     KeywordMap.set(name, this)
+  }
+
+  toString() {
+    return this.name
   }
 }
 
@@ -1314,7 +1352,7 @@ export class MySqlParser extends Parser {
         }
 
         if (!stmt.likeName) {
-          for (let i = 0; i === 0 || this.consumeIf(Keyword.Comma); i++) {
+          for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
             if (this.consumeIf(Keyword.AUTOEXTEND_SIZE)) {
               this.consumeIf(Keyword.OPE_EQ)
               stmt.autoextendSize = this.sizeValue()
@@ -1449,7 +1487,7 @@ export class MySqlParser extends Parser {
               this.consumeIf(Keyword.OPE_EQ)
               this.consume(TokenType.LeftParen)
               stmt.union = []
-              for (let j = 0; j === 0 || this.consumeIf(Keyword.Comma); j++) {
+              for (let j = 0; j === 0 || this.consumeIf(TokenType.Comma); j++) {
                 stmt.union.push(this.identifier())
               }
               this.consume(TokenType.RightParen)
@@ -1485,7 +1523,7 @@ export class MySqlParser extends Parser {
                 }
                 this.consume(TokenType.LeftParen)
                 stmt.linearTokens = []
-                for (let i = 0; i === 0 || this.consumeIf(Keyword.Comma); i++) {
+                for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
                   stmt.linearTokens.push(this.identifier())
                 }
                 this.consume(TokenType.RightParen)
@@ -1983,13 +2021,13 @@ export class MySqlParser extends Parser {
           stmt = new SetStatement()
           const va = new VariableAssignment()
           va.type = VariableType.GLOBAL
-          this.consume(Keyword.Dot)
+          this.consume(TokenType.Dot)
           va.name = this.identifier()
         } else if (this.consumeIf(Keyword.VAR_SESSION) || this.consumeIf(Keyword.VAR_LOCAL)) {
           stmt = new SetStatement()
           const va = new VariableAssignment()
           va.type = VariableType.SESSION
-          this.consume(Keyword.Dot)
+          this.consume(TokenType.Dot)
           va.name = this.identifier()
         } else if (this.peekIf(TokenType.SessionVariable)) {
           stmt = new SetStatement()
@@ -2050,11 +2088,11 @@ export class MySqlParser extends Parser {
               va.name = this.identifier()
             } else if (this.consumeIf(Keyword.VAR_GLOBAL)) {
               va.type = VariableType.GLOBAL
-              this.consume(Keyword.Dot)
+              this.consume(TokenType.Dot)
               va.name = this.identifier()
             } else if (this.consumeIf(Keyword.VAR_SESSION) || this.consumeIf(Keyword.VAR_LOCAL)) {
               va.type = VariableType.SESSION
-              this.consume(Keyword.Dot)
+              this.consume(TokenType.Dot)
               va.name = this.identifier()
             } else if (this.peekIf(TokenType.SessionVariable)) {
               const name = this.consume().text
@@ -2208,11 +2246,11 @@ export class MySqlParser extends Parser {
     if (token = this.consumeIf(TokenType.String)) {
       text = unescape(dequote(token.text))
     } else if (token = this.consumeIf(Keyword.VAR_GLOBAL)) {
-      this.consume(Keyword.Dot)
+      this.consume(TokenType.Dot)
       text = "@@GLOBAL." + lcase(this.consume(TokenType.Identifier).text)
     } else if (this.peekIf(Keyword.VAR_LOCAL) || this.peekIf(Keyword.VAR_SESSION)) {
       this.consume()
-      this.consume(Keyword.Dot)
+      this.consume(TokenType.Dot)
       text = "@@SESSION." + lcase(this.consume(TokenType.Identifier).text)
     } else if (token = this.consumeIf(TokenType.SessionVariable)) {
       text = lcase(token.text)
