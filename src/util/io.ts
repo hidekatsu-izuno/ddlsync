@@ -1,8 +1,7 @@
-import fs from 'fs'
+import fs from "fs"
 import zlib from "zlib"
-import { dirname, resolve } from 'path'
-import { Readable, Transform } from 'stream'
-import { dquote } from './functions'
+import { dirname, resolve } from "path"
+import { Readable, Transform } from "stream"
 
 export async function exists(path: string) {
   try {
@@ -62,7 +61,7 @@ export async function writeGzippedCsv(filename: string, source: AsyncIterable<an
             if (chunk[i] == null) {
               this.push("\\N")
             } else if (/[\r\n,"\\]/.test(chunk[i])) {
-              this.push(dquote(chunk[i]))
+              this.push('"' + chunk[i].replace(/"/g, '""') + '"')
             } else {
               this.push(chunk[i])
             }

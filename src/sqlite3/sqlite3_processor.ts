@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from "path"
 import sqlite3 from "better-sqlite3"
 import { Statement } from "../models"
-import { Token, TokenType } from "../parser"
+import { Token } from "../parser"
 import { DdlSyncProcessor } from "../processor"
 import {
   CommandStatement,
@@ -35,7 +35,7 @@ import {
   VacuumStatement,
   ReindexStatement
 } from "./sqlite3_models";
-import { Sqlite3Parser } from "./sqlite3_parser"
+import { Sqlite3Parser, TokenType } from "./sqlite3_parser"
 import { lcase, ucase } from "../util/functions"
 import { writeGzippedCsv } from "../util/io"
 

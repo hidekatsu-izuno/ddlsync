@@ -1,4 +1,5 @@
 import { options } from "colorette"
+import { types } from "util"
 import { Statement } from "./models"
 
 export interface ITokenType {
@@ -146,31 +147,41 @@ export abstract class Parser {
     return this.tokens[this.pos + pos]
   }
 
-  peekIf(type?: ITokenType) {
-    const token = this.peek()
-    if (!token) {
-      return null
+  peekIf(...types: ITokenType[]) {
+    let token
+    for (let i = 0; i < types.length; i++) {
+      token = this.peek(i)
+      if (!token) {
+        return null
+      }
+      if (types[i] && !(types[i] === token.type || types[i] === token.subtype)) {
+        return null
+      }
     }
-
-    if (type && !(type === token.type || type === token.subtype)) {
-      return null
-    }
-
     return token
   }
 
-  consumeIf(type?: ITokenType) {
-    const token = this.peekIf(type)
+  consumeIf(...types: ITokenType[]) {
+    const token = this.peekIf(...types)
     if (token) {
-      this.pos++
+      this.pos += types.length
     }
     return token
   }
 
   consume(type?: ITokenType) {
-    const token = this.consumeIf(type)
-    if (token == null) {
-      throw this.createParseError()
+    let token
+    if (type) {
+      token = this.consumeIf(type)
+      if (token == null) {
+        throw this.createParseError()
+      }
+    } else {
+      token = this.peek()
+      if (token == null) {
+        throw this.createParseError()
+      }
+      this.pos++
     }
     return token
   }
