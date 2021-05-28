@@ -1,39 +1,6 @@
+import Decimal from "decimal.js"
 import { Statement } from "../models"
 import { Token } from "../parser"
-
-export enum Algortihm {
-  UNDEFINED = "UNDEFINED",
-  MERGE = "MERGE",
-  TEMPTABLE = "TEMPTABLE",
-}
-
-export enum TransactionCharacteristic {
-  ISOLATION_LEVEL_REPEATABLE_READ = "ISOLATION_LEVEL_REPEATABLE_READ",
-  ISOLATION_LEVEL_READ_COMMITTED = "ISOLATION_LEVEL_READ_COMMITTED",
-  ISOLATION_LEVEL_READ_UNCOMMITTED = "ISOLATION_LEVEL_READ_UNCOMMITTED",
-  ISOLATION_LEVEL_SERIALIZABLE = "ISOLATION_LEVEL_SERIALIZABLE",
-  READ_WRITE = "READ_WRITE",
-  READ_ONLY = "READ_ONLY",
-}
-
-export enum VariableType {
-  GLOBAL = "GLOBAL",
-  SESSION = "SESSION",
-  USER_DEFINED = "USER_DEFINED"
-}
-
-export enum Concurrency {
-  LOW_PRIORITY = "LOW_PRIORITY",
-  DELAYED = "DELAYED",
-  HIGH_PRIORITY = "HIGH_PRIORITY",
-  CONCURRENT = "CONCURRENT",
-}
-
-export enum IndexType {
-  UNIQUE = "UNIQUE",
-  FULLTEXT = "FULLTEXT",
-  SPATIAL = "SPATIAL",
-}
 
 export class CommandStatement extends Statement {
   name = ""
@@ -45,7 +12,7 @@ export class CreateDatabaseStatement extends Statement {
   ifNotExists = false
   characterSet?: string
   collate?: string
-  encryption?: boolean
+  encryption?: string
 }
 
 export class AlterDatabaseStatement extends Statement {
@@ -86,6 +53,10 @@ export class DropServerStatement extends Statement {
 
 export class CreateResourceGroupStatement extends Statement {
   name = ""
+  type: ResourceGroupType = ResourceGroupType.SYSTEM
+  vcpu = new Array<{ min: string, max: string}>()
+  threadPriority = "0"
+  disable = false
 }
 
 export class AlterResourceGroupStatement extends Statement {
@@ -101,6 +72,14 @@ export class DropResourceGroupStatement extends Statement {
 
 export class CreateLogfileGroupStatement extends Statement {
   name = ""
+  undofile = ""
+  initialSize?: string
+  undoBufferSize?: string
+  redoBufferSize?: string
+  nodeGroup?: string
+  wait = false
+  comment?: string
+  engine?: string
 }
 
 export class AlterLogfileGroupStatement extends Statement {
@@ -114,6 +93,19 @@ export class DropLogfileGroupStatement extends Statement {
 export class CreateTablespaceStatement extends Statement {
   name = ""
   undo = false
+  addDataFile?: string
+  autoextendSize?: string
+  fileBlockSize?: string
+  encryption?: string
+  useLogfileGroup?: string
+  extentSize?: string
+  initialSize?: string
+  maxSize?: string
+  nodeGroup?: string
+  wait = false
+  comment?: string
+  engine?: string
+  engineAttribute?: string
 }
 
 export class AlterTablespaceStatement extends Statement {
@@ -130,6 +122,12 @@ export class CreateSpatialReferenceSystemStatement extends Statement {
   srid = ""
   orReplace = false
   ifNotExists = false
+
+  validate() {
+    if (this.srid.includes(".")) {
+      throw new Error(`Only integers allowed as number here near '${this.srid}'`)
+    }
+  }
 }
 
 export class DropSpatialReferenceSystemStatement extends Statement {
@@ -137,8 +135,13 @@ export class DropSpatialReferenceSystemStatement extends Statement {
   ifExists = false
 }
 
-export class CreateRoleStatement extends Statement {
+export class RoleDef {
   name = ""
+  host?: string
+}
+
+export class CreateRoleStatement extends Statement {
+  roles = new Array<RoleDef>()
   ifNotExists = false
 }
 
@@ -153,8 +156,27 @@ export class DropRoleStatement extends Statement {
   ifExists = false
 }
 
-export class CreateUserStatement extends Statement {
+export class UserDef {
   name = ""
+  host?: string
+  authPlugin?: string
+  randowmPassword = false
+  asPassword = false
+  password?: string
+}
+
+export class TlsOption {
+  ssl = false
+  x509 = false
+  issuer?: string
+  subject?: string
+  chiper?: string
+}
+
+export class CreateUserStatement extends Statement {
+  users = new Array<UserDef>()
+  defaultRoles = new Array<string>()
+  tlsOptions = new Array<TlsOption>()
   ifNotExists = false
 }
 
@@ -181,6 +203,45 @@ export class CreateTableStatement extends Statement {
   temporary = false
   ifNotExists = false
   asSelect = false
+  like = false
+  likeSchemaName?: string
+  likeName?: string
+
+  autoextendSize?: string
+  autoIncrement?: string
+  avgRowLength?: string
+  characterSet?: string
+  checksum?: string
+  collate?: string
+  comment?: string
+  compression?: string
+  connection?: string
+  dataDictionary?: string
+  indexDictionary?: string
+  delayKeyWrite?: string
+  encryption?: string
+  engine?: string
+  engineAttribute?: string
+  insetMethod?: InsertMethod
+  keyBlockSize?: string
+  maxRows?: string
+  minRows?: string
+  packKeys?: string
+  password?: string
+  rowFormat?: RowFormat
+  secondaryEngineAttribute?: string
+  statsAutoRecalc?: string
+  statsPersistent?: string
+  statSamplePages?: string
+  tablespace?: string
+  storageType?: StorageType
+  union?: string[]
+  partitions?: string
+  conflictAction?: ConflictAction
+
+  linearHashExpression?: Token[]
+  linearKeyAlgorithm?: string
+  linearTokens?: string[]
 }
 
 export class AlterTableStatement extends Statement {
@@ -428,21 +489,21 @@ export class InsertStatement extends Statement {
   schemaName?: string
   name = ""
   concurrency?: Concurrency
-  ignore = false
+  conflictAction?: ConflictAction
 }
 
 export class UpdateStatement extends Statement {
   schemaName?: string
   name = ""
   concurrency?: Concurrency
-  ignore = false
+  conflictAction?: ConflictAction
 }
 
 export class ReplaceStatement extends Statement {
   schemaName?: string
   name = ""
   concurrency?: Concurrency
-  ignore = false
+  conflictAction?: ConflictAction
 }
 
 export class DeleteStatement extends Statement {
@@ -450,7 +511,7 @@ export class DeleteStatement extends Statement {
   name = ""
   concurrency?: Concurrency
   quick = false
-  ignore = false
+  conflictAction?: ConflictAction
 }
 
 export class LoadDataInfileStatement extends Statement {
@@ -516,4 +577,68 @@ export class ResetStatement extends Statement {
 }
 
 export class OtherStatement extends Statement {
+}
+
+export enum Algortihm {
+  UNDEFINED = "UNDEFINED",
+  MERGE = "MERGE",
+  TEMPTABLE = "TEMPTABLE",
+}
+
+export enum TransactionCharacteristic {
+  ISOLATION_LEVEL_REPEATABLE_READ = "ISOLATION_LEVEL_REPEATABLE_READ",
+  ISOLATION_LEVEL_READ_COMMITTED = "ISOLATION_LEVEL_READ_COMMITTED",
+  ISOLATION_LEVEL_READ_UNCOMMITTED = "ISOLATION_LEVEL_READ_UNCOMMITTED",
+  ISOLATION_LEVEL_SERIALIZABLE = "ISOLATION_LEVEL_SERIALIZABLE",
+  READ_WRITE = "READ_WRITE",
+  READ_ONLY = "READ_ONLY",
+}
+
+export enum VariableType {
+  GLOBAL = "GLOBAL",
+  SESSION = "SESSION",
+  USER_DEFINED = "USER_DEFINED"
+}
+
+export enum Concurrency {
+  LOW_PRIORITY = "LOW_PRIORITY",
+  DELAYED = "DELAYED",
+  HIGH_PRIORITY = "HIGH_PRIORITY",
+  CONCURRENT = "CONCURRENT",
+}
+
+export enum IndexType {
+  UNIQUE = "UNIQUE",
+  FULLTEXT = "FULLTEXT",
+  SPATIAL = "SPATIAL",
+}
+
+export enum ResourceGroupType {
+  SYSTEM = "SYSTEM",
+  USER = "USER",
+}
+
+export enum ConflictAction {
+  IGNORE = "IGNORE",
+  REPLACE = "REPLACE",
+}
+
+export enum InsertMethod {
+  NO = "NO",
+  FIRST = "FIRST",
+  LAST = "LAST",
+}
+
+export enum RowFormat {
+  DEFAULT = "DEFAULT",
+  DYNAMIC = "DYNAMIC",
+  FIXED = "FIXED",
+  COMPRESSED = "COMPRESSED",
+  REDUNDANT = "REDUNDANT",
+  COMPACT = "COMPACT",
+}
+
+export enum StorageType {
+  DISK = "DISK",
+  MEMORY = "MEMORY",
 }

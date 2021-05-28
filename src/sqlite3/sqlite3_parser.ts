@@ -440,54 +440,52 @@ export class Sqlite3Parser extends Parser {
             }
             this.consume(TokenType.RightParen)
           }
-        } else {
-          if (this.consumeIf(TokenType.LeftParen)) {
-            stmt.columns = []
-            stmt.constraints = []
+        } else if (this.consumeIf(TokenType.LeftParen)) {
+          stmt.columns = []
+          stmt.constraints = []
 
-            stmt.columns.push(this.columnDef())
-            while (this.consumeIf(TokenType.Comma)) {
-              if (
-                !this.peekIf(Keyword.CONSTRAINT) &&
-                !this.peekIf(Keyword.PRIMARY) &&
-                !this.peekIf(Keyword.NOT) &&
-                !this.peekIf(Keyword.NULL) &&
-                !this.peekIf(Keyword.UNIQUE) &&
-                !this.peekIf(Keyword.CHECK) &&
-                !this.peekIf(Keyword.DEFAULT) &&
-                !this.peekIf(Keyword.COLLATE) &&
-                !this.peekIf(Keyword.REFERENCES) &&
-                !this.peekIf(Keyword.GENERATED) &&
-                !this.peekIf(Keyword.AS)
-              ) {
-                stmt.columns.push(this.columnDef())
-              } else {
+          stmt.columns.push(this.columnDef())
+          while (this.consumeIf(TokenType.Comma)) {
+            if (
+              !this.peekIf(Keyword.CONSTRAINT) &&
+              !this.peekIf(Keyword.PRIMARY) &&
+              !this.peekIf(Keyword.NOT) &&
+              !this.peekIf(Keyword.NULL) &&
+              !this.peekIf(Keyword.UNIQUE) &&
+              !this.peekIf(Keyword.CHECK) &&
+              !this.peekIf(Keyword.DEFAULT) &&
+              !this.peekIf(Keyword.COLLATE) &&
+              !this.peekIf(Keyword.REFERENCES) &&
+              !this.peekIf(Keyword.GENERATED) &&
+              !this.peekIf(Keyword.AS)
+            ) {
+              stmt.columns.push(this.columnDef())
+            } else {
+              stmt.constraints.push(this.tableConstraint())
+              while (this.consumeIf(TokenType.Comma)) {
                 stmt.constraints.push(this.tableConstraint())
-                while (this.consumeIf(TokenType.Comma)) {
-                  stmt.constraints.push(this.tableConstraint())
-                }
-                break
               }
+              break
             }
-
-            this.consume(TokenType.RightParen)
-            while (this.peek() && !this.peekIf(TokenType.SemiColon)) {
-              if (this.consumeIf(Keyword.WITHOUT)) {
-                if (this.consume(Keyword.ROWID)) {
-                  stmt.withoutRowid = true
-                }
-              } else {
-                this.consume()
-              }
-            }
-          } else if (this.consumeIf(Keyword.AS)) {
-            stmt.asSelect = true
-            stmt.markers.set("selectStart", this.pos - start)
-            this.selectClause()
-            stmt.markers.set("selectEnd", this.pos - start)
-          } else {
-            throw this.createParseError()
           }
+
+          this.consume(TokenType.RightParen)
+          while (this.peek() && !this.peekIf(TokenType.SemiColon)) {
+            if (this.consumeIf(Keyword.WITHOUT)) {
+              if (this.consume(Keyword.ROWID)) {
+                stmt.withoutRowid = true
+              }
+            } else {
+              this.consume()
+            }
+          }
+        } else if (this.consumeIf(Keyword.AS)) {
+          stmt.asSelect = true
+          stmt.markers.set("selectStart", this.pos - start)
+          this.selectClause()
+          stmt.markers.set("selectEnd", this.pos - start)
+        } else {
+          throw this.createParseError()
         }
       } else if (stmt instanceof CreateViewStatement) {
         this.consume(Keyword.AS)
@@ -716,25 +714,6 @@ export class Sqlite3Parser extends Parser {
     return stmt
   }
 
-  withClause() {
-    const start = this.pos
-    this.consume(Keyword.WITH)
-    this.consumeIf(Keyword.RECURSIVE)
-    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-      this.identifier()
-      this.consume(Keyword.AS)
-      if (this.consumeIf(Keyword.NOT)) {
-        this.consume(Keyword.MATERIALIZED)
-      } else {
-        this.consumeIf(Keyword.MATERIALIZED)
-      }
-      this.consume(TokenType.LeftParen)
-      this.selectClause()
-      this.consume(TokenType.RightParen)
-    }
-    return this.tokens.slice(start, this.pos)
-  }
-
   selectClause() {
     if (this.peekIf(Keyword.WITH)) {
       this.withClause()
@@ -753,6 +732,25 @@ export class Sqlite3Parser extends Parser {
         this.consume()
       }
     }
+  }
+
+  withClause() {
+    const start = this.pos
+    this.consume(Keyword.WITH)
+    this.consumeIf(Keyword.RECURSIVE)
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      this.identifier()
+      this.consume(Keyword.AS)
+      if (this.consumeIf(Keyword.NOT)) {
+        this.consume(Keyword.MATERIALIZED)
+      } else {
+        this.consumeIf(Keyword.MATERIALIZED)
+      }
+      this.consume(TokenType.LeftParen)
+      this.selectClause()
+      this.consume(TokenType.RightParen)
+    }
+    return this.tokens.slice(start, this.pos)
   }
 
   columnDef() {

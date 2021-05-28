@@ -124,6 +124,14 @@ import {
   TransactionCharacteristic,
   IndexType,
   CommandStatement,
+  ResourceGroupType,
+  RoleDef,
+  UserDef,
+  TlsOption,
+  ConflictAction,
+  InsertMethod,
+  RowFormat,
+  StorageType,
 } from "./mysql_models"
 
 
@@ -143,6 +151,9 @@ export class Keyword extends TokenType {
   static AS = new Keyword("AS", { reserved: true })
   static ASC = new Keyword("ASC", { reserved: true })
   static ASENSITIVE = new Keyword("ASENSITIVE", { reserved: true })
+  static AUTO_INCREMENT = new Keyword("AUTO_INCREMENT")
+  static AUTOEXTEND_SIZE = new Keyword("AUTOEXTEND_SIZE")
+  static AVG_ROW_LENGTH = new Keyword("AVG_ROW_LENGTH")
   static BEFORE = new Keyword("BEFORE", { reserved: true })
   static BEGIN = new Keyword("BEGIN")
   static BETWEEN = new Keyword("BETWEEN", { reserved: true })
@@ -159,14 +170,21 @@ export class Keyword extends TokenType {
   static CHANGE = new Keyword("CHANGE", { reserved: true })
   static CHAR = new Keyword("CHAR", { reserved: true })
   static CHARACTER = new Keyword("CHARACTER", { reserved: true })
+  static CHARSET = new Keyword("CHARSET")
   static CHECK = new Keyword("CHECK", { reserved: true })
   static CHECKSUM = new Keyword("CHECKSUM")
+  static CIPHER = new Keyword("CIPHER")
   static COLLATE = new Keyword("COLLATE", { reserved: true })
   static COLUMN = new Keyword("COLUMN", { reserved: true })
+  static COMMENT = new Keyword("COMMENT")
   static COMMIT = new Keyword("COMMIT")
   static COMMITTED = new Keyword("COMMITTED")
+  static COMPACT = new Keyword("COMPACT")
+  static COMPRESSED = new Keyword("COMPRESSED")
+  static COMPRESSION = new Keyword("COMPRESSION")
   static CONCURRENT = new Keyword("CONCURRENT")
   static CONDITION = new Keyword("CONDITION", { reserved: true })
+  static CONNECTION = new Keyword("CONNECTION")
   static CONSTRAINT = new Keyword("CONSTRAINT", { reserved: true })
   static CONTINUE = new Keyword("CONTINUE", { reserved: true })
   static CONVERT = new Keyword("CONVERT", { reserved: true })
@@ -186,6 +204,7 @@ export class Keyword extends TokenType {
   static DATA = new Keyword("DATA")
   static DATABASE = new Keyword("DATABASE", { reserved: true })
   static DATABASES = new Keyword("DATABASES", { reserved: true })
+  static DATAFILE = new Keyword("DATAFILE")
   static DAY_HOUR = new Keyword("DAY_HOUR", { reserved: true })
   static DAY_MICROSECOND = new Keyword("DAY_MICROSECOND", { reserved: true })
   static DAY_MINUTE = new Keyword("DAY_MINUTE", { reserved: true })
@@ -197,6 +216,7 @@ export class Keyword extends TokenType {
   static DEFAULT = new Keyword("DEFAULT", { reserved: true })
   static DEFINER = new Keyword("DEFINER")
   static DELAYED = new Keyword("DELAYED", { reserved: true })
+  static DELAY_KEY_WRITE = new Keyword("DELAY_KEY_WRITE")
   static DELETE = new Keyword("DELETE", { reserved: true })
   static DENSE_RANK = new Keyword("DENSE_RANK", { reserved: function(options: { [ key:string]:any}) {
     return semver.satisfies(">=8.0.2", options.version || "0")
@@ -207,6 +227,9 @@ export class Keyword extends TokenType {
     return semver.satisfies("<8.0.0", options.version || "0")
   } })
   static DETERMINISTIC = new Keyword("DETERMINISTIC", { reserved: true })
+  static DICTIONARY = new Keyword("DICTIONARY")
+  static DISABLE = new Keyword("DISABLE")
+  static DISK = new Keyword("DISK")
   static DISTINCT = new Keyword("DISTINCT", { reserved: true })
   static DISTINCTROW = new Keyword("DISTINCTROW", { reserved: true })
   static DIV = new Keyword("DIV", { reserved: true })
@@ -214,15 +237,19 @@ export class Keyword extends TokenType {
   static DOUBLE = new Keyword("DOUBLE", { reserved: true })
   static DROP = new Keyword("DROP", { reserved: true })
   static DUAL = new Keyword("DUAL", { reserved: true })
+  static DYNAMIC = new Keyword("DYNAMIC")
   static EACH = new Keyword("EACH", { reserved: true })
   static ELSE = new Keyword("ELSE", { reserved: true })
   static ELSEIF = new Keyword("ELSEIF", { reserved: true })
   static EMPTY = new Keyword("EMPTY", { reserved: function(options: { [ key:string]:any}) {
     return semver.satisfies(">=8.0.4", options.version || "0")
   } })
+  static ENABLE = new Keyword("ENABLE")
   static ENCLOSED = new Keyword("ENCLOSED", { reserved: true })
   static ENCRYPTION = new Keyword("ENCRYPTION")
   static END = new Keyword("END")
+  static ENGINE = new Keyword("ENGINE")
+  static ENGINE_ATTRIBUTE = new Keyword("ENGINE_ATTRIBUTE")
   static ESCAPED = new Keyword("ESCAPED", { reserved: true })
   static EVENT = new Keyword("EVENT")
   static EXCEPT = new Keyword("EXCEPT", { reserved: true })
@@ -230,11 +257,15 @@ export class Keyword extends TokenType {
   static EXISTS = new Keyword("EXISTS", { reserved: true })
   static EXIT = new Keyword("EXIT", { reserved: true })
   static EXPLAIN = new Keyword("EXPLAIN", { reserved: true })
+  static EXTENT_SIZE = new Keyword("EXTENT_SIZE")
   static FALSE = new Keyword("FALSE", { reserved: true })
   static FETCH = new Keyword("FETCH", { reserved: true })
+  static FILE_BLOCK_SIZE = new Keyword("FILE_BLOCK_SIZE")
+  static FIRST = new Keyword("FIRST")
   static FIRST_VALUE = new Keyword("FIRST_VALUE", { reserved: function(options: { [ key:string]:any}) {
     return semver.satisfies(">=8.0.2", options.version || "0")
   } })
+  static FIXED = new Keyword("FIXED")
   static FLOAT = new Keyword("FLOAT", { reserved: true })
   static FLUSH = new Keyword("FLUSH")
   static FOR = new Keyword("FOR", { reserved: true })
@@ -257,6 +288,7 @@ export class Keyword extends TokenType {
     return semver.satisfies(">=8.0.2", options.version || "0")
   } })
   static HANDLER = new Keyword("HANDLER")
+  static HASH = new Keyword("HASH")
   static HAVING = new Keyword("HAVING", { reserved: true })
   static HELP = new Keyword("HELP")
   static HIGH_PRIORITY = new Keyword("HIGH_PRIORITY", { reserved: true })
@@ -264,16 +296,19 @@ export class Keyword extends TokenType {
   static HOUR_MINUTE = new Keyword("HOUR_MINUTE", { reserved: true })
   static HOUR_SECOND = new Keyword("HOUR_SECOND", { reserved: true })
   static HOST = new Keyword("HOST")
+  static IDENTIFIED = new Keyword("IDENTIFIED")
   static IF = new Keyword("IF", { reserved: true })
   static IGNORE = new Keyword("IGNORE", { reserved: true })
   static IMPORT = new Keyword("IMPORT")
   static IN = new Keyword("IN", { reserved: true })
   static INDEX = new Keyword("INDEX", { reserved: true })
   static INFILE = new Keyword("INFILE", { reserved: true })
+  static INITIAL_SIZE = new Keyword("INITIAL_SIZE")
   static INNER = new Keyword("INNER", { reserved: true })
   static INOUT = new Keyword("INOUT", { reserved: true })
   static INSENSITIVE = new Keyword("INSENSITIVE", { reserved: true })
   static INSERT = new Keyword("INSERT", { reserved: true })
+  static INSERT_METHOD = new Keyword("INSERT_METHOD")
   static INSTANCE = new Keyword("INSTANCE")
   static INSTALL = new Keyword("INSTALL")
   static INT = new Keyword("INT", { reserved: true })
@@ -285,17 +320,20 @@ export class Keyword extends TokenType {
   static IO_BEFORE_GTIDS = new Keyword("IO_BEFORE_GTIDS", { reserved: true })
   static IS = new Keyword("IS", { reserved: true })
   static ISOLATION = new Keyword("ISOLATION")
+  static ISSUER = new Keyword("ISSUER")
   static ITERATE = new Keyword("ITERATE", { reserved: true })
   static JOIN = new Keyword("JOIN", { reserved: true })
   static JSON_TABLE = new Keyword("JSON_TABLE", { reserved: function(options: { [ key:string]:any}) {
     return semver.satisfies(">=8.0.4", options.version || "0")
   } })
   static KEY = new Keyword("KEY", { reserved: true })
+  static KEY_BLOCK_SIZE = new Keyword("KEY_BLOCK_SIZE")
   static KEYS = new Keyword("KEYS", { reserved: true })
   static KILL = new Keyword("KILL", { reserved: true })
   static LAG = new Keyword("LAG", { reserved: function(options: { [ key:string]:any}) {
     return semver.satisfies(">=8.0.2", options.version || "0")
   } })
+  static LAST = new Keyword("LAST")
   static LAST_VALUE = new Keyword("LAST_VALUE", { reserved: function(options: { [ key:string]:any}) {
     return semver.satisfies(">=8.0.2", options.version || "0")
   } })
@@ -313,6 +351,7 @@ export class Keyword extends TokenType {
   static LIMIT = new Keyword("LIMIT", { reserved: true })
   static LINEAR = new Keyword("LINEAR", { reserved: true })
   static LINES = new Keyword("LINES", { reserved: true })
+  static LIST = new Keyword("LIST")
   static LOAD = new Keyword("LOAD", { reserved: true })
   static LOCAL = new Keyword("LOCAL")
   static LOCALTIME = new Keyword("LOCALTIME", { reserved: true })
@@ -332,20 +371,27 @@ export class Keyword extends TokenType {
   } })
   static MASTER_SSL_VERIFY_SERVER_CERT = new Keyword("MASTER_SSL_VERIFY_SERVER_CERT", { reserved: true })
   static MATCH = new Keyword("MATCH", { reserved: true })
+  static MAX_ROWS = new Keyword("MAX_ROWS")
+  static MAX_SIZE = new Keyword("MAX_SIZE")
   static MAXVALUE = new Keyword("MAXVALUE", { reserved: true })
   static MEDIUMBLOB = new Keyword("MEDIUMBLOB", { reserved: true })
   static MEDIUMINT = new Keyword("MEDIUMINT", { reserved: true })
   static MEDIUMTEXT = new Keyword("MEDIUMTEXT", { reserved: true })
+  static MEMORY = new Keyword("MEMORY")
   static MERGE = new Keyword("MERGE")
   static MIDDLEINT = new Keyword("MIDDLEINT", { reserved: true })
+  static MIN_ROWS = new Keyword("MIN_ROWS")
   static MINUTE_MICROSECOND = new Keyword("MINUTE_MICROSECOND", { reserved: true })
   static MINUTE_SECOND = new Keyword("MINUTE_SECOND", { reserved: true })
   static MOD = new Keyword("MOD", { reserved: true })
   static MODIFIES = new Keyword("MODIFIES", { reserved: true })
   static NAMES = new Keyword("NAMES")
+  static NONE = new Keyword("NONE")
   static NATURAL = new Keyword("NATURAL", { reserved: true })
+  static NO = new Keyword("NO")
   static NOT = new Keyword("NOT", { reserved: true })
   static NO_WRITE_TO_BINLOG = new Keyword("NO_WRITE_TO_BINLOG", { reserved: true })
+  static NODEGROUP = new Keyword("NODEGROUP")
   static NTH_VALUE = new Keyword("NTH_VALUE", { reserved: function(options: { [ key:string]:any}) {
     return semver.satisfies(">=8.0.2", options.version || "0")
   } })
@@ -373,10 +419,12 @@ export class Keyword extends TokenType {
     return semver.satisfies(">=8.0.2", options.version || "0")
   } })
   static OWNER = new Keyword("OWNER")
+  static PACK_KEYS = new Keyword("PACK_KEYS")
   static PARSE_GCOL_EXPR = new Keyword("PARSE_GCOL_EXPR", { reserved: function(options: { [ key:string]:any}) {
     return semver.satisfies("<8.0.0", options.version || "0")
   } })
   static PARTITION = new Keyword("PARTITION", { reserved: true })
+  static PARTITIONS = new Keyword("PARTITIONS")
   static PASSWORD = new Keyword("PASSWORD")
   static PERCENT_RANK = new Keyword("PERCENT_RANK", { reserved: function(options: { [ key:string]:any}) {
     return semver.satisfies(">=8.0.2", options.version || "0")
@@ -389,6 +437,7 @@ export class Keyword extends TokenType {
   static PROCEDURE = new Keyword("PROCEDURE", { reserved: true })
   static PURGE = new Keyword("PURGE", { reserved: true })
   static QUICK = new Keyword("QUICK")
+  static RANDOM = new Keyword("RANDOM")
   static RANGE = new Keyword("RANGE", { reserved: true })
   static RANK = new Keyword("RANK", { reserved: function(options: { [ key:string]:any}) {
     return semver.satisfies(">=8.0.2", options.version || "0")
@@ -401,9 +450,11 @@ export class Keyword extends TokenType {
   static RECURSIVE = new Keyword("RECURSIVE", { reserved: function(options: { [ key:string]:any}) {
     return semver.satisfies(">=8.0.1", options.version || "0")
   } })
+  static REDO_BUFFER_SIZE = new Keyword("REDO_BUFFER_SIZE")
   static REDOFILE = new Keyword("REDOFILE", { reserved: function(options: { [ key:string]:any}) {
     return semver.satisfies("<8.0.0", options.version || "0")
   } })
+  static REDUNDANT = new Keyword("REDUNDANT")
   static REFERENCE = new Keyword("REFERENCE")
   static REFERENCES = new Keyword("REFERENCES", { reserved: true })
   static REGEXP = new Keyword("REGEXP", { reserved: true })
@@ -427,6 +478,7 @@ export class Keyword extends TokenType {
   static ROW = new Keyword("ROW", { reserved: function(options: { [ key:string]:any}) {
     return semver.satisfies(">=8.0.2", options.version || "0")
   } })
+  static ROW_FORMAT = new Keyword("ROW_FORMAT")
   static ROWS = new Keyword("ROWS", { reserved: function(options: { [ key:string]:any}) {
     return semver.satisfies(">=8.0.2", options.version || "0")
   } })
@@ -438,6 +490,7 @@ export class Keyword extends TokenType {
   static SCHEMA = new Keyword("SCHEMA", { reserved: true })
   static SCHEMAS = new Keyword("SCHEMAS", { reserved: true })
   static SECOND_MICROSECOND = new Keyword("SECOND_MICROSECOND", { reserved: true })
+  static SECONDARY_ENGINE_ATTRIBUTE = new Keyword("SECONDARY_ENGINE_ATTRIBUTE")
   static SELECT = new Keyword("SELECT", { reserved: true })
   static SENSITIVE = new Keyword("SENSITIVE", { reserved: true })
   static SEPARATOR = new Keyword("SEPARATOR", { reserved: true })
@@ -465,9 +518,15 @@ export class Keyword extends TokenType {
   static SSL = new Keyword("SSL", { reserved: true })
   static START = new Keyword("START")
   static STARTING = new Keyword("STARTING", { reserved: true })
+  static STATS_AUTO_RECALC = new Keyword("STATS_AUTO_RECALC")
+  static STATS_PERSISTENT = new Keyword("STATS_PERSISTENT")
+  static STATS_SAMPLE_PAGES = new Keyword("STATS_SAMPLE_PAGES")
   static STOP = new Keyword("STOP")
+  static STORAGE = new Keyword("STORAGE")
   static STORED = new Keyword("STORED", { reserved: true })
   static STRAIGHT_JOIN = new Keyword("STRAIGHT_JOIN", { reserved: true })
+  static SUBJECT = new Keyword("SUBJECT")
+  static SUBPARTITION = new Keyword("SUBPARTITION")
   static SYSTEM = new Keyword("SYSTEM", { reserved: function(options: { [ key:string]:any}) {
     return semver.satisfies(">=8.0.3", options.version || "0")
   } })
@@ -477,6 +536,7 @@ export class Keyword extends TokenType {
   static TEMPTABLE = new Keyword("TEMPTABLE")
   static TERMINATED = new Keyword("TERMINATED", { reserved: true })
   static THEN = new Keyword("THEN", { reserved: true })
+  static THREAD_PRIORITY = new Keyword("THREAD_PRIORITY")
   static TINYBLOB = new Keyword("TINYBLOB", { reserved: true })
   static TINYINT = new Keyword("TINYINT", { reserved: true })
   static TINYTEXT = new Keyword("TINYTEXT", { reserved: true })
@@ -486,9 +546,12 @@ export class Keyword extends TokenType {
   static TRIGGER = new Keyword("TRIGGER", { reserved: true })
   static TRUE = new Keyword("TRUE", { reserved: true })
   static TRUNCATE = new Keyword("TRUNCATE")
+  static TYPE = new Keyword("TYPE")
   static UNCOMMITTED = new Keyword("UNCOMMITTED")
   static UNDEFINED = new Keyword("UNDEFINED")
   static UNDO = new Keyword("UNDO", { reserved: true })
+  static UNDO_BUFFER_SIZE = new Keyword("UNDO_BUFFER_SIZE")
+  static UNDOFILE = new Keyword("UNDOFILE")
   static UNINSTALL = new Keyword("UNINSTALL")
   static UNION = new Keyword("UNION", { reserved: true })
   static UNIQUE = new Keyword("UNIQUE", { reserved: true })
@@ -507,8 +570,10 @@ export class Keyword extends TokenType {
   static VARCHAR = new Keyword("VARCHAR", { reserved: true })
   static VARCHARACTER = new Keyword("VARCHARACTER", { reserved: true })
   static VARYING = new Keyword("VARYING", { reserved: true })
+  static VCPU = new Keyword("VCPU")
   static VIEW = new Keyword("VIEW")
   static VIRTUAL = new Keyword("VIRTUAL", { reserved: true })
+  static WAIT = new Keyword("WAIT")
   static WHEN = new Keyword("WHEN", { reserved: true })
   static WHERE = new Keyword("WHERE", { reserved: true })
   static WHILE = new Keyword("WHILE", { reserved: true })
@@ -518,6 +583,7 @@ export class Keyword extends TokenType {
   static WITH = new Keyword("WITH", { reserved: true })
   static WRAPPER = new Keyword("WRAPPER")
   static WRITE = new Keyword("WRITE", { reserved: true })
+  static X509 = new Keyword("X509")
   static XA = new Keyword("XA")
   static XML = new Keyword("XML")
   static XOR = new Keyword("XOR", { reserved: true })
@@ -565,14 +631,16 @@ export class MysqlLexer extends Lexer {
       { type: TokenType.RightParen, re: /\)/y },
       { type: TokenType.Comma, re: /,/y },
       { type: TokenType.Number, re: /0[xX][0-9a-fA-F]+|((0|[1-9][0-9]*)(\.[0-9]+)?|(\.[0-9]+))([eE][+-]?[0-9]+)?/y },
+      { type: TokenType.Size, re: /(0|[1-9][0-9]*)[KMG]/iy },
       { type: TokenType.Dot, re: /\./y },
       { type: TokenType.String, re: () => this.sqlModes.has("ANSI_QUOTES") ? /([bBnN]|_[a-zA-Z]+)?'([^']|'')*'/y :  /([bBnN]|_[a-zA-Z]+)?('([^']|'')*'|"([^"]|"")*")/y },
       { type: TokenType.QuotedIdentifier, re: () => this.sqlModes.has("ANSI_QUOTES") ? /"([^"]|"")*"|`([^`]|``)*`/y : /`([^`]|``)*`/y },
       { type: TokenType.BindVariable, re: /\?/y },
-      { type: TokenType.SessionVariable, re: /@@([a-zA-Z_$\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_$#\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*|'([^']|'')*'|"([^"]|"")*")/y },
-      { type: TokenType.UserDefinedVariable, re: /@([a-zA-Z_$\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_$#\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*|'([^']|'')*'|"([^"]|"")*")/y },
+      { type: TokenType.SessionVariable, re: /@@[a-zA-Z0-9._$\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*|`([^`]|``)*`|'([^']|'')*'|"([^"]|"")*")/y },
+      { type: TokenType.UserDefinedVariable, re: /@[a-zA-Z0-9._$\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*|`([^`]|``)*`|'([^']|'')*'|"([^"]|"")*")/y },
       { type: TokenType.Identifier, re: /[a-zA-Z_$\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_$#\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*/y },
       { type: TokenType.Operator, re: /\|\|&&|<=>|<<|>>|<>|->>?|[=<>!:]=?|[~&|^*/%+-]/y },
+      { type: TokenType.At, re: /@/y },
       { type: TokenType.Error, re: /./y },
     ])
 
@@ -971,27 +1039,8 @@ export class MySqlParser extends Parser {
         }
       }
 
-      if (stmt instanceof CreateSpatialReferenceSystemStatement) {
-        stmt.srid = this.integerValue()
-      } else {
-        stmt.name = this.identifier()
-        if (
-          this.consumeIf(TokenType.Dot) && (
-            stmt instanceof CreateTableStatement ||
-            stmt instanceof CreateIndexStatement ||
-            stmt instanceof CreateViewStatement ||
-            stmt instanceof CreateProcedureStatement ||
-            stmt instanceof CreateFunctionStatement ||
-            stmt instanceof CreateTriggerStatement ||
-            stmt instanceof CreateEventStatement
-          )
-        ) {
-          stmt.schemaName = stmt.name
-          stmt.name = this.identifier()
-        }
-      }
-
       if (stmt instanceof CreateDatabaseStatement) {
+        stmt.name = this.identifier()
         while (
           this.peekIf(Keyword.DEFAULT) ||
           this.peekIf(Keyword.CHARACTER) ||
@@ -1008,19 +1057,13 @@ export class MySqlParser extends Parser {
             stmt.collate = this.stringValue()
           } else if (this.consumeIf(Keyword.ENCRYPTION)) {
             this.consumeIf(Keyword.OPE_EQ)
-            const value = this.stringValue()
-            if (value === "Y") {
-              stmt.encryption = true
-            } else if (value === "N") {
-              stmt.encryption = false
-            } else {
-              throw this.createParseError()
-            }
+            stmt.encryption = this.stringValue()
           } else {
             throw new Error()
           }
         }
       } else if (stmt instanceof CreateServerStatement) {
+        stmt.name = this.identifier()
         this.consume(Keyword.FOREIGN)
         this.consume(Keyword.DATA)
         this.consume(Keyword.WRAPPER)
@@ -1048,7 +1091,449 @@ export class MySqlParser extends Parser {
         }
         this.consume(TokenType.RightParen)
       } else if (stmt instanceof CreateResourceGroupStatement) {
+        stmt.name = this.identifier()
+        this.consume(Keyword.TYPE)
+        this.consume(Keyword.OPE_EQ)
+        if (this.consumeIf(Keyword.SYSTEM)) {
+          stmt.type = ResourceGroupType.SYSTEM
+        } else if (this.consumeIf(Keyword.USER)) {
+          stmt.type = ResourceGroupType.USER
+        } else {
+          throw this.createParseError()
+        }
+        if (this.consumeIf(Keyword.VCPU)) {
+          this.consumeIf(Keyword.OPE_EQ)
+          for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+            const range = { min: "", max: "" }
+            range.min = this.numberValue()
+            if (this.consumeIf(Keyword.OPE_MINUS)) {
+              range.max = this.numberValue()
+            } else {
+              range.max = range.min
+            }
+            stmt.vcpu.push(range)
+          }
+        }
+        if (this.consumeIf(Keyword.THREAD_PRIORITY)) {
+          this.consumeIf(Keyword.OPE_EQ)
+          stmt.threadPriority = this.numberValue()
+        }
+        if (this.consumeIf(Keyword.ENABLE)) {
+          stmt.disable = false
+        } else if (this.consumeIf(Keyword.DISABLE)) {
+          stmt.disable = true
+        }
+      } else if (stmt instanceof CreateLogfileGroupStatement) {
+        stmt.name = this.identifier()
+        this.consume(Keyword.ADD)
+        this.consume(Keyword.UNDOFILE)
+        stmt.undofile = this.stringValue()
+        if (this.consumeIf(Keyword.INITIAL_SIZE)) {
+          this.consumeIf(Keyword.OPE_EQ)
+          stmt.initialSize = this.sizeValue()
+        }
+        if (this.consumeIf(Keyword.UNDO_BUFFER_SIZE)) {
+          this.consumeIf(Keyword.OPE_EQ)
+          stmt.undoBufferSize = this.sizeValue()
+        }
+        if (this.consumeIf(Keyword.REDO_BUFFER_SIZE)) {
+          this.consumeIf(Keyword.OPE_EQ)
+          stmt.redoBufferSize = this.sizeValue()
+        }
+        if (this.consumeIf(Keyword.NODEGROUP)) {
+          this.consumeIf(Keyword.OPE_EQ)
+          stmt.nodeGroup = this.numberValue()
+        }
+        if (this.consumeIf(Keyword.WAIT)) {
+          stmt.wait = true
+        }
+        if (this.consumeIf(Keyword.COMMENT)) {
+          this.consumeIf(Keyword.OPE_EQ)
+          stmt.comment = this.stringValue()
+        }
+        if (this.consumeIf(Keyword.ENGINE)) {
+          this.consumeIf(Keyword.OPE_EQ)
+          stmt.engine = this.identifier()
+        }
+      } else if (stmt instanceof CreateTablespaceStatement) {
+        stmt.name = this.identifier()
+        if (this.consumeIf(Keyword.ADD)) {
+          this.consume(Keyword.DATAFILE)
+          stmt.addDataFile = this.stringValue()
+        }
+        if (this.consumeIf(Keyword.AUTOEXTEND_SIZE)) {
+          this.consumeIf(Keyword.OPE_EQ)
+          stmt.autoextendSize = this.sizeValue()
+        }
+        if (this.consumeIf(Keyword.FILE_BLOCK_SIZE)) {
+          this.consumeIf(Keyword.OPE_EQ)
+          stmt.fileBlockSize = this.sizeValue()
+        }
+        if (this.consumeIf(Keyword.ENCRYPTION)) {
+          this.consumeIf(Keyword.OPE_EQ)
+          stmt.encryption = this.stringValue()
+        }
+        if (this.consumeIf(Keyword.USE)) {
+          this.consume(Keyword.LOGFILE)
+          this.consume(Keyword.GROUP)
+          stmt.useLogfileGroup = this.identifier()
+        }
+        if (this.consumeIf(Keyword.EXTENT_SIZE)) {
+          this.consumeIf(Keyword.OPE_EQ)
+          stmt.extentSize = this.sizeValue()
+        }
+        if (this.consumeIf(Keyword.INITIAL_SIZE)) {
+          this.consumeIf(Keyword.OPE_EQ)
+          stmt.initialSize = this.sizeValue()
+        }
+        if (this.consumeIf(Keyword.MAX_SIZE)) {
+          this.consumeIf(Keyword.OPE_EQ)
+          stmt.maxSize = this.sizeValue()
+        }
+        if (this.consumeIf(Keyword.NODEGROUP)) {
+          this.consumeIf(Keyword.OPE_EQ)
+          stmt.nodeGroup = this.numberValue()
+        }
+        if (this.consumeIf(Keyword.WAIT)) {
+          stmt.wait = true
+        }
+        if (this.consumeIf(Keyword.COMMENT)) {
+          this.consumeIf(Keyword.OPE_EQ)
+          stmt.comment = this.stringValue()
+        }
+        if (this.consumeIf(Keyword.ENGINE)) {
+          this.consumeIf(Keyword.OPE_EQ)
+          stmt.engine = this.identifier()
+        }
+        if (this.consumeIf(Keyword.ENGINE_ATTRIBUTE)) {
+          this.consumeIf(Keyword.OPE_EQ)
+          stmt.engineAttribute = this.stringValue()
+        }
+      } else if (stmt instanceof CreateSpatialReferenceSystemStatement) {
+        stmt.srid = this.consume(TokenType.Number).text
+      } else if (stmt instanceof CreateRoleStatement) {
+        for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+          const role = new RoleDef()
+          role.name = this.username()
+          let token
+          if (token = this.consumeIf(TokenType.UserDefinedVariable)) {
+            role.host = dequote(token.text.substring(1))
+          }
+          stmt.roles.push(role)
+        }
+      } else if (stmt instanceof CreateUserStatement) {
+        for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+          const user = new UserDef()
+          user.name = this.username()
+          let token
+          if (token = this.consumeIf(TokenType.UserDefinedVariable)) {
+            user.host = dequote(token.text.substring(1))
+          }
+          if (this.consumeIf(Keyword.IDENTIFIED)) {
+            if (this.consumeIf(Keyword.BY)) {
+              if (this.consumeIf(Keyword.RANDOM)) {
+                this.consumeIf(Keyword.PASSWORD)
+                user.randowmPassword = true
+              } else {
+                user.password = this.stringValue()
+              }
+            } else if (this.consumeIf(Keyword.WITH)) {
+              user.authPlugin = this.identifier()
+              if (this.consumeIf(Keyword.BY)) {
+                if (this.consumeIf(Keyword.RANDOM)) {
+                  this.consume(Keyword.PASSWORD)
+                  user.randowmPassword = true
+                } else {
+                  user.password = this.stringValue()
+                }
+              } else if (this.consumeIf(Keyword.AS)) {
+                user.asPassword = true
+                user.password = this.stringValue()
+              }
+            }
+          }
+          stmt.users.push(user)
+        }
+        if (this.consumeIf(Keyword.DEFAULT)) {
+          this.consume(Keyword.ROLE)
+          for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+            stmt.defaultRoles.push(this.username())
+          }
+        }
+        if (this.consumeIf(Keyword.REQUIRE)) {
+          if (this.consumeIf(Keyword.NONE)) {
+            // no handle
+          } else {
+            for (let i = 0; i === 0 || this.consumeIf(Keyword.AND); i++) {
+              const tlsOption = new TlsOption()
+              if (this.consumeIf(Keyword.SSL)) {
+                tlsOption.ssl = true
+              } else if (this.consumeIf(Keyword.X509)) {
+                tlsOption.x509 = true
+              } else if (this.consumeIf(Keyword.ISSUER)) {
+                tlsOption.issuer = this.stringValue()
+              } else if (this.consumeIf(Keyword.SUBJECT)) {
+                tlsOption.subject = this.stringValue()
+              } else if (this.consumeIf(Keyword.CIPHER)) {
+                tlsOption.chiper = this.stringValue()
+              } else {
+                throw this.createParseError()
+              }
+              stmt.tlsOptions.push(tlsOption)
+            }
+          }
+        }
+      } else if (stmt instanceof CreateTableStatement) {
+        stmt.name = this.identifier()
+        if (this.consumeIf(TokenType.Dot)) {
+          stmt.schemaName = stmt.name
+          stmt.name = this.identifier()
+        }
 
+        if (this.consumeIf(Keyword.LIKE)) {
+          stmt.like = true
+          stmt.likeName = this.identifier()
+          if (this.consumeIf(TokenType.Dot)) {
+            stmt.likeSchemaName = stmt.likeName
+            stmt.likeName = this.identifier()
+          }
+        } else if (this.consumeIf(TokenType.LeftParen)) {
+          if (this.consumeIf(Keyword.LIKE)) {
+            stmt.like = true
+            stmt.likeName = this.identifier()
+            if (this.consumeIf(TokenType.Dot)) {
+              stmt.likeSchemaName = stmt.likeName
+              stmt.likeName = this.identifier()
+            }
+          } else {
+            //// create_definition
+          }
+          this.consumeIf(TokenType.RightParen)
+        } else {
+          stmt.asSelect = true
+        }
+
+        if (!stmt.likeName) {
+          for (let i = 0; i === 0 || this.consumeIf(Keyword.Comma); i++) {
+            if (this.consumeIf(Keyword.AUTOEXTEND_SIZE)) {
+              this.consumeIf(Keyword.OPE_EQ)
+              stmt.autoextendSize = this.sizeValue()
+            } else if (this.consumeIf(Keyword.AUTO_INCREMENT)) {
+              this.consumeIf(Keyword.OPE_EQ)
+              stmt.autoIncrement = this.numberValue()
+            } else if (this.consumeIf(Keyword.AVG_ROW_LENGTH)) {
+              this.consumeIf(Keyword.OPE_EQ)
+              stmt.avgRowLength = this.numberValue()
+            } else if (this.consumeIf(Keyword.CHARACTER)) {
+              this.consume(Keyword.SET)
+              this.consumeIf(Keyword.OPE_EQ)
+              stmt.characterSet = this.identifier()
+            } else if (this.consumeIf(Keyword.CHARSET)) {
+              this.consume(Keyword.SET)
+              this.consumeIf(Keyword.OPE_EQ)
+              stmt.characterSet = this.identifier()
+            } else if (this.consumeIf(Keyword.CHECKSUM)) {
+              this.consumeIf(Keyword.OPE_EQ)
+              stmt.checksum = this.numberValue()
+            } else if (this.consumeIf(Keyword.COLLATE)) {
+              this.consumeIf(Keyword.OPE_EQ)
+              stmt.collate = this.identifier()
+            } else if (this.consumeIf(Keyword.COMMENT)) {
+              this.consumeIf(Keyword.OPE_EQ)
+              stmt.comment = this.stringValue()
+            } else if (this.consumeIf(Keyword.COMPRESSION)) {
+              this.consumeIf(Keyword.OPE_EQ)
+              stmt.compression = this.stringValue()
+            } else if (this.consumeIf(Keyword.CONNECTION)) {
+              this.consumeIf(Keyword.OPE_EQ)
+              stmt.connection = this.stringValue()
+            } else if (this.consumeIf(Keyword.DATA)) {
+              this.consumeIf(Keyword.DICTIONARY)
+              this.consumeIf(Keyword.OPE_EQ)
+              stmt.dataDictionary = this.stringValue()
+            } else if (this.consumeIf(Keyword.INDEX)) {
+              this.consumeIf(Keyword.DICTIONARY)
+              this.consumeIf(Keyword.OPE_EQ)
+              stmt.indexDictionary = this.stringValue()
+            } else if (this.consumeIf(Keyword.DELAY_KEY_WRITE)) {
+              this.consumeIf(Keyword.OPE_EQ)
+              stmt.delayKeyWrite = this.numberValue()
+            } else if (this.consumeIf(Keyword.ENCRYPTION)) {
+              this.consumeIf(Keyword.OPE_EQ)
+              stmt.encryption = this.stringValue()
+            } else if (this.consumeIf(Keyword.ENGINE)) {
+              this.consumeIf(Keyword.OPE_EQ)
+              stmt.engine = this.identifier()
+            } else if (this.consumeIf(Keyword.ENGINE_ATTRIBUTE)) {
+              this.consumeIf(Keyword.OPE_EQ)
+              stmt.engineAttribute = this.stringValue()
+            } else if (this.consumeIf(Keyword.INSERT_METHOD)) {
+              this.consumeIf(Keyword.OPE_EQ)
+              if (this.consumeIf(Keyword.NO)) {
+                stmt.insetMethod = InsertMethod.NO
+              } else if (this.consumeIf(Keyword.FIRST)) {
+                stmt.insetMethod = InsertMethod.FIRST
+              } else if (this.consumeIf(Keyword.LAST)) {
+                stmt.insetMethod = InsertMethod.LAST
+              } else {
+                throw this.createParseError()
+              }
+            } else if (this.consumeIf(Keyword.KEY_BLOCK_SIZE)) {
+              this.consumeIf(Keyword.OPE_EQ)
+              stmt.keyBlockSize = this.sizeValue()
+            } else if (this.consumeIf(Keyword.MAX_ROWS)) {
+              this.consumeIf(Keyword.OPE_EQ)
+              stmt.maxRows = this.numberValue()
+            } else if (this.consumeIf(Keyword.MIN_ROWS)) {
+              this.consumeIf(Keyword.OPE_EQ)
+              stmt.minRows = this.numberValue()
+            } else if (this.consumeIf(Keyword.PACK_KEYS)) {
+              this.consumeIf(Keyword.OPE_EQ)
+              if (this.consumeIf(Keyword.DEFAULT)) {
+                stmt.packKeys = "DEFAULT"
+              } else {
+                stmt.packKeys = this.numberValue()
+              }
+            } else if (this.consumeIf(Keyword.PASSWORD)) {
+              this.consumeIf(Keyword.OPE_EQ)
+              stmt.password = this.stringValue()
+            } else if (this.consumeIf(Keyword.ROW_FORMAT)) {
+              this.consumeIf(Keyword.OPE_EQ)
+              if (this.consumeIf(Keyword.DEFAULT)) {
+                stmt.rowFormat = RowFormat.DEFAULT
+              } else if (this.consumeIf(Keyword.DYNAMIC)) {
+                stmt.rowFormat = RowFormat.DYNAMIC
+              } else if (this.consumeIf(Keyword.FIXED)) {
+                stmt.rowFormat = RowFormat.FIXED
+              } else if (this.consumeIf(Keyword.COMPRESSED)) {
+                stmt.rowFormat = RowFormat.COMPRESSED
+              } else if (this.consumeIf(Keyword.REDUNDANT)) {
+                stmt.rowFormat = RowFormat.REDUNDANT
+              } else if (this.consumeIf(Keyword.COMPACT)) {
+                stmt.rowFormat = RowFormat.COMPACT
+              } else {
+                throw this.createParseError()
+              }
+            } else if (this.consumeIf(Keyword.SECONDARY_ENGINE_ATTRIBUTE)) {
+              this.consumeIf(Keyword.OPE_EQ)
+              stmt.secondaryEngineAttribute = this.stringValue()
+            } else if (this.consumeIf(Keyword.STATS_AUTO_RECALC)) {
+              this.consumeIf(Keyword.OPE_EQ)
+              if (this.consumeIf(Keyword.DEFAULT)) {
+                stmt.statsAutoRecalc = "DEFAULT"
+              } else {
+                stmt.statsAutoRecalc = this.numberValue()
+              }
+            } else if (this.consumeIf(Keyword.STATS_PERSISTENT)) {
+              this.consumeIf(Keyword.OPE_EQ)
+              if (this.consumeIf(Keyword.DEFAULT)) {
+                stmt.statsPersistent = "DEFAULT"
+              } else {
+                stmt.statsPersistent = this.numberValue()
+              }
+            } else if (this.consumeIf(Keyword.STATS_SAMPLE_PAGES)) {
+              this.consumeIf(Keyword.OPE_EQ)
+              stmt.statSamplePages = this.numberValue()
+            } else if (this.consumeIf(Keyword.TABLESPACE)) {
+              stmt.tablespace = this.identifier()
+              if (this.consumeIf(Keyword.STORAGE)) {
+                if (this.consumeIf(Keyword.DISK)) {
+                  stmt.storageType = StorageType.DISK
+                } else if (this.consumeIf(Keyword.MEMORY)) {
+                  stmt.storageType = StorageType.MEMORY
+                } else {
+                  throw this.createParseError()
+                }
+              }
+            } else if (this.consumeIf(Keyword.UNION)) {
+              this.consumeIf(Keyword.OPE_EQ)
+              this.consume(TokenType.LeftParen)
+              stmt.union = []
+              for (let j = 0; j === 0 || this.consumeIf(Keyword.Comma); j++) {
+                stmt.union.push(this.identifier())
+              }
+              this.consume(TokenType.RightParen)
+            } else if (this.consumeIf(Keyword.DEFAULT)) {
+              if (this.consumeIf(Keyword.CHARACTER)) {
+                this.consume(Keyword.SET)
+                this.consumeIf(Keyword.OPE_EQ)
+                stmt.characterSet = this.identifier()
+              } else if (this.consumeIf(Keyword.CHARSET)) {
+                this.consumeIf(Keyword.OPE_EQ)
+                stmt.characterSet = this.identifier()
+              } else if (this.consumeIf(Keyword.COLLATE)) {
+                this.consumeIf(Keyword.OPE_EQ)
+                stmt.collate = this.identifier()
+              } else {
+                throw this.createParseError()
+              }
+            } else {
+              throw this.createParseError()
+            }
+          }
+          if (this.consumeIf(Keyword.PARTITION)) {
+            this.consume(Keyword.BY)
+            if (this.peekIf(Keyword.LINEAR) || this.peekIf(Keyword.HASH) || this.peekIf(Keyword.KEY)) {
+              this.consumeIf(Keyword.LINEAR)
+              if (this.consumeIf(Keyword.HASH)) {
+                this.consume(TokenType.LeftParen)
+                stmt.linearHashExpression = this.expression()
+                this.consume(TokenType.RightParen)
+              } else if (this.consumeIf(Keyword.KEY)) {
+                if (this.consumeIf(Keyword.ALGORITHM)) {
+                  stmt.linearKeyAlgorithm = this.numberValue()
+                }
+                this.consume(TokenType.LeftParen)
+                stmt.linearTokens = []
+                for (let i = 0; i === 0 || this.consumeIf(Keyword.Comma); i++) {
+                  stmt.linearTokens.push(this.identifier())
+                }
+                this.consume(TokenType.RightParen)
+              }
+            } else if (this.consumeIf(Keyword.RANGE)) {
+
+            } else if (this.consumeIf(Keyword.LIST)) {
+
+            } else {
+              throw this.createParseError()
+            }
+            if (this.consumeIf(Keyword.PARTITIONS)) {
+              stmt.partitions = this.numberValue()
+            }
+            if (this.consumeIf(Keyword.SUBPARTITION)) {
+              this.consume(Keyword.BY)
+            }
+            if (this.consumeIf(TokenType.LeftParen)) {
+              this.consume(Keyword.PARTITION)
+              //TODO
+              if (this.consumeIf(TokenType.LeftParen)) {
+                this.consume(Keyword.SUBPARTITION)
+              }
+              this.consume(TokenType.RightParen)
+            }
+          }
+
+          if (this.consumeIf(Keyword.IGNORE)) {
+            stmt.conflictAction = ConflictAction.IGNORE
+            stmt.asSelect = true
+          } else if (this.consumeIf(Keyword.REPLACE)) {
+            stmt.conflictAction = ConflictAction.REPLACE
+            stmt.asSelect = true
+          }
+          if (this.consumeIf(Keyword.AS)) {
+            stmt.asSelect = true
+          }
+          if (stmt.asSelect || this.peekIf(Keyword.WITH) || this.peekIf(Keyword.SELECT)) {
+            this.selectClause()
+          }
+        }
+      } else {
+        // TODO
+        stmt.name = this.identifier()
+        if (this.consumeIf(TokenType.Dot)) {
+          stmt.schemaName = stmt.name
+          stmt.name = this.identifier()
+        }
       }
     } else if (this.consumeIf(Keyword.ALTER)) {
       if (this.consumeIf(Keyword.DATABASE) || this.consumeIf(Keyword.SCHEMA)) {
@@ -1095,7 +1580,7 @@ export class MySqlParser extends Parser {
         let definer
         if (this.consumeIf(Keyword.DEFINER)) {
           this.consume(Keyword.OPE_EQ)
-          definer = this.consume(TokenType.String).text
+          definer = this.identifier()
         }
 
         let sqlSecurityDefiner
@@ -1103,9 +1588,9 @@ export class MySqlParser extends Parser {
         if (this.consumeIf(Keyword.SQL)) {
           this.consume(Keyword.SECURITY)
           if (this.peekIf(Keyword.DEFINER)) {
-            sqlSecurityDefiner = this.consume().text
+            sqlSecurityDefiner = this.identifier()
           } else if (this.peekIf(Keyword.INVOKER)) {
-            sqlSecurityInvoker = this.consume().text
+            sqlSecurityInvoker = this.identifier()
           } else {
             throw this.createParseError()
           }
@@ -1360,7 +1845,7 @@ export class MySqlParser extends Parser {
         stmt.concurrency = Concurrency.HIGH_PRIORITY
       }
       if (this.consumeIf(Keyword.IGNORE)) {
-        stmt.ignore = true
+        stmt.conflictAction = ConflictAction.IGNORE
       }
       this.consumeIf(Keyword.INTO)
       stmt.markers.set("nameStart", this.pos - start)
@@ -1377,7 +1862,7 @@ export class MySqlParser extends Parser {
         stmt.concurrency = Concurrency.LOW_PRIORITY
       }
       if (this.consumeIf(Keyword.IGNORE)) {
-        stmt.ignore = true
+        stmt.conflictAction = ConflictAction.IGNORE
       }
       stmt.markers.set("nameStart", this.pos - start)
       stmt.name = this.identifier()
@@ -1395,7 +1880,7 @@ export class MySqlParser extends Parser {
         stmt.concurrency = Concurrency.DELAYED
       }
       if (this.consumeIf(Keyword.IGNORE)) {
-        stmt.ignore = true
+        stmt.conflictAction = ConflictAction.IGNORE
       }
       this.consumeIf(Keyword.INTO)
       stmt.markers.set("nameStart", this.pos - start)
@@ -1419,7 +1904,7 @@ export class MySqlParser extends Parser {
         stmt.quick = true
       }
       if (this.consumeIf(Keyword.IGNORE)) {
-        stmt.ignore = true
+        stmt.conflictAction = ConflictAction.IGNORE
       }
       this.consumeIf(Keyword.FROM)
       stmt.markers.set("nameStart", this.pos - start)
@@ -1630,23 +2115,66 @@ export class MySqlParser extends Parser {
     return stmt
   }
 
+  selectClause() {
+    if (this.peekIf(Keyword.WITH)) {
+      this.withClause()
+    }
+    this.consume(Keyword.SELECT)
+    let depth = 0
+    while (this.peek() &&
+      !this.peekIf(TokenType.SemiColon) &&
+      (depth == 0 && !this.peekIf(TokenType.RightParen))
+    ) {
+      if (this.consumeIf(TokenType.LeftParen)) {
+        depth++
+      } else if (this.consumeIf(TokenType.RightParen)) {
+        depth--
+      } else {
+        this.consume()
+      }
+    }
+  }
+
+  withClause() {
+    const start = this.pos
+    this.consume(Keyword.WITH)
+    this.consumeIf(Keyword.RECURSIVE)
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      this.identifier()
+      if (this.consumeIf(TokenType.LeftParen)) {
+        for (let j = 0; j === 0 || this.consumeIf(TokenType.Comma); j++) {
+          this.identifier()
+        }
+        this.consume(TokenType.RightParen)
+      }
+      this.consume(Keyword.AS)
+      this.consume(TokenType.LeftParen)
+      this.selectClause()
+      this.consume(TokenType.RightParen)
+    }
+    return this.tokens.slice(start, this.pos)
+  }
+
+  username() {
+    let token, text
+    if (token = this.consumeIf(TokenType.QuotedIdentifier)) {
+      text = unescape(dequote(token.text))
+    } else if (token = this.consumeIf(TokenType.String)) {
+      text = unescape(dequote(token.text))
+    } else if (token = this.consumeIf(TokenType.Identifier)) {
+      text = lcase(token.text)
+    } else {
+      throw this.createParseError()
+    }
+    return text
+  }
+
   identifier() {
     let token, text
     if (token = this.consumeIf(TokenType.QuotedIdentifier)) {
       text = unescape(dequote(token.text))
     } else if (token = this.consumeIf(TokenType.Identifier)) {
       text = lcase(token.text)
-    } else if (token = this.consumeIf(Keyword.VAR_GLOBAL)) {
-      this.consume(Keyword.Dot)
-      text = "@@GLOBAL." + lcase(this.consume(TokenType.Identifier).text)
-    } else if (this.peekIf(Keyword.VAR_LOCAL) || this.peekIf(Keyword.VAR_SESSION)) {
-      this.consume()
-      this.consume(Keyword.Dot)
-      text = "@@SESSION." + lcase(this.consume(TokenType.Identifier).text)
-    } else if (token = this.consumeIf(TokenType.SessionVariable)) {
-      text = token.text.toLowerCase()
-    } else if (token = this.consumeIf(TokenType.UserDefinedVariable)) {
-      text = token.text.toLowerCase()
     } else {
       throw this.createParseError()
     }
@@ -1678,15 +2206,30 @@ export class MySqlParser extends Parser {
   stringValue() {
     let token, text
     if (token = this.consumeIf(TokenType.String)) {
-      text = dequote(token.text)
+      text = unescape(dequote(token.text))
+    } else if (token = this.consumeIf(Keyword.VAR_GLOBAL)) {
+      this.consume(Keyword.Dot)
+      text = "@@GLOBAL." + lcase(this.consume(TokenType.Identifier).text)
+    } else if (this.peekIf(Keyword.VAR_LOCAL) || this.peekIf(Keyword.VAR_SESSION)) {
+      this.consume()
+      this.consume(Keyword.Dot)
+      text = "@@SESSION." + lcase(this.consume(TokenType.Identifier).text)
+    } else if (token = this.consumeIf(TokenType.SessionVariable)) {
+      text = lcase(token.text)
+    } else if (token = this.consumeIf(TokenType.UserDefinedVariable)) {
+      text = lcase(token.text)
     } else {
       throw this.createParseError()
     }
     return text
   }
 
-  integerValue() {
-    return this.consume(TokenType.Number).text
+  sizeValue() {
+    if (this.peekIf(TokenType.Number) || this.peekIf(TokenType.Size)) {
+      return this.consume().text
+    } else {
+      throw this.createParseError()
+    }
   }
 
   numberValue() {

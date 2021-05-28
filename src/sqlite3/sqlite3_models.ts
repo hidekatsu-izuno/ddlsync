@@ -1,17 +1,5 @@
-import { Statement } from "../models"
+import { Statement, Constraint } from "../models"
 import { Token } from "../parser"
-
-export enum IndexType {
-  UNIQUE = "UNIQUE"
-}
-
-export abstract class TableConstraint {
-  name?: string
-}
-
-export abstract class ColumnConstraint {
-  name?: string
-}
 
 export class CommandStatement extends Statement {
   name = ""
@@ -36,7 +24,7 @@ export class CreateTableStatement extends Statement {
   asSelect = false
   withoutRowid = false
   columns?: ColumnDef[]
-  constraints?: TableConstraint[]
+  constraints?: Constraint[]
   moduleName?: string
   moduleArgs?: string[]
 
@@ -212,7 +200,7 @@ export class ColumnDef {
   typeName?: string
   length?: string
   scale?: string
-  constraints = new Array<ColumnConstraint>()
+  constraints = new Array<Constraint>()
 }
 
 export class IndexedColumn {
@@ -221,62 +209,66 @@ export class IndexedColumn {
   sortOrder = SortOrder.ASC
 }
 
-export class PrimaryKeyTableConstraint extends TableConstraint {
+export class PrimaryKeyTableConstraint extends Constraint {
   columns = new Array<IndexedColumn>()
   conflictAction = ConflictAction.ABORT
 }
 
-export class UniqueTableConstraint extends TableConstraint {
+export class UniqueTableConstraint extends Constraint {
   columns = new Array<IndexedColumn>()
   conflictAction = ConflictAction.ABORT
 }
 
-export class CheckTableConstraint extends TableConstraint {
+export class CheckTableConstraint extends Constraint {
   conditions = new Array<Token>()
 }
 
-export class ForeignKeyTableConstraint extends TableConstraint {
+export class ForeignKeyTableConstraint extends Constraint {
   columnNames = new Array<string>()
 }
 
-export class PrimaryKeyColumnConstraint extends ColumnConstraint {
+export class PrimaryKeyColumnConstraint extends Constraint {
   sortOrder = SortOrder.ASC
   conflictAction = ConflictAction.ABORT
   autoIncrement = false
 }
 
-export class NotNullColumnConstraint extends ColumnConstraint {
+export class NotNullColumnConstraint extends Constraint {
   conflictAction = ConflictAction.ABORT
 }
 
-export class NullColumnConstraint extends ColumnConstraint {
+export class NullColumnConstraint extends Constraint {
   conflictAction = ConflictAction.ABORT
 }
 
-export class UniqueColumnConstraint extends ColumnConstraint {
+export class UniqueColumnConstraint extends Constraint {
   conflictAction = ConflictAction.ABORT
 }
 
-export class CheckColumnConstraint extends ColumnConstraint {
+export class CheckColumnConstraint extends Constraint {
   conditions = new Array<Token>()
 }
 
-export class DefaultColumnConstraint extends ColumnConstraint {
+export class DefaultColumnConstraint extends Constraint {
   expression = new Array<Token>()
 }
 
-export class CollateColumnConstraint extends ColumnConstraint {
+export class CollateColumnConstraint extends Constraint {
   collationName = ""
 }
 
-export class ReferencesKeyColumnConstraint extends ColumnConstraint {
+export class ReferencesKeyColumnConstraint extends Constraint {
   tableName = ""
   columnNames = new Array<string>()
 }
 
-export class GeneratedColumnConstraint extends ColumnConstraint {
+export class GeneratedColumnConstraint extends Constraint {
   expression = new Array<Token>()
   storeType = StoreType.VIRTUAL
+}
+
+export enum IndexType {
+  UNIQUE = "UNIQUE"
 }
 
 export enum AlterTableAction {
