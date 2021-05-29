@@ -23,7 +23,3 @@ export abstract class Statement {
     return text
   }
 }
-
-export abstract class Constraint {
-  name?: string
-}

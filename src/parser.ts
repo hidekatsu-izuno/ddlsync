@@ -150,11 +150,16 @@ export abstract class Parser {
   peekIf(...types: ITokenType[]) {
     let token
     for (let i = 0; i < types.length; i++) {
+      const type = types[i]
+      if (!type) {
+        continue
+      }
+
       token = this.peek(i)
       if (!token) {
         return null
       }
-      if (types[i] && !(types[i] === token.type || types[i] === token.subtype)) {
+      if (type !== token.type && type !== token.subtype) {
         return null
       }
     }

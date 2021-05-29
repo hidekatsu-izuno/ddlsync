@@ -1069,13 +1069,13 @@ export class Sqlite3Parser extends Parser {
   }
 
   identifier() {
-    let token, text
-    if (token = this.consumeIf(TokenType.QuotedIdentifier)) {
-      text = dequote(token.text)
-    } else if (token = this.consumeIf(TokenType.QuotedValue)) {
-      text = dequote(token.text)
-    } else if (token = this.consumeIf(TokenType.Identifier)) {
-      text = token.text
+    let text
+    if (this.consumeIf(TokenType.QuotedIdentifier)) {
+      text = dequote(this.peek(-1).text)
+    } else if (this.consumeIf(TokenType.QuotedValue)) {
+      text = dequote(this.peek(-1).text)
+    } else if (this.consumeIf(TokenType.Identifier)) {
+      text = this.peek(-1).text
     } else {
       throw this.createParseError()
     }
@@ -1083,11 +1083,11 @@ export class Sqlite3Parser extends Parser {
   }
 
   stringValue() {
-    let token, text
-    if (token = this.consumeIf(TokenType.String)) {
-      text = dequote(token.text)
-    } else if (token = this.consumeIf(TokenType.QuotedValue)) {
-      text = dequote(token.text)
+    let text
+    if (this.consumeIf(TokenType.String)) {
+      text = dequote(this.peek(-1).text)
+    } else if (this.consumeIf(TokenType.QuotedValue)) {
+      text = dequote(this.peek(-1).text)
     } else {
       throw this.createParseError()
     }
@@ -1095,9 +1095,9 @@ export class Sqlite3Parser extends Parser {
   }
 
   numberValue() {
-    let token, text
-    if (token = (this.consumeIf(Keyword.OPE_PLUS) || this.consumeIf(Keyword.OPE_MINUS))) {
-      text = token.text
+    let text
+    if (this.consumeIf(Keyword.OPE_PLUS) || this.consumeIf(Keyword.OPE_MINUS)) {
+      text = this.peek(-1).text
       text += this.consume(TokenType.Number).text
     } else {
       text = this.consume(TokenType.Number).text

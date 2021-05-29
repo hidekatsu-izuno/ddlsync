@@ -2,6 +2,16 @@ import Decimal from "decimal.js"
 import { Statement } from "../models"
 import { Token } from "../parser"
 
+
+export abstract class Constraint {
+  name?: string
+}
+
+export abstract class Partition {
+  partitions?: string
+  subpartition?: Partition
+}
+
 export class CommandStatement extends Statement {
   name = ""
   args: string[] = []
@@ -197,6 +207,29 @@ export class DropUserStatement extends Statement {
   ifExists = false
 }
 
+export class LinearHashPartition extends Partition {
+  partitions?: string
+  expression = new Array<Token>()
+}
+
+export class LinearKeyPartition extends Partition {
+  partitions?: string
+  algorithm?: string
+  columns = new Array<string>()
+}
+
+export class RangePartition extends Partition {
+  partitions?: string
+  expression?: Array<Token>
+  columns?: Array<string>
+}
+
+export class ListPartition extends Partition {
+  partitions?: string
+  expression?: Array<Token>
+  columns?: Array<string>
+}
+
 export class CreateTableStatement extends Statement {
   schemaName?: string
   name = ""
@@ -236,7 +269,7 @@ export class CreateTableStatement extends Statement {
   tablespace?: string
   storageType?: StorageType
   union?: string[]
-  partitions?: string
+  partition?: Partition
   conflictAction?: ConflictAction
 
   linearHashExpression?: Token[]

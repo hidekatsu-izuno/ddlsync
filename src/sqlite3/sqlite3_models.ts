@@ -1,5 +1,9 @@
-import { Statement, Constraint } from "../models"
+import { Statement } from "../models"
 import { Token } from "../parser"
+
+export abstract class Constraint {
+  name?: string
+}
 
 export class CommandStatement extends Statement {
   name = ""
@@ -139,9 +143,6 @@ export class AnalyzeStatement extends Statement {
 }
 
 export class ExplainStatement extends Statement {
-  constructor() {
-    super()
-  }
 }
 
 export class BeginTransactionStatement extends Statement {

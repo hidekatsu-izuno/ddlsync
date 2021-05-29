@@ -132,6 +132,10 @@ import {
   InsertMethod,
   RowFormat,
   StorageType,
+  LinearHashPartition,
+  LinearKeyPartition,
+  RangePartition,
+  ListPartition,
 } from "./mysql_models"
 
 export class TokenType implements ITokenType {
@@ -211,6 +215,7 @@ export class Keyword implements ITokenType {
   static CIPHER = new Keyword("CIPHER")
   static COLLATE = new Keyword("COLLATE", { reserved: true })
   static COLUMN = new Keyword("COLUMN", { reserved: true })
+  static COLUMNS = new Keyword("COLUMNS")
   static COMMENT = new Keyword("COMMENT")
   static COMMIT = new Keyword("COMMIT")
   static COMMITTED = new Keyword("COMMITTED")
@@ -805,49 +810,51 @@ export class MySqlParser extends Parser {
     const start = this.pos
     const stmt = new CommandStatement()
     const text = (this.peek()?.text || "").split(/[ \t]/)
-    if (/^(?|\\?|[hH][eE][lL][pP])$/.test(text[0])) {
+    if (text[0] === "?" || text[0] === "\\?" || text[0] === "\\h" || /^help$/i.test(text[0])) {
       stmt.name = "help"
-    } else if (/^(\\c|[cC][lL][eE][aA][rR])$/.test(text[0])) {
+    } else if (text[0] === "\\c" || /^clear$/i.test(text[0])) {
       stmt.name = "clear"
-    } else if (/^(\\d|[dD][eE][lL][iI][mM][iI][tT][eE][rR])$/.test(text[0])) {
+    } else if (text[0] === "\\r" || /^connect$/i.test(text[0])) {
+      stmt.name = "connect"
+    } else if (text[0] === "\\d" || /^delimiter$/i.test(text[0])) {
       stmt.name = "delimiter"
-    } else if (/^(\\e|[eE][dD][iI][tT])$/.test(text[0])) {
+    } else if (text[0] === "\\e" || /^edit$/i.test(text[0])) {
       stmt.name = "edit"
-    } else if (/^(\\G|[eE][gG][oO])$/.test(text[0])) {
+    } else if (text[0] === "\\G" || /^ego$/i.test(text[0])) {
       stmt.name = "ego"
-    } else if (/^(\\q|[eE][xX][iI][tT])$/.test(text[0])) {
+    } else if (text[0] === "\\q" || /^exit$/i.test(text[0])) {
       stmt.name = "exit"
-    } else if (/^(\\q|[gG][oO])$/.test(text[0])) {
+    } else if (text[0] === "\\g" || /^go$/i.test(text[0])) {
       stmt.name = "go"
-    } else if (/^(\\q|[nN][oO][pP][aA][gG][eE][rR])$/.test(text[0])) {
+    } else if (text[0] === "\\n" || /^nopager$/i.test(text[0])) {
       stmt.name = "nopager"
-    } else if (/^(\\q|[nN][oO][tT][eE][eE])$/.test(text[0])) {
+    } else if (text[0] === "\\t" || /^notee$/i.test(text[0])) {
       stmt.name = "notee"
-    } else if (/^(\\q|[pP][aA][gG][eE][rR])$/.test(text[0])) {
+    } else if (text[0] === "\\P" || /^pager$/i.test(text[0])) {
       stmt.name = "pager"
-    } else if (/^(\\q|[pP][rR][iI][nN][tT])$/.test(text[0])) {
+    } else if (text[0] === "\\p" || /^print$/i.test(text[0])) {
       stmt.name = "print"
-    } else if (/^(\\q|[pP][rR][oO][mM][pP][tT])$/.test(text[0])) {
+    } else if (text[0] === "\\R" || /^prompt$/i.test(text[0])) {
       stmt.name = "prompt"
-    } else if (/^(\\q|[qQ][uU][iI][tT])$/.test(text[0])) {
+    } else if (text[0] === "\\q" || /^quit$/i.test(text[0])) {
       stmt.name = "quit"
-    } else if (/^(\\q|[rR][eE][hH][aA][sS][sH])$/.test(text[0])) {
+    } else if (text[0] === "\\#" || /^rehash$/i.test(text[0])) {
       stmt.name = "rehash"
-    } else if (/^(\\q|[sS][oO][uU][rR][cC][eE])$/.test(text[0])) {
+    } else if (text[0] === "\\." || /^source$/i.test(text[0])) {
       stmt.name = "source"
-    } else if (/^(\\q|[sS][tT][aA][tT][uU][sS])$/.test(text[0])) {
+    } else if (text[0] === "\\s" || /^status$/i.test(text[0])) {
       stmt.name = "status"
-    } else if (/^(\\q|[sS][yY][sS][tT][eE][mM])$/.test(text[0])) {
+    } else if (text[0] === "\\!" || /^system$/i.test(text[0])) {
       stmt.name = "system"
-    } else if (/^(\\q|[tT][eE][eE])$/.test(text[0])) {
+    } else if (text[0] === "\\T" || /^tee$/i.test(text[0])) {
       stmt.name = "tee"
-    } else if (/^(\\q|[uU][sS][eE])$/.test(text[0])) {
+    } else if (text[0] === "\\u" || /^use$/i.test(text[0])) {
       stmt.name = "use"
-    } else if (/^(\\q|[cC][hH][aA][rR][sS][eE][tT])$/.test(text[0])) {
+    } else if (text[0] === "\\C" || /^charset$/i.test(text[0])) {
       stmt.name = "charset"
-    } else if (/^(\\q|[wW][aA][rR][nN][iI][nN][gG][sS])$/.test(text[0])) {
+    } else if (text[0] === "\\W" || /^warnings$/i.test(text[0])) {
       stmt.name = "warnings"
-    } else if (/^(\\q|[nN][oO][wW][aA][rR][nN][iI][nN][gG])$/.test(text[0])) {
+    } else if (text[0] === "\\w" || /^nowarning$/i.test(text[0])) {
       stmt.name = "nowarning"
     } else {
       throw this.createParseError()
@@ -1502,43 +1509,98 @@ export class MySqlParser extends Parser {
               throw this.createParseError()
             }
           }
-          if (this.consumeIf(Keyword.PARTITION)) {
-            this.consume(Keyword.BY)
-            if (this.peekIf(Keyword.LINEAR) || this.peekIf(Keyword.HASH) || this.peekIf(Keyword.KEY)) {
-              this.consumeIf(Keyword.LINEAR)
-              if (this.consumeIf(Keyword.HASH)) {
-                this.consume(TokenType.LeftParen)
-                stmt.linearHashExpression = this.expression()
+          if (this.consumeIf(Keyword.PARTITION, Keyword.BY)) {
+            if (
+              this.consumeIf(Keyword.LINEAR, Keyword.HASH) ||
+              this.consumeIf(Keyword.HASH)
+            ) {
+              const partition = new LinearHashPartition()
+              this.consume(TokenType.LeftParen)
+              partition.expression = this.expression()
+              this.consume(TokenType.RightParen)
+              stmt.partition = partition
+            } else if (
+              this.consumeIf(Keyword.LINEAR, Keyword.KEY) ||
+              this.consumeIf(Keyword.KEY)
+            ) {
+              const partition = new LinearKeyPartition()
+              if (this.consumeIf(Keyword.ALGORITHM)) {
+                partition.algorithm = this.numberValue()
+              }
+              this.consume(TokenType.LeftParen)
+              for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+                partition.columns.push(this.identifier())
+              }
+              this.consume(TokenType.RightParen)
+              stmt.partition = partition
+            } else if (this.consumeIf(Keyword.RANGE)) {
+              const partition = new RangePartition()
+              if (this.consumeIf(TokenType.LeftParen)) {
+                partition.expression = this.expression()
                 this.consume(TokenType.RightParen)
-              } else if (this.consumeIf(Keyword.KEY)) {
-                if (this.consumeIf(Keyword.ALGORITHM)) {
-                  stmt.linearKeyAlgorithm = this.numberValue()
-                }
+              } else if (this.consumeIf(Keyword.COLUMNS)) {
                 this.consume(TokenType.LeftParen)
-                stmt.linearTokens = []
+                partition.columns = []
                 for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-                  stmt.linearTokens.push(this.identifier())
+                  partition.columns.push(this.identifier())
                 }
                 this.consume(TokenType.RightParen)
               }
-            } else if (this.consumeIf(Keyword.RANGE)) {
-
+              stmt.partition = partition
             } else if (this.consumeIf(Keyword.LIST)) {
-
+              const partition = new ListPartition()
+              if (this.consumeIf(TokenType.LeftParen)) {
+                partition.expression = this.expression()
+                this.consume(TokenType.RightParen)
+              } else if (this.consumeIf(Keyword.COLUMNS)) {
+                this.consume(TokenType.LeftParen)
+                partition.columns = []
+                for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+                  partition.columns.push(this.identifier())
+                }
+                this.consume(TokenType.RightParen)
+              }
+              stmt.partition = partition
             } else {
               throw this.createParseError()
             }
             if (this.consumeIf(Keyword.PARTITIONS)) {
-              stmt.partitions = this.numberValue()
+              stmt.partition.partitions = this.numberValue()
             }
-            if (this.consumeIf(Keyword.SUBPARTITION)) {
-              this.consume(Keyword.BY)
+            if (this.consumeIf(Keyword.SUBPARTITION, Keyword.BY)) {
+              if (
+                this.consumeIf(Keyword.LINEAR, Keyword.HASH) ||
+                this.consumeIf(Keyword.HASH)
+              ) {
+                const partition = new LinearHashPartition()
+                this.consume(TokenType.LeftParen)
+                partition.expression = this.expression()
+                this.consume(TokenType.RightParen)
+                stmt.partition.subpartition = partition
+              } else if (
+                this.consumeIf(Keyword.LINEAR, Keyword.KEY) ||
+                this.consumeIf(Keyword.KEY)
+              ) {
+                const partition = new LinearKeyPartition()
+                if (this.consumeIf(Keyword.ALGORITHM)) {
+                  partition.algorithm = this.numberValue()
+                }
+                this.consume(TokenType.LeftParen)
+                for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+                  partition.columns.push(this.identifier())
+                }
+                this.consume(TokenType.RightParen)
+                stmt.partition.subpartition = partition
+              } else {
+                throw this.createParseError()
+              }
+              if (this.consumeIf(Keyword.PARTITIONS)) {
+                stmt.partition.subpartition.partitions = this.numberValue()
+              }
             }
             if (this.consumeIf(TokenType.LeftParen)) {
-              this.consume(Keyword.PARTITION)
-              //TODO
-              if (this.consumeIf(TokenType.LeftParen)) {
-                this.consume(Keyword.SUBPARTITION)
+              for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+                //TODO
               }
               this.consume(TokenType.RightParen)
             }
