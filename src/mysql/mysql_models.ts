@@ -2,6 +2,13 @@ import Decimal from "decimal.js"
 import { Statement } from "../models"
 import { Token } from "../parser"
 
+export class Interval {
+  constructor(
+    public quantity: string,
+    public unit: IntervalUnit,
+  ) {
+  }
+}
 
 export abstract class Constraint {
   name?: string
@@ -294,10 +301,27 @@ export class DropTableStatement extends Statement {
   ifExists = false
 }
 
+export class IndexColumn {
+  expression?: Token[]
+  sortOrder = SortOrder.ASC
+}
+
 export class CreateIndexStatement extends Statement {
   schemaName?: string
   name = ""
   type?: IndexType
+  algorithm?: IndexAlgorithm
+  tableSchemaName?: string
+  tableName = ""
+  columns = new Array<IndexColumn>()
+  visible = true
+  keyBlockSize?: string
+  withParser?: string
+  comment?: string
+  engineAttribute?: string
+  secondaryEngineAttribute?: string
+  algorithmOption?: IndexAlgorithmOption
+  lockOption?: IndexLockOption
 }
 
 export class DropIndexStatement extends Statement {
@@ -311,8 +335,9 @@ export class CreateViewStatement extends Statement {
   orReplace = false
   algorithm?: Algortihm
   definer?: string
-  sqlSecurityDefiner?: string
-  sqlSecurityInvoker?: string
+  sqlSecurity?: SqlSecurity
+  columns?: Array<string>
+  checkOption?: CheckOption
 }
 
 export class AlterViewStatement extends Statement {
@@ -320,8 +345,7 @@ export class AlterViewStatement extends Statement {
   name = ""
   algorithm?: Algortihm
   definer?: string
-  sqlSecurityDefiner?: string
-  sqlSecurityInvoker?: string
+  sqlSecurity?: SqlSecurity
 }
 
 export class DropViewStatement extends Statement {
@@ -330,10 +354,22 @@ export class DropViewStatement extends Statement {
   ifExists = false
 }
 
+export class ProcedureParam {
+  direction: Direction = Direction.IN
+  name = ""
+  type = ""
+}
+
 export class CreateProcedureStatement extends Statement {
   schemaName?: string
   name = ""
   definer?: string
+  params = new Array<ProcedureParam>()
+  comment?: string
+  language = ProcedureLanguage.SQL
+  deterministic = false
+  characteristic = ProcedureCharacteristic.CONTAINS_SQL
+  sqlSecurity = SqlSecurity.DEFINER
 }
 
 export class AlterProcedureStatement extends Statement {
@@ -348,11 +384,23 @@ export class DropProcedureStatement extends Statement {
   ifExists = false
 }
 
+export class FunctionParam {
+  name = ""
+  type = ""
+}
+
 export class CreateFunctionStatement extends Statement {
   schemaName?: string
   name = ""
   definer?: string
   aggregate = false
+  params = new Array<FunctionParam>()
+  returnType = ""
+  comment?: string
+  language = ProcedureLanguage.SQL
+  deterministic = false
+  characteristic = ProcedureCharacteristic.CONTAINS_SQL
+  sqlSecurity = SqlSecurity.DEFINER
 }
 
 export class AlterFunctionStatement extends Statement {
@@ -367,10 +415,19 @@ export class DropFunctionStatement extends Statement {
   ifExists = false
 }
 
+export class TriggerOrder {
+  position = TriggerOrderPosition.FOLLOWS
+  tableName = ""
+}
+
 export class CreateTriggerStatement extends Statement {
   schemaName?: string
   name = ""
   definer?: string
+  triggerTime = TriggerTime.BEFORE
+  triggerEvent = TriggerEvent.INSERT
+  tableName: string = ""
+  triggerOrder?: TriggerOrder
 }
 
 export class DropTriggerStatement extends Statement {
@@ -383,6 +440,10 @@ export class CreateEventStatement extends Statement {
   name = ""
   definer?: string
   ifNotExists = false
+  at?: Array<Token>
+  every?: Interval
+  starts?: Array<Token>
+  ends?: Array<Token>
 }
 
 export class AlterEventStatement extends Statement {
@@ -640,10 +701,20 @@ export enum Concurrency {
   CONCURRENT = "CONCURRENT",
 }
 
+export enum SortOrder {
+  ASC = "ASC",
+  DESC = "DESC",
+}
+
 export enum IndexType {
   UNIQUE = "UNIQUE",
   FULLTEXT = "FULLTEXT",
   SPATIAL = "SPATIAL",
+}
+
+export enum IndexAlgorithm {
+  BTREE = "BTREE",
+  HASH = "HASH"
 }
 
 export enum ResourceGroupType {
@@ -674,4 +745,78 @@ export enum RowFormat {
 export enum StorageType {
   DISK = "DISK",
   MEMORY = "MEMORY",
+}
+
+export enum SqlSecurity {
+  DEFINER = "DEFINER",
+  INVOKER = "INVOKER",
+}
+
+export enum Direction {
+  IN = "IN",
+  OUT = "OUT",
+  INOUT = "INOUT",
+}
+
+export enum CheckOption {
+  CASCADED = "CASCADED",
+  LOCAL = "LOCAL",
+}
+
+export enum ProcedureLanguage {
+  SQL = "SQL"
+}
+
+export enum ProcedureCharacteristic {
+  CONTAINS_SQL = "CONTAINS SQL",
+  NO_SQL = "NO SQL",
+  READS_SQL_DATA = "READS SQL DATA",
+  MODIFIES_SQL_DATA = "MODIFIES SQL DATA",
+}
+
+export enum TriggerOrderPosition {
+  FOLLOWS = "FOLLOWS",
+  PRECEDES = "PRECEDES",
+}
+
+export enum TriggerTime {
+  BEFORE = "BEFORE",
+  AFTER = "AFTER",
+}
+
+export enum TriggerEvent {
+  INSERT = "INSERT",
+  UPDATE = "UPDATE",
+  DELETE = "DELETE",
+}
+
+export enum IntervalUnit {
+  YEAR = "YEAR",
+  QUARTER = "QUARTER",
+  MONTH = "MONTH",
+  DAY = "DAY",
+  HOUR = "HOUR",
+  MINUTE = "MINUTE",
+  WEEK = "WEEK",
+  SECOND = "SECOND",
+  YEAR_MONTH = "YEAR_MONTH",
+  DAY_HOUR = "DAY_HOUR",
+  DAY_MINUTE = "DAY_MINUTE",
+  DAY_SECOND = "DAY_SECOND",
+  HOUR_MINUTE = "DAY_SECOND",
+  HOUR_SECOND = "DAY_SECOND",
+  MINUTE_SECOND = "MINUTE_SECOND",
+}
+
+export enum IndexAlgorithmOption {
+  DEFAULT = "DEFAULT",
+  INPLACE = "INPLACE",
+  COPY = "COPY",
+}
+
+export enum IndexLockOption {
+  DEFAULT = "DEFAULT",
+  NONE = "NONE",
+  SHARED = "SHARED",
+  EXCLUSIVE = "EXCLUSIVE",
 }

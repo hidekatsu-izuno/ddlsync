@@ -118,7 +118,7 @@ export class CreateIndexStatement extends Statement {
   tableName = ""
   type?: IndexType
   ifNotExists = false
-  columns = new Array<IndexedColumn>()
+  columns = new Array<IndexColumn>()
 }
 
 export class DropIndexStatement extends Statement {
@@ -204,19 +204,19 @@ export class ColumnDef {
   constraints = new Array<Constraint>()
 }
 
-export class IndexedColumn {
+export class IndexColumn {
   name?: string
   expression?: Token[]
   sortOrder = SortOrder.ASC
 }
 
 export class PrimaryKeyTableConstraint extends Constraint {
-  columns = new Array<IndexedColumn>()
+  columns = new Array<IndexColumn>()
   conflictAction = ConflictAction.ABORT
 }
 
 export class UniqueTableConstraint extends Constraint {
-  columns = new Array<IndexedColumn>()
+  columns = new Array<IndexColumn>()
   conflictAction = ConflictAction.ABORT
 }
 
@@ -273,10 +273,10 @@ export enum IndexType {
 }
 
 export enum AlterTableAction {
-  RENAME_TABLE = "RENAME_TABLE",
-  RENAME_COLUMN = "RENAME_COLUMN",
-  ADD_COLUMN = "ADD_COLUMN",
-  DROP_COLUMN = "DROP_COLUMN",
+  RENAME_TABLE = "RENAME TABLE",
+  RENAME_COLUMN = "RENAME COLUMN",
+  ADD_COLUMN = "ADD COLUMN",
+  DROP_COLUMN = "DROP COLUMN",
 }
 
 export enum SortOrder {
