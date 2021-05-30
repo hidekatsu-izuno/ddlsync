@@ -15,7 +15,7 @@ import {
   CheckColumnConstraint,
   CheckTableConstraint,
   CollateColumnConstraint,
-  ColumnDef,
+  TableColumn,
   CommandStatement,
   ConflictAction,
   CreateIndexStatement,
@@ -32,7 +32,7 @@ import {
   PragmaStatement,
   ForeignKeyTableConstraint,
   GeneratedColumnConstraint,
-  IndexedColumn,
+  IndexColumn,
   InsertStatement,
   NotNullColumnConstraint,
   NullColumnConstraint,
@@ -56,6 +56,7 @@ import {
   CommitTransactionStatement,
   RollbackTransactionStatement,
   IndexType,
+  DataType,
 } from "./sqlite3_models"
 
 export class TokenType implements ITokenType {
@@ -480,7 +481,7 @@ export class Sqlite3Parser extends Parser {
           stmt.columns = []
           stmt.constraints = []
 
-          stmt.columns.push(this.columnDef())
+          stmt.columns.push(this.tableColumn())
           while (this.consumeIf(TokenType.Comma)) {
             if (
               !this.peekIf(Keyword.CONSTRAINT) &&
@@ -495,7 +496,7 @@ export class Sqlite3Parser extends Parser {
               !this.peekIf(Keyword.GENERATED) &&
               !this.peekIf(Keyword.AS)
             ) {
-              stmt.columns.push(this.columnDef())
+              stmt.columns.push(this.tableColumn())
             } else {
               stmt.constraints.push(this.tableConstraint())
               while (this.consumeIf(TokenType.Comma)) {
@@ -550,7 +551,7 @@ export class Sqlite3Parser extends Parser {
         stmt.tableName = this.identifier()
         this.consume(TokenType.LeftParen)
         for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-          stmt.columns.push(this.indexedColumn(stmt.type === IndexType.UNIQUE))
+          stmt.columns.push(this.indexColumn(stmt.type === IndexType.UNIQUE))
         }
         this.consume(TokenType.RightParen)
         if (this.consumeIf(Keyword.WHERE)) {
@@ -583,7 +584,7 @@ export class Sqlite3Parser extends Parser {
       } else if (this.consumeIf(Keyword.ADD)) {
         this.consumeIf(Keyword.COLUMN)
         stmt.alterTableAction = AlterTableAction.ADD_COLUMN
-        stmt.newColumn = this.columnDef()
+        stmt.newColumn = this.tableColumn()
       } else if (this.consumeIf(Keyword.DROP)) {
         this.consumeIf(Keyword.COLUMN)
         stmt.alterTableAction = AlterTableAction.DROP_COLUMN
@@ -789,24 +790,15 @@ export class Sqlite3Parser extends Parser {
     return this.tokens.slice(start, this.pos)
   }
 
-  columnDef() {
-    const columnDef = new ColumnDef()
-    columnDef.name = this.identifier()
-
+  tableColumn() {
+    const column = new TableColumn()
+    column.name = this.identifier()
     if (
       this.peekIf(TokenType.QuotedIdentifier) ||
       this.peekIf(TokenType.Identifier) ||
       this.peekIf(TokenType.QuotedValue)
     ) {
-      columnDef.typeName = this.typeName()
-    }
-
-    if (this.consumeIf(TokenType.LeftParen)) {
-      columnDef.length = this.numberValue()
-      if (this.consumeIf(TokenType.Comma)) {
-        columnDef.scale = this.numberValue()
-      }
-      this.consume(TokenType.RightParen)
+      column.dataType = this.dataType()
     }
 
     while (
@@ -815,10 +807,10 @@ export class Sqlite3Parser extends Parser {
       !this.peekIf(TokenType.RightParen) &&
       !this.peekIf(TokenType.Comma)
     ) {
-      columnDef.constraints.push(this.columnConstraint())
+      column.constraints.push(this.columnConstraint())
     }
 
-    return columnDef
+    return column
   }
 
   columnConstraint() {
@@ -942,7 +934,7 @@ export class Sqlite3Parser extends Parser {
       constraint.name = name
       this.consume(TokenType.LeftParen)
       for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-        constraint.columns.push(this.indexedColumn(true))
+        constraint.columns.push(this.indexColumn(true))
       }
       this.consume(TokenType.RightParen)
       if (this.consumeIf(Keyword.ON)) {
@@ -954,7 +946,7 @@ export class Sqlite3Parser extends Parser {
       constraint.name = name
       this.consume(TokenType.LeftParen)
       for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-        constraint.columns.push(this.indexedColumn(true))
+        constraint.columns.push(this.indexColumn(true))
       }
       this.consume(TokenType.RightParen)
       if (this.consumeIf(Keyword.ON)) {
@@ -985,30 +977,28 @@ export class Sqlite3Parser extends Parser {
     return constraint
   }
 
-  typeName() {
+  dataType() {
+    const dataType = new DataType()
+
     const typeNames = []
     typeNames.push(this.identifier())
     while (
       this.peekIf(TokenType.QuotedIdentifier) ||
       this.peekIf(TokenType.QuotedValue) ||
-      (
-        this.peekIf(TokenType.Identifier) &&
-        !this.peekIf(Keyword.CONSTRAINT) &&
-        !this.peekIf(Keyword.PRIMARY) &&
-        !this.peekIf(Keyword.NOT) &&
-        !this.peekIf(Keyword.NULL) &&
-        !this.peekIf(Keyword.UNIQUE) &&
-        !this.peekIf(Keyword.CHECK) &&
-        !this.peekIf(Keyword.DEFAULT) &&
-        !this.peekIf(Keyword.COLLATE) &&
-        !this.peekIf(Keyword.REFERENCES) &&
-        !this.peekIf(Keyword.GENERATED) &&
-        !this.peekIf(Keyword.AS)
-      )
+      this.peekIf(TokenType.Identifier)
     ) {
       typeNames.push(this.identifier())
     }
-    return typeNames.join(" ")
+    dataType.name = typeNames.join(" ")
+
+    if (this.consumeIf(TokenType.LeftParen)) {
+      dataType.length = this.numberValue()
+      if (this.consumeIf(TokenType.Comma)) {
+        dataType.scale = this.numberValue()
+      }
+      this.consume(TokenType.RightParen)
+    }
+    return dataType
   }
 
   conflictAction() {
@@ -1040,8 +1030,8 @@ export class Sqlite3Parser extends Parser {
     return tokens.map(token => token.text).join();
   }
 
-  indexedColumn(unique = false) {
-    const column = new IndexedColumn()
+  indexColumn(unique = false) {
+    const column = new IndexColumn()
     if (unique) {
       column.name = this.identifier()
     } else {

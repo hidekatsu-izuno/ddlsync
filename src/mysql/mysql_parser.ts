@@ -153,7 +153,14 @@ import {
   IndexColumn,
   SortOrder,
   IndexAlgorithmOption,
-  IndexLockOption
+  IndexLockOption,
+  TableColumn,
+  IndexTableConstraint,
+  DataType,
+  ColumnFormat,
+  GeneratedColumnType,
+  CheckConstraint,
+  ForeignKeyConstraint,
 } from "./mysql_models"
 
 export class TokenType implements ITokenType {
@@ -167,6 +174,8 @@ export class TokenType implements ITokenType {
   static SemiColon = new TokenType("SemiColon")
   static LeftParen = new TokenType("LeftParen")
   static RightParen = new TokenType("RightParen")
+  static LeftBrace = new TokenType("LeftBrace")
+  static RightBrace = new TokenType("RightBrace")
   static Comma = new TokenType("Comma")
   static Dot = new TokenType("Dot")
   static At = new TokenType("At")
@@ -177,7 +186,6 @@ export class TokenType implements ITokenType {
   static BindVariable = new TokenType("BindVariable")
   static SessionVariable = new TokenType("SessionVariable")
   static UserDefinedVariable = new TokenType("UserVariable")
-  static QuotedValue = new TokenType("QuotedValue")
   static QuotedIdentifier = new TokenType("QuotedIdentifier")
   static Identifier = new TokenType("Identifier")
   static Error = new TokenType("Error")
@@ -201,6 +209,7 @@ export class Keyword implements ITokenType {
   static ALGORITHM = new Keyword("ALGORITHM")
   static ALL = new Keyword("ALL", { reserved: true })
   static ALTER = new Keyword("ALTER", { reserved: true })
+  static ALWAYS = new Keyword("ALWAYS")
   static ANALYSE = new Keyword("ANALYSE", { reserved: function(options: { [ key:string]:any}) {
     return semver.satisfies("<8.0.0", options.version || "0")
   } })
@@ -208,6 +217,7 @@ export class Keyword implements ITokenType {
   static AND = new Keyword("AND", { reserved: true })
   static AS = new Keyword("AS", { reserved: true })
   static ASC = new Keyword("ASC", { reserved: true })
+  static ASCII = new Keyword("ASCII")
   static ASENSITIVE = new Keyword("ASENSITIVE", { reserved: true })
   static AT = new Keyword("AT")
   static AUTO_INCREMENT = new Keyword("AUTO_INCREMENT")
@@ -219,7 +229,10 @@ export class Keyword implements ITokenType {
   static BIGINT = new Keyword("BIGINT", { reserved: true })
   static BINARY = new Keyword("BINARY", { reserved: true })
   static BINLOG = new Keyword("BINLOG")
+  static BIT = new Keyword("BIT")
   static BLOB = new Keyword("BLOB", { reserved: true })
+  static BOOL = new Keyword("BOOL")
+  static BOOLEAN = new Keyword("BOOLEAN")
   static BOTH = new Keyword("BOTH", { reserved: true })
   static BTREE = new Keyword("BTREE")
   static BY = new Keyword("BY", { reserved: true })
@@ -237,6 +250,7 @@ export class Keyword implements ITokenType {
   static CIPHER = new Keyword("CIPHER")
   static COLLATE = new Keyword("COLLATE", { reserved: true })
   static COLUMN = new Keyword("COLUMN", { reserved: true })
+  static COLUMN_FORMAT = new Keyword("COLUMN_FORMAT")
   static COLUMNS = new Keyword("COLUMNS")
   static COMMENT = new Keyword("COMMENT")
   static COMMIT = new Keyword("COMMIT")
@@ -265,10 +279,13 @@ export class Keyword implements ITokenType {
   static CURRENT_TIMESTAMP = new Keyword("CURRENT_TIMESTAMP", { reserved: true })
   static CURRENT_USER = new Keyword("CURRENT_USER", { reserved: true })
   static CURSOR = new Keyword("CURSOR", { reserved: true })
+  static D = new Keyword("D")
   static DATA = new Keyword("DATA")
   static DATABASE = new Keyword("DATABASE", { reserved: true })
   static DATABASES = new Keyword("DATABASES", { reserved: true })
   static DATAFILE = new Keyword("DATAFILE")
+  static DATE = new Keyword("DATE")
+  static DATETIME = new Keyword("DATETIME")
   static DAY = new Keyword("DAY")
   static DAY_HOUR = new Keyword("DAY_HOUR", { reserved: true })
   static DAY_MICROSECOND = new Keyword("DAY_MICROSECOND", { reserved: true })
@@ -310,10 +327,12 @@ export class Keyword implements ITokenType {
     return semver.satisfies(">=8.0.4", options.version || "0")
   } })
   static ENABLE = new Keyword("ENABLE")
+  static ENUM = new Keyword("ENUM")
   static ENCLOSED = new Keyword("ENCLOSED", { reserved: true })
   static ENCRYPTION = new Keyword("ENCRYPTION")
   static END = new Keyword("END")
   static ENDS = new Keyword("ENDS")
+  static ENFORCED = new Keyword("ENFORCED")
   static ENGINE = new Keyword("ENGINE")
   static ENGINE_ATTRIBUTE = new Keyword("ENGINE_ATTRIBUTE")
   static ESCAPED = new Keyword("ESCAPED", { reserved: true })
@@ -460,8 +479,10 @@ export class Keyword implements ITokenType {
   static MODIFIES = new Keyword("MODIFIES", { reserved: true })
   static MONTH = new Keyword("MONTH")
   static NAMES = new Keyword("NAMES")
-  static NONE = new Keyword("NONE")
+  static NATIONAL = new Keyword("NATIONAL")
   static NATURAL = new Keyword("NATURAL", { reserved: true })
+  static NCHAR = new Keyword("NCHAR")
+  static NONE = new Keyword("NONE")
   static NO = new Keyword("NO")
   static NOT = new Keyword("NOT", { reserved: true })
   static NO_WRITE_TO_BINLOG = new Keyword("NO_WRITE_TO_BINLOG", { reserved: true })
@@ -474,6 +495,7 @@ export class Keyword implements ITokenType {
   } })
   static NULL = new Keyword("NULL", { reserved: true })
   static NUMERIC = new Keyword("NUMERIC", { reserved: true })
+  static NVARCHAR = new Keyword("NVARCHAR")
   static OF = new Keyword("OF", { reserved: function(options: { [ key:string]:any}) {
     return semver.satisfies(">=8.0.1", options.version || "0")
   } })
@@ -580,6 +602,7 @@ export class Keyword implements ITokenType {
   static SHARED = new Keyword("SHARED")
   static SHOW = new Keyword("SHOW", { reserved: true })
   static SIGNAL = new Keyword("SIGNAL", { reserved: true })
+  static SIGNED = new Keyword("SIGNED")
   static SLAVE = new Keyword("SLAVE")
   static SMALLINT = new Keyword("SMALLINT", { reserved: true })
   static SOCKET = new Keyword("SOCKET")
@@ -611,13 +634,17 @@ export class Keyword implements ITokenType {
   static SYSTEM = new Keyword("SYSTEM", { reserved: function(options: { [ key:string]:any}) {
     return semver.satisfies(">=8.0.3", options.version || "0")
   } })
+  static T = new Keyword("T")
   static TABLE = new Keyword("TABLE", { reserved: true })
   static TABLESPACE = new Keyword("TABLESPACE")
   static TEMPORARY = new Keyword("TEMPORARY")
   static TEMPTABLE = new Keyword("TEMPTABLE")
   static TERMINATED = new Keyword("TERMINATED", { reserved: true })
+  static TEXT = new Keyword("TEXT")
   static THEN = new Keyword("THEN", { reserved: true })
   static THREAD_PRIORITY = new Keyword("THREAD_PRIORITY")
+  static TIME = new Keyword("TIME")
+  static TIMESTAMP = new Keyword("TIMESTAMP")
   static TINYBLOB = new Keyword("TINYBLOB", { reserved: true })
   static TINYINT = new Keyword("TINYINT", { reserved: true })
   static TINYTEXT = new Keyword("TINYTEXT", { reserved: true })
@@ -627,12 +654,14 @@ export class Keyword implements ITokenType {
   static TRIGGER = new Keyword("TRIGGER", { reserved: true })
   static TRUE = new Keyword("TRUE", { reserved: true })
   static TRUNCATE = new Keyword("TRUNCATE")
+  static TS = new Keyword("TS")
   static TYPE = new Keyword("TYPE")
   static UNCOMMITTED = new Keyword("UNCOMMITTED")
   static UNDEFINED = new Keyword("UNDEFINED")
   static UNDO = new Keyword("UNDO", { reserved: true })
   static UNDO_BUFFER_SIZE = new Keyword("UNDO_BUFFER_SIZE")
   static UNDOFILE = new Keyword("UNDOFILE")
+  static UNICODE = new Keyword("UNICODE")
   static UNINSTALL = new Keyword("UNINSTALL")
   static UNION = new Keyword("UNION", { reserved: true })
   static UNIQUE = new Keyword("UNIQUE", { reserved: true })
@@ -1387,7 +1416,84 @@ export class MySqlParser extends Parser {
               stmt.likeName = this.identifier()
             }
           } else {
-            //TODO create_definition
+            stmt.columns = []
+            stmt.constraints = []
+            for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+              if (
+                this.peekIf(Keyword.CONSTRAINT) ||
+                this.peekIf(Keyword.INDEX) ||
+                this.peekIf(Keyword.KEY) ||
+                this.peekIf(Keyword.PRIMARY) ||
+                this.peekIf(Keyword.UNIQUE) ||
+                this.peekIf(Keyword.FOREIGN) ||
+                this.peekIf(Keyword.FULLTEXT) ||
+                this.peekIf(Keyword.SPATIAL) ||
+                this.peekIf(Keyword.CHECK)
+              ) {
+                let constraint
+                if (this.consumeIf(Keyword.INDEX) || this.consumeIf(Keyword.KEY)) {
+                  constraint = new IndexTableConstraint()
+                } else if (this.consumeIf(Keyword.FULLTEXT)) {
+                  this.consumeIf(Keyword.INDEX) || this.consumeIf(Keyword.KEY)
+                  constraint = new IndexTableConstraint()
+                  constraint.type = IndexType.FULLTEXT
+                } else if (this.consumeIf(Keyword.SPATIAL)) {
+                  this.consumeIf(Keyword.INDEX) || this.consumeIf(Keyword.KEY)
+                  constraint = new IndexTableConstraint()
+                  constraint.type = IndexType.SPATIAL
+                } else {
+                  let constraintName
+                  if (this.consumeIf(Keyword.CONSTRAINT)) {
+                    if (this.peekIf(TokenType.Identifier) || this.peekIf(TokenType.QuotedIdentifier)) {
+                      constraintName = this.identifier()
+                    }
+                  }
+                  if (this.consumeIf(Keyword.FOREIGN)) {
+                    this.consume(Keyword.KEY)
+                    constraint = new ForeignKeyConstraint()
+                    this.consume(TokenType.LeftParen)
+                    // TODO
+                    this.consume(TokenType.RightParen)
+                  } else if (this.consumeIf(Keyword.CHECK)) {
+                    constraint = new CheckConstraint()
+                    // TODO
+                  } else {
+                    constraint = new IndexTableConstraint()
+                    if (this.consumeIf(Keyword.PRIMARY)) {
+                      this.consume(Keyword.KEY)
+                      constraint.type = IndexType.PRIMARY_KEY
+                    } else if (this.consumeIf(Keyword.UNIQUE)) {
+                      this.consumeIf(Keyword.INDEX) || this.consumeIf(Keyword.KEY)
+                      constraint = new IndexTableConstraint()
+                      constraint.type = IndexType.UNIQUE
+                    } else {
+                      throw this.createParseError()
+                    }
+
+                    if (this.consumeIf(Keyword.USING)) {
+                      if (this.consumeIf(Keyword.BTREE)) {
+                        constraint.algorithm = IndexAlgorithm.BTREE
+                      } else if (this.consumeIf(Keyword.HASH)) {
+                        constraint.algorithm = IndexAlgorithm.HASH
+                      } else {
+                        throw this.createParseError()
+                      }
+                    }
+                    this.consume(TokenType.LeftParen)
+                    //TODO
+                    this.consume(TokenType.RightParen)
+                  }
+
+                  if (constraintName) {
+                    constraint.name = constraintName
+                  }
+                }
+
+                stmt.constraints.push(constraint)
+              } else {
+                stmt.columns.push(this.tableColumn())
+              }
+            }
           }
           this.consumeIf(TokenType.RightParen)
         } else {
@@ -1629,13 +1735,10 @@ export class MySqlParser extends Parser {
               }
             }
             if (this.consumeIf(TokenType.LeftParen)) {
-              for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-                //TODO
-              }
+              // TODO
               this.consume(TokenType.RightParen)
             }
           }
-
           if (this.consumeIf(Keyword.IGNORE)) {
             stmt.conflictAction = ConflictAction.IGNORE
             stmt.asSelect = true
@@ -1782,7 +1885,7 @@ export class MySqlParser extends Parser {
           if (stmt instanceof CreateFunctionStatement) {
             const param = new FunctionParam()
             param.name = this.identifier()
-            param.type = this.typeName()
+            param.dataType = this.dataType()
             stmt.params.push(param)
           } else {
             const param = new ProcedureParam()
@@ -1794,14 +1897,14 @@ export class MySqlParser extends Parser {
               param.direction = Direction.INOUT
             }
             param.name = this.identifier()
-            param.type = this.typeName()
+            param.dataType = this.dataType()
             stmt.params.push(param)
           }
         }
         this.consume(TokenType.RightParen)
         if (stmt instanceof CreateFunctionStatement) {
           this.consume(Keyword.RETURN)
-          stmt.returnType = this.typeName()
+          stmt.returnDataType = this.dataType()
         }
         while (this.peek()) {
           if (this.consumeIf(Keyword.COMMENT)) {
@@ -2499,13 +2602,13 @@ export class MySqlParser extends Parser {
   }
 
   username() {
-    let token, text
-    if (token = this.consumeIf(TokenType.QuotedIdentifier)) {
-      text = unescape(dequote(token.text))
-    } else if (token = this.consumeIf(TokenType.String)) {
-      text = unescape(dequote(token.text))
-    } else if (token = this.consumeIf(TokenType.Identifier)) {
-      text = lcase(token.text)
+    let text
+    if (this.consumeIf(TokenType.QuotedIdentifier)) {
+      text = unescape(dequote(this.peek(-1).text))
+    } else if (this.consumeIf(TokenType.String)) {
+      text = unescape(dequote(this.peek(-1).text))
+    } else if (this.consumeIf(TokenType.Identifier)) {
+      text = lcase(this.peek(-1).text)
     } else {
       throw this.createParseError()
     }
@@ -2513,20 +2616,331 @@ export class MySqlParser extends Parser {
   }
 
   identifier() {
-    let token, text
-    if (token = this.consumeIf(TokenType.QuotedIdentifier)) {
-      text = unescape(dequote(token.text))
-    } else if (token = this.consumeIf(TokenType.Identifier)) {
-      text = lcase(token.text)
+    let text
+    if (this.consumeIf(TokenType.QuotedIdentifier)) {
+      text = unescape(dequote(this.peek(-1).text))
+    } else if (this.consumeIf(TokenType.Identifier)) {
+      text = lcase(this.peek(-1).text)
     } else {
       throw this.createParseError()
     }
     return text
   }
 
-  typeName() {
-    //TODO
-    return ""
+  tableColumn() {
+    const column = new TableColumn()
+    column.name = this.identifier()
+    column.dataType = this.dataType()
+
+    let start = this.pos
+    let collate
+    if (this.consumeIf(Keyword.COLLATE)) {
+      collate = this.identifier()
+    }
+    if (this.consumeIf(Keyword.GENERATED)) {
+      this.consume(Keyword.ALWAYS)
+    }
+    if (this.consumeIf(Keyword.AS)) {
+      if (collate) {
+        column.collate = collate
+      }
+      this.consume(TokenType.LeftParen)
+      // TODO
+      this.consume(TokenType.RightParen)
+
+      if (this.consumeIf(Keyword.VIRTUAL)) {
+        column.generatedColumnType = GeneratedColumnType.VIRTUAL
+      } else if (this.consumeIf(Keyword.STORED)) {
+        column.generatedColumnType = GeneratedColumnType.STORED
+      } else {
+        throw this.createParseError()
+      }
+
+      if (this.consumeIf(Keyword.NOT)) {
+        this.consume(Keyword.NULL)
+        column.notNull = true
+      } else if (this.consumeIf(Keyword.NULL)) {
+        column.notNull = false
+      }
+
+      if (this.consumeIf(Keyword.VISIBLE)) {
+        column.visible = true
+      } else if (this.consumeIf(Keyword.INVISIBLE)) {
+        column.visible = false
+      }
+
+      if (this.consumeIf(Keyword.UNIQUE)) {
+        this.consumeIf(Keyword.KEY)
+        column.indexType = IndexType.UNIQUE
+      }
+      if (this.consumeIf(Keyword.PRIMARY)) {
+        this.consumeIf(Keyword.KEY)
+        column.indexType = IndexType.PRIMARY_KEY
+      } else if (this.consumeIf(Keyword.KEY)) {
+        column.indexType = IndexType.PRIMARY_KEY
+      }
+
+      if (this.consumeIf(Keyword.COMMENT)) {
+        column.comment = this.stringValue()
+      }
+    } else {
+      // Rollback
+      this.pos = start
+
+      if (this.consumeIf(Keyword.NOT)) {
+        this.consume(Keyword.NULL)
+        column.notNull = true
+      } else if (this.consumeIf(Keyword.NULL)) {
+        column.notNull = false
+      }
+
+      if (this.consumeIf(Keyword.DEFAULT)) {
+        if (this.consumeIf(TokenType.LeftParen)) {
+          column.defaultValue = this.expression()
+          this.consume(TokenType.RightParen)
+        } else if (this.consumeIf(Keyword.CURRENT_TIMESTAMP)) {
+          column.defaultValue = this.tokens.slice(this.pos, this.pos+1)
+        } else {
+          column.defaultValue = this.literal()
+        }
+      }
+
+      if (this.consumeIf(Keyword.VISIBLE)) {
+        column.visible = true
+      } else if (this.consumeIf(Keyword.INVISIBLE)) {
+        column.visible = false
+      }
+
+      if (this.consumeIf(Keyword.AUTO_INCREMENT)) {
+        column.autoIncrement = true
+      }
+
+      if (this.consumeIf(Keyword.UNIQUE)) {
+        this.consumeIf(Keyword.KEY)
+        column.indexType = IndexType.UNIQUE
+      }
+      if (this.consumeIf(Keyword.PRIMARY)) {
+        this.consumeIf(Keyword.KEY)
+        column.indexType = IndexType.PRIMARY_KEY
+      } else if (this.consumeIf(Keyword.KEY)) {
+        column.indexType = IndexType.PRIMARY_KEY
+      }
+
+      if (this.consumeIf(Keyword.COMMENT)) {
+        column.comment = this.stringValue()
+      }
+
+      if (this.consumeIf(Keyword.COLLATE)) {
+        column.collate = this.identifier()
+      }
+
+      if (this.consumeIf(Keyword.COLUMN_FORMAT)) {
+        if (this.consumeIf(Keyword.FIXED)) {
+          column.columnFormat = ColumnFormat.FIXED
+        } else if (this.consumeIf(Keyword.DYNAMIC)) {
+          column.columnFormat = ColumnFormat.DYNAMIC
+        } else if (this.consumeIf(Keyword.DEFAULT)) {
+          column.columnFormat = ColumnFormat.DEFAULT
+        } else {
+          throw this.createParseError()
+        }
+      }
+
+      if (this.consumeIf(Keyword.ENGINE_ATTRIBUTE)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        column.engineAttribute = this.stringValue()
+      }
+
+      if (this.consumeIf(Keyword.SECONDARY_ENGINE_ATTRIBUTE)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        column.secondaryEngineAttribute = this.stringValue()
+      }
+
+      if (this.consumeIf(Keyword.STORAGE)) {
+        if (this.consumeIf(Keyword.DISK)) {
+          column.storageType = StorageType.DISK
+        } else if (this.consumeIf(Keyword.MEMORY)) {
+          column.storageType = StorageType.MEMORY
+        } else {
+          throw this.createParseError()
+        }
+      }
+    }
+
+    if (this.consumeIf(Keyword.REFERENCES)) {
+      const constraint = new ForeignKeyConstraint()
+    }
+
+    let hasConstraint = false
+    let constraintName
+    if (this.consumeIf(Keyword.CONSTRAINT)) {
+      hasConstraint = true
+      if (this.consumeIf(TokenType.QuotedIdentifier) || this.consumeIf(TokenType.Identifier)) {
+        constraintName = this.identifier()
+      }
+    }
+
+    if (
+      (hasConstraint && this.consume(Keyword.CHECK)) ||
+      this.consumeIf(Keyword.CHECK)
+    ) {
+      const constraint = new CheckConstraint()
+      this.consume(TokenType.LeftParen)
+      constraint.expression = this.expression()
+      this.consume(TokenType.RightParen)
+
+      if (this.consumeIf(Keyword.NOT)) {
+        this.consume(Keyword.ENFORCED)
+        constraint.enforced = false
+      } else if (this.consumeIf(Keyword.ENFORCED)) {
+        constraint.enforced = true
+      }
+      column.checkConstraint = constraint
+    }
+
+    return column
+  }
+
+  dataType() {
+    let dataType = new DataType()
+
+    let start = this.pos
+    let collective = false
+    let lengthRequired = false
+    let withLength = false
+    let withScale = false
+    let withUnsigned = false
+    let withCharcterSetAndCollate = false
+
+    if (this.consumeIf(Keyword.NATIONAL)) {
+      if (this.consumeIf(Keyword.CHARACTER) || this.consumeIf(Keyword.CHAR)) {
+        if (this.consumeIf(Keyword.VARYING)) {
+          lengthRequired = true
+        }
+      } else if (this.consumeIf(Keyword.VARCHAR)) {
+        lengthRequired = true
+      } else {
+        throw this.createParseError()
+      }
+      withLength = true
+      withCharcterSetAndCollate = true
+    } else if (this.consumeIf(Keyword.CHARACTER) || this.consumeIf(Keyword.CHAR)) {
+      if (this.consumeIf(Keyword.VARYING)) {
+        lengthRequired = true
+      }
+      withLength = true
+      withCharcterSetAndCollate = true
+    } else if (this.consumeIf(Keyword.VARCHAR)) {
+      lengthRequired = true
+      withLength = true
+      withCharcterSetAndCollate = true
+    } else if (
+      this.consumeIf(Keyword.TINYTEXT) ||
+      this.consumeIf(Keyword.TEXT) ||
+      this.consumeIf(Keyword.MEDIUMTEXT) ||
+      this.consumeIf(Keyword.LONGTEXT)
+    ) {
+      withCharcterSetAndCollate = true
+    } else if (this.consumeIf(Keyword.BINARY)) {
+      if (this.consumeIf(Keyword.VARYING)) {
+        lengthRequired = true
+      }
+      withLength = true
+    } else if (this.consumeIf(Keyword.VARBINARY)) {
+      lengthRequired = true
+      withLength = true
+    } else if (this.consumeIf(Keyword.ENUM) || this.consumeIf(Keyword.SET)) {
+      collective = true
+      withCharcterSetAndCollate = true
+    } else if (
+      this.consumeIf(Keyword.BIT) ||
+      this.consumeIf(Keyword.DATETIME) ||
+      this.consumeIf(Keyword.TIMESTAMP) ||
+      this.consumeIf(Keyword.TIME) ||
+      this.consumeIf(Keyword.YEAR)
+    ) {
+      withLength = true
+    } else if (this.consumeIf(Keyword.BOOLEAN) || this.consumeIf(Keyword.BOOL)) {
+      withUnsigned = true
+    } else if (
+      this.consumeIf(Keyword.TINYINT) ||
+      this.consumeIf(Keyword.SMALLINT) ||
+      this.consumeIf(Keyword.MEDIUMINT) ||
+      this.consumeIf(Keyword.INT) ||
+      this.consumeIf(Keyword.INTEGER) ||
+      this.consumeIf(Keyword.BIGINT)
+    ) {
+      withLength = true
+      withUnsigned = true
+    } else if (
+      this.consumeIf(Keyword.DECIMAL) ||
+      this.consumeIf(Keyword.DEC) ||
+      this.consumeIf(Keyword.NUMERIC) ||
+      this.consumeIf(Keyword.FIXED) ||
+      this.consumeIf(Keyword.FLOAT) ||
+      this.consumeIf(Keyword.REAL)
+    ) {
+      withLength = true
+      withScale = true
+    } else if (this.consumeIf(Keyword.DOUBLE)) {
+      this.consumeIf(Keyword.PRECISION)
+      withLength = true
+      withScale = true
+    } else {
+      this.consume()
+    }
+    dataType.name = this.tokens.slice(start, this.pos).map(token => ucase(token.text)).join(" ")
+
+    if (withLength) {
+      if (lengthRequired ? this.consume(TokenType.LeftParen) : this.consumeIf(TokenType.LeftParen)) {
+        dataType.length = this.numberValue()
+        if (withScale) {
+          this.consume(TokenType.Comma)
+          dataType.scale = this.numberValue()
+        }
+        this.consume(TokenType.RightParen)
+      }
+    } else if (collective) {
+      this.consume(TokenType.LeftParen)
+      const values = []
+      for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+        values.push(this.stringValue())
+      }
+      dataType.values = values
+      this.consume(TokenType.RightParen)
+    }
+
+    if (withUnsigned) {
+      if (this.consumeIf(Keyword.SIGNED)) {
+        // no handle
+      } else if (this.consumeIf(Keyword.UNSIGNED)) {
+        dataType.unsigned = true
+      }
+      if (this.consumeIf(Keyword.ZEROFILL)) {
+        dataType.zerofill = true
+      }
+    }
+
+    if (withCharcterSetAndCollate) {
+      if (this.consumeIf(Keyword.ASCII)) {
+        dataType.characterSet = "latin1"
+      } else if (this.consumeIf(Keyword.UNICODE)) {
+        dataType.characterSet = "ucs2"
+      } else if (this.consumeIf(Keyword.CHARACTER)) {
+        this.consumeIf(Keyword.SET)
+        dataType.characterSet = this.identifier()
+      } else if (this.consumeIf(Keyword.CHARSET)) {
+        dataType.characterSet = this.identifier()
+      }
+
+      if (this.consumeIf(Keyword.BINARY)) {
+        dataType.binary = true
+      } else if (this.consumeIf(Keyword.COLLATE)) {
+        dataType.collate = this.identifier()
+      }
+    }
+
+    return dataType
   }
 
   expression() {
@@ -2547,6 +2961,40 @@ export class MySqlParser extends Parser {
       } else {
         this.consume()
       }
+    }
+    return this.tokens.slice(start, this.pos)
+  }
+
+  literal() {
+    const start = this.pos
+    if (this.consumeIf(Keyword.OPE_PLUS) || this.consumeIf(Keyword.OPE_MINUS)) {
+      this.consume(TokenType.Number)
+    } else if (
+      this.consumeIf(Keyword.DATE) ||
+      this.consumeIf(Keyword.TIME) ||
+      this.consumeIf(Keyword.TIMESTAMP)
+    ) {
+      this.consume(TokenType.String)
+    } else if (this.consumeIf(TokenType.LeftBrace)) {
+      if (
+        this.consumeIf(Keyword.D) ||
+        this.consumeIf(Keyword.T) ||
+        this.consumeIf(Keyword.TS)
+      ) {
+        this.consume(TokenType.String)
+      } else {
+        throw this.createParseError()
+      }
+      this.consume(TokenType.RightBrace)
+    } else if (
+      this.consumeIf(TokenType.String) ||
+      this.consumeIf(TokenType.Number) ||
+      this.consumeIf(Keyword.TRUE) ||
+      this.consumeIf(Keyword.FALSE) ||
+      this.consumeIf(Keyword.NULL)
+    ) {
+    } else {
+      throw this.createParseError()
     }
     return this.tokens.slice(start, this.pos)
   }

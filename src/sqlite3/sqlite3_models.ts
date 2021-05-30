@@ -27,7 +27,7 @@ export class CreateTableStatement extends Statement {
   ifNotExists = false
   asSelect = false
   withoutRowid = false
-  columns?: ColumnDef[]
+  columns?: TableColumn[]
   constraints?: Constraint[]
   moduleName?: string
   moduleArgs?: string[]
@@ -64,7 +64,7 @@ export class AlterTableStatement extends Statement {
   newTableName?: string
   columnName?: string
   newColumnName?: string
-  newColumn?: ColumnDef
+  newColumn?: TableColumn
 }
 
 export class DropTableStatement extends Statement {
@@ -196,12 +196,16 @@ export class OtherStatement extends Statement {
   }
 }
 
-export class ColumnDef {
+export class TableColumn {
   name = ""
-  typeName?: string
+  dataType = new DataType()
+  constraints = new Array<Constraint>()
+}
+
+export class DataType {
+  name = ""
   length?: string
   scale?: string
-  constraints = new Array<Constraint>()
 }
 
 export class IndexColumn {

@@ -27,7 +27,7 @@ import {
   DeleteStatement,
   AlterTableAction,
   GeneratedColumnConstraint,
-  ColumnDef,
+  TableColumn,
   getAffinityType,
   AffinityType,
   DefaultColumnConstraint,
@@ -509,9 +509,9 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     const oldColumns = (oldStmt.columns || []).reduce((prev, current) => {
       prev.set(lcase(current.name), current)
       return prev
-    }, new Map<string, ColumnDef>())
+    }, new Map<string, TableColumn>())
 
-    const droppedColumns = new Map<string, ColumnDef>(oldColumns)
+    const droppedColumns = new Map<string, TableColumn>(oldColumns)
     const srcColumns = []
     const destColumns = []
     let sortColumns = []
@@ -563,7 +563,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
         } else if (autoIncrement || defaultValue) {
           // skip
         } else if (notNull) {
-          const atype = getAffinityType(newColumn.typeName)
+          const atype = getAffinityType(newColumn.dataType?.name)
           if (atype === AffinityType.TEXT) {
             srcColumns.push(`'' AS ${bquote(newColumn.name)}`)
           } else if (atype === AffinityType.BLOB) {

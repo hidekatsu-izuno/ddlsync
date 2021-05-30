@@ -237,6 +237,55 @@ export class ListPartition extends Partition {
   columns?: Array<string>
 }
 
+export class References {
+  //TODO
+}
+
+export class TableColumn {
+  name = ""
+  dataType: DataType = new DataType()
+  notNull = false
+  defaultValue?: Array<Token>
+  visible = true
+  collate?: string
+  autoIncrement = false
+  indexType?: IndexType
+  comment?: string
+  columnFormat?: ColumnFormat
+  engineAttribute?: string
+  secondaryEngineAttribute?: string
+  storageType?: StorageType
+  generatedColumnType?: GeneratedColumnType
+  references?: References
+  checkConstraint?: CheckConstraint
+}
+
+export class DataType {
+  name = ""
+  length?: string
+  scale?: string
+  unsigned = false
+  zerofill = false
+  characterSet?: string
+  binary = false
+  collate?: string
+  values?: Array<string>
+}
+
+export class IndexTableConstraint extends Constraint {
+  type?: IndexType
+  algorithm?: IndexAlgorithm
+}
+
+export class CheckConstraint extends Constraint {
+  expression = new Array<Token>()
+  enforced = true
+}
+
+export class ForeignKeyConstraint extends Constraint {
+
+}
+
 export class CreateTableStatement extends Statement {
   schemaName?: string
   name = ""
@@ -246,7 +295,8 @@ export class CreateTableStatement extends Statement {
   like = false
   likeSchemaName?: string
   likeName?: string
-
+  columns?: Array<TableColumn>
+  constraints?: Array<Constraint>
   autoextendSize?: string
   autoIncrement?: string
   avgRowLength?: string
@@ -278,10 +328,6 @@ export class CreateTableStatement extends Statement {
   union?: string[]
   partition?: Partition
   conflictAction?: ConflictAction
-
-  linearHashExpression?: Token[]
-  linearKeyAlgorithm?: string
-  linearTokens?: string[]
 }
 
 export class AlterTableStatement extends Statement {
@@ -357,7 +403,7 @@ export class DropViewStatement extends Statement {
 export class ProcedureParam {
   direction: Direction = Direction.IN
   name = ""
-  type = ""
+  dataType = new DataType()
 }
 
 export class CreateProcedureStatement extends Statement {
@@ -386,7 +432,7 @@ export class DropProcedureStatement extends Statement {
 
 export class FunctionParam {
   name = ""
-  type = ""
+  dataType = new DataType()
 }
 
 export class CreateFunctionStatement extends Statement {
@@ -395,7 +441,7 @@ export class CreateFunctionStatement extends Statement {
   definer?: string
   aggregate = false
   params = new Array<FunctionParam>()
-  returnType = ""
+  returnDataType = new DataType()
   comment?: string
   language = ProcedureLanguage.SQL
   deterministic = false
@@ -707,6 +753,7 @@ export enum SortOrder {
 }
 
 export enum IndexType {
+  PRIMARY_KEY = "PRIMARY KEY",
   UNIQUE = "UNIQUE",
   FULLTEXT = "FULLTEXT",
   SPATIAL = "SPATIAL",
@@ -819,4 +866,19 @@ export enum IndexLockOption {
   NONE = "NONE",
   SHARED = "SHARED",
   EXCLUSIVE = "EXCLUSIVE",
+}
+
+export enum CollationType {
+  BINARY = "BINARY"
+}
+
+export enum ColumnFormat {
+  FIXED = "FIXED",
+  DYNAMIC = "DYNAMIC",
+  DEFAULT = "DEFAULT",
+}
+
+export enum GeneratedColumnType {
+  VIRTUAL = "VIRTUAL",
+  STORED = "STORED",
 }
