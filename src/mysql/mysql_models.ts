@@ -15,8 +15,23 @@ export abstract class Constraint {
 }
 
 export abstract class Partition {
-  partitions?: string
+  num?: string
   subpartition?: Partition
+  defs = new Array<PartitionDef>()
+}
+
+export class PartitionDef {
+  name = ""
+  storageEngine?: string
+  comment?: string
+  dataDirectory?: string
+  indexDirectory?: string
+  maxRows?: string
+  minRows?: string
+  tablespace?: string
+  lessThanValues?: Array<Array<Token> | "MAXVALUE">
+  inValues?: Array<Array<Token>>
+  subdefs = new Array<PartitionDef>()
 }
 
 export class CommandStatement extends Statement {
@@ -215,30 +230,45 @@ export class DropUserStatement extends Statement {
 }
 
 export class LinearHashPartition extends Partition {
-  partitions?: string
+  num?: string
   expression = new Array<Token>()
 }
 
 export class LinearKeyPartition extends Partition {
-  partitions?: string
+  num?: string
   algorithm?: string
   columns = new Array<string>()
 }
 
 export class RangePartition extends Partition {
-  partitions?: string
+  num?: string
   expression?: Array<Token>
   columns?: Array<string>
 }
 
 export class ListPartition extends Partition {
-  partitions?: string
+  num?: string
   expression?: Array<Token>
   columns?: Array<string>
 }
 
+export class KeyPart {
+  expression?: Array<Token>
+  column?: string
+  sortOrder = SortOrder.ASC
+}
+
+export class GeneratedColumn {
+  type = GeneratedColumnType.VIRTUAL
+  expression = new Array<Token>()
+}
+
 export class References {
-  //TODO
+  tableName = ""
+  columns = new Array<string>()
+  match?: MatchType
+  onDelete = ReferenceOption.NO_ACTION
+  onUpdate = ReferenceOption.NO_ACTION
 }
 
 export class TableColumn {
@@ -255,7 +285,7 @@ export class TableColumn {
   engineAttribute?: string
   secondaryEngineAttribute?: string
   storageType?: StorageType
-  generatedColumnType?: GeneratedColumnType
+  generatedColumn?: GeneratedColumn
   references?: References
   checkConstraint?: CheckConstraint
 }
@@ -272,9 +302,10 @@ export class DataType {
   values?: Array<string>
 }
 
-export class IndexTableConstraint extends Constraint {
+export class IndexConstraint extends Constraint {
   type?: IndexType
   algorithm?: IndexAlgorithm
+  keyParts = new Array<KeyPart>()
 }
 
 export class CheckConstraint extends Constraint {
@@ -283,7 +314,9 @@ export class CheckConstraint extends Constraint {
 }
 
 export class ForeignKeyConstraint extends Constraint {
-
+  name?: string
+  columns = new Array<string>()
+  references = new References()
 }
 
 export class CreateTableStatement extends Statement {
@@ -306,8 +339,8 @@ export class CreateTableStatement extends Statement {
   comment?: string
   compression?: string
   connection?: string
-  dataDictionary?: string
-  indexDictionary?: string
+  dataDirectory?: string
+  indexDirectory?: string
   delayKeyWrite?: string
   encryption?: string
   engine?: string
@@ -881,4 +914,18 @@ export enum ColumnFormat {
 export enum GeneratedColumnType {
   VIRTUAL = "VIRTUAL",
   STORED = "STORED",
+}
+
+export enum MatchType {
+  FULL = "FULL",
+  PARTIAL = "PARTIAL",
+  SIMPLE = "SIMPLE",
+}
+
+export enum ReferenceOption {
+  RESTRICT = "RESTRICT",
+  CASCADE = "CASCADE",
+  SET_NULL = "SET NULL",
+  NO_ACTION = "NO ACTION",
+  SET_DEFAULT = "SET DEFAULT",
 }

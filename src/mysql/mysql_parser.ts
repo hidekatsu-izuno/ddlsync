@@ -155,12 +155,18 @@ import {
   IndexAlgorithmOption,
   IndexLockOption,
   TableColumn,
-  IndexTableConstraint,
+  IndexConstraint,
   DataType,
   ColumnFormat,
   GeneratedColumnType,
   CheckConstraint,
   ForeignKeyConstraint,
+  References,
+  MatchType,
+  ReferenceOption,
+  KeyPart,
+  GeneratedColumn,
+  PartitionDef,
 } from "./mysql_models"
 
 export class TokenType implements ITokenType {
@@ -203,6 +209,7 @@ export class TokenType implements ITokenType {
 const KeywordMap = new Map<string, Keyword>()
 export class Keyword implements ITokenType {
   static ACCESSIBLE = new Keyword("ACCESSIBLE", { reserved: true })
+  static ACTION = new Keyword("ACTION")
   static ADD = new Keyword("ADD", { reserved: true })
   static AFTER = new Keyword("AFTER")
   static AGGREGATE = new Keyword("AGGREGATE")
@@ -309,7 +316,7 @@ export class Keyword implements ITokenType {
     return semver.satisfies("<8.0.0", options.version || "0")
   } })
   static DETERMINISTIC = new Keyword("DETERMINISTIC", { reserved: true })
-  static DICTIONARY = new Keyword("DICTIONARY")
+  static DIRECTORY = new Keyword("DIRECTORY")
   static DISABLE = new Keyword("DISABLE")
   static DISK = new Keyword("DISK")
   static DISTINCT = new Keyword("DISTINCT", { reserved: true })
@@ -360,6 +367,7 @@ export class Keyword implements ITokenType {
   static FORCE = new Keyword("FORCE", { reserved: true })
   static FOREIGN = new Keyword("FOREIGN", { reserved: true })
   static FROM = new Keyword("FROM", { reserved: true })
+  static FULL = new Keyword("FULL")
   static FULLTEXT = new Keyword("FULLTEXT", { reserved: true })
   static FUNCTION = new Keyword("FUNCTION", { reserved: function(options: { [ key:string]:any}) {
     return semver.satisfies(">=8.0.1", options.version || "0")
@@ -437,6 +445,7 @@ export class Keyword implements ITokenType {
   static LEADING = new Keyword("LEADING", { reserved: true })
   static LEAVE = new Keyword("LEAVE", { reserved: true })
   static LEFT = new Keyword("LEFT", { reserved: true })
+  static LESS = new Keyword("LESS")
   static LEVEL = new Keyword("LEVEL")
   static LIKE = new Keyword("LIKE", { reserved: true })
   static LIMIT = new Keyword("LIMIT", { reserved: true })
@@ -520,6 +529,7 @@ export class Keyword implements ITokenType {
     return semver.satisfies("<8.0.0", options.version || "0")
   } })
   static PARSER = new Keyword("PARSER")
+  static PARTIAL = new Keyword("PARTIAL")
   static PARTITION = new Keyword("PARTITION", { reserved: true })
   static PARTITIONS = new Keyword("PARTITIONS")
   static PASSWORD = new Keyword("PASSWORD")
@@ -603,6 +613,7 @@ export class Keyword implements ITokenType {
   static SHOW = new Keyword("SHOW", { reserved: true })
   static SIGNAL = new Keyword("SIGNAL", { reserved: true })
   static SIGNED = new Keyword("SIGNED")
+  static SIMPLE = new Keyword("SIMPLE")
   static SLAVE = new Keyword("SLAVE")
   static SMALLINT = new Keyword("SMALLINT", { reserved: true })
   static SOCKET = new Keyword("SOCKET")
@@ -641,6 +652,7 @@ export class Keyword implements ITokenType {
   static TEMPTABLE = new Keyword("TEMPTABLE")
   static TERMINATED = new Keyword("TERMINATED", { reserved: true })
   static TEXT = new Keyword("TEXT")
+  static THAN = new Keyword("THAN")
   static THEN = new Keyword("THEN", { reserved: true })
   static THREAD_PRIORITY = new Keyword("THREAD_PRIORITY")
   static TIME = new Keyword("TIME")
@@ -1432,14 +1444,14 @@ export class MySqlParser extends Parser {
               ) {
                 let constraint
                 if (this.consumeIf(Keyword.INDEX) || this.consumeIf(Keyword.KEY)) {
-                  constraint = new IndexTableConstraint()
+                  constraint = new IndexConstraint()
                 } else if (this.consumeIf(Keyword.FULLTEXT)) {
                   this.consumeIf(Keyword.INDEX) || this.consumeIf(Keyword.KEY)
-                  constraint = new IndexTableConstraint()
+                  constraint = new IndexConstraint()
                   constraint.type = IndexType.FULLTEXT
                 } else if (this.consumeIf(Keyword.SPATIAL)) {
                   this.consumeIf(Keyword.INDEX) || this.consumeIf(Keyword.KEY)
-                  constraint = new IndexTableConstraint()
+                  constraint = new IndexConstraint()
                   constraint.type = IndexType.SPATIAL
                 } else {
                   let constraintName
@@ -1451,20 +1463,35 @@ export class MySqlParser extends Parser {
                   if (this.consumeIf(Keyword.FOREIGN)) {
                     this.consume(Keyword.KEY)
                     constraint = new ForeignKeyConstraint()
+                    if (this.consumeIf(TokenType.QuotedIdentifier) || this.consumeIf(TokenType.Identifier)) {
+                      constraint.name = this.identifier()
+                    }
                     this.consume(TokenType.LeftParen)
-                    // TODO
+                    for (let j = 0; j === 0 || this.consumeIf(TokenType.Comma); j++) {
+                      constraint.columns.push(this.identifier())
+                    }
                     this.consume(TokenType.RightParen)
+                    constraint.references = this.references()
                   } else if (this.consumeIf(Keyword.CHECK)) {
                     constraint = new CheckConstraint()
-                    // TODO
+                    this.consume(TokenType.LeftParen)
+                    constraint.expression = this.expression()
+                    this.consume(TokenType.RightParen)
+
+                    if (this.consumeIf(Keyword.NOT)) {
+                      this.consume(Keyword.ENFORCED)
+                      constraint.enforced = false
+                    } else if (this.consumeIf(Keyword.ENFORCED)) {
+                      constraint.enforced = true
+                    }
                   } else {
-                    constraint = new IndexTableConstraint()
+                    constraint = new IndexConstraint()
                     if (this.consumeIf(Keyword.PRIMARY)) {
                       this.consume(Keyword.KEY)
                       constraint.type = IndexType.PRIMARY_KEY
                     } else if (this.consumeIf(Keyword.UNIQUE)) {
                       this.consumeIf(Keyword.INDEX) || this.consumeIf(Keyword.KEY)
-                      constraint = new IndexTableConstraint()
+                      constraint = new IndexConstraint()
                       constraint.type = IndexType.UNIQUE
                     } else {
                       throw this.createParseError()
@@ -1480,7 +1507,21 @@ export class MySqlParser extends Parser {
                       }
                     }
                     this.consume(TokenType.LeftParen)
-                    //TODO
+                    for (let j = 0; j === 0 || this.consumeIf(TokenType.Comma); j++) {
+                      const keyPart = new KeyPart()
+                      if (this.consumeIf(TokenType.LeftParen)) {
+                        keyPart.expression = this.expression()
+                        this.consumeIf(TokenType.RightParen)
+                      } else {
+                        keyPart.column = this.identifier()
+                      }
+                      if (this.consumeIf(Keyword.ASC)) {
+                        keyPart.sortOrder = SortOrder.ASC
+                      } else if (this.consumeIf(Keyword.DESC)) {
+                        keyPart.sortOrder = SortOrder.DESC
+                      }
+                      constraint.keyParts.push(keyPart)
+                    }
                     this.consume(TokenType.RightParen)
                   }
 
@@ -1537,12 +1578,12 @@ export class MySqlParser extends Parser {
             } else if (this.consumeIf(Keyword.CONNECTION)) {
               this.consumeIf(Keyword.OPE_EQ)
               stmt.connection = this.stringValue()
-            } else if (this.consumeIf(Keyword.DATA, Keyword.DICTIONARY)) {
+            } else if (this.consumeIf(Keyword.DATA, Keyword.DIRECTORY)) {
               this.consumeIf(Keyword.OPE_EQ)
-              stmt.dataDictionary = this.stringValue()
-            } else if (this.consumeIf(Keyword.INDEX, Keyword.DICTIONARY)) {
+              stmt.dataDirectory = this.stringValue()
+            } else if (this.consumeIf(Keyword.INDEX, Keyword.DIRECTORY)) {
               this.consumeIf(Keyword.OPE_EQ)
-              stmt.indexDictionary = this.stringValue()
+              stmt.indexDirectory = this.stringValue()
             } else if (this.consumeIf(Keyword.DELAY_KEY_WRITE)) {
               this.consumeIf(Keyword.OPE_EQ)
               stmt.delayKeyWrite = this.numberValue()
@@ -1701,7 +1742,7 @@ export class MySqlParser extends Parser {
               throw this.createParseError()
             }
             if (this.consumeIf(Keyword.PARTITIONS)) {
-              stmt.partition.partitions = this.numberValue()
+              stmt.partition.num = this.numberValue()
             }
             if (this.consumeIf(Keyword.SUBPARTITION, Keyword.BY)) {
               if (
@@ -1731,11 +1772,110 @@ export class MySqlParser extends Parser {
                 throw this.createParseError()
               }
               if (this.consumeIf(Keyword.PARTITIONS)) {
-                stmt.partition.subpartition.partitions = this.numberValue()
+                stmt.partition.subpartition.num = this.numberValue()
               }
             }
             if (this.consumeIf(TokenType.LeftParen)) {
-              // TODO
+              for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+                this.consume(Keyword.PARTITION)
+                const def = new PartitionDef()
+                def.name = this.identifier()
+                if (this.consumeIf(Keyword.VALUES)) {
+                  if (this.consumeIf(Keyword.LESS)) {
+                    this.consume(Keyword.THAN)
+                    def.lessThanValues = []
+                    if (this.consumeIf(TokenType.LeftParen)) {
+                      for (let j = 0; j === 0 || this.consumeIf(TokenType.Comma); j++) {
+                        if (this.consumeIf(Keyword.MAXVALUE)) {
+                          def.lessThanValues.push("MAXVALUE")
+                        } else {
+                          def.lessThanValues.push(this.expression())
+                        }
+                      }
+                      this.consume(TokenType.RightParen)
+                    } else if (this.consumeIf(Keyword.MAXVALUE)) {
+                      def.lessThanValues.push("MAXVALUE")
+                    }
+                  } else if (this.consumeIf(Keyword.IN)) {
+                    def.inValues = []
+                    this.consume(TokenType.LeftParen)
+                    for (let j = 0; j === 0 || this.consumeIf(TokenType.Comma); j++) {
+                      def.inValues.push(this.expression())
+                    }
+                    this.consume(TokenType.RightParen)
+                  }
+                }
+                if (this.consumeIf(Keyword.STORAGE)) {
+                  this.consume(Keyword.ENGINE)
+                  def.storageEngine = this.identifier()
+                } else if (this.consumeIf(Keyword.ENGINE)) {
+                  def.storageEngine = this.identifier()
+                }
+                if (this.consumeIf(Keyword.COMMENT)) {
+                  this.consumeIf(Keyword.OPE_EQ)
+                  def.comment = this.stringValue()
+                }
+                if (this.consumeIf(Keyword.DATA, Keyword.DIRECTORY)) {
+                  this.consumeIf(Keyword.OPE_EQ)
+                  def.dataDirectory = this.stringValue()
+                }
+                if (this.consumeIf(Keyword.INDEX, Keyword.DIRECTORY)) {
+                  this.consumeIf(Keyword.OPE_EQ)
+                  def.indexDirectory = this.stringValue()
+                }
+                if (this.consumeIf(Keyword.MAX_ROWS)) {
+                  this.consumeIf(Keyword.OPE_EQ)
+                  def.maxRows = this.numberValue()
+                }
+                if (this.consumeIf(Keyword.MIN_ROWS)) {
+                  this.consumeIf(Keyword.OPE_EQ)
+                  def.minRows = this.numberValue()
+                }
+                if (this.consumeIf(Keyword.TABLESPACE)) {
+                  this.consumeIf(Keyword.OPE_EQ)
+                  def.tablespace = this.stringValue()
+                }
+                if (this.consumeIf(TokenType.LeftParen)) {
+                  for (let j = 0; j === 0 || this.consumeIf(TokenType.Comma); j++) {
+                    this.consume(Keyword.SUBPARTITION)
+                    const subDef = new PartitionDef()
+                    subDef.name = this.identifier()
+                    if (this.consumeIf(Keyword.STORAGE)) {
+                      this.consume(Keyword.ENGINE)
+                      subDef.storageEngine = this.identifier()
+                    } else if (this.consumeIf(Keyword.ENGINE)) {
+                      subDef.storageEngine = this.identifier()
+                    }
+                    if (this.consumeIf(Keyword.COMMENT)) {
+                      this.consumeIf(Keyword.OPE_EQ)
+                      subDef.comment = this.stringValue()
+                    }
+                    if (this.consumeIf(Keyword.DATA, Keyword.DIRECTORY)) {
+                      this.consumeIf(Keyword.OPE_EQ)
+                      subDef.dataDirectory = this.stringValue()
+                    }
+                    if (this.consumeIf(Keyword.INDEX, Keyword.DIRECTORY)) {
+                      this.consumeIf(Keyword.OPE_EQ)
+                      subDef.indexDirectory = this.stringValue()
+                    }
+                    if (this.consumeIf(Keyword.MAX_ROWS)) {
+                      this.consumeIf(Keyword.OPE_EQ)
+                      subDef.maxRows = this.numberValue()
+                    }
+                    if (this.consumeIf(Keyword.MIN_ROWS)) {
+                      this.consumeIf(Keyword.OPE_EQ)
+                      subDef.minRows = this.numberValue()
+                    }
+                    if (this.consumeIf(Keyword.TABLESPACE)) {
+                      this.consumeIf(Keyword.OPE_EQ)
+                      subDef.tablespace = this.stringValue()
+                    }
+                    def.subdefs.push(subDef)
+                  }
+                  this.consume(TokenType.RightParen)
+                }
+                stmt.partition.defs.push(def)
+              }
               this.consume(TokenType.RightParen)
             }
           }
@@ -2641,20 +2781,19 @@ export class MySqlParser extends Parser {
       this.consume(Keyword.ALWAYS)
     }
     if (this.consumeIf(Keyword.AS)) {
+      const generatedColumn = new GeneratedColumn()
       if (collate) {
         column.collate = collate
       }
       this.consume(TokenType.LeftParen)
-      // TODO
+      generatedColumn.expression = this.expression()
       this.consume(TokenType.RightParen)
-
       if (this.consumeIf(Keyword.VIRTUAL)) {
-        column.generatedColumnType = GeneratedColumnType.VIRTUAL
+        generatedColumn.type = GeneratedColumnType.VIRTUAL
       } else if (this.consumeIf(Keyword.STORED)) {
-        column.generatedColumnType = GeneratedColumnType.STORED
-      } else {
-        throw this.createParseError()
+        generatedColumn.type = GeneratedColumnType.STORED
       }
+      column.generatedColumn = generatedColumn
 
       if (this.consumeIf(Keyword.NOT)) {
         this.consume(Keyword.NULL)
@@ -2768,7 +2907,7 @@ export class MySqlParser extends Parser {
     }
 
     if (this.consumeIf(Keyword.REFERENCES)) {
-      const constraint = new ForeignKeyConstraint()
+      column.references = this.references()
     }
 
     let hasConstraint = false
@@ -2785,6 +2924,9 @@ export class MySqlParser extends Parser {
       this.consumeIf(Keyword.CHECK)
     ) {
       const constraint = new CheckConstraint()
+      if (constraintName) {
+        constraint.name = constraintName
+      }
       this.consume(TokenType.LeftParen)
       constraint.expression = this.expression()
       this.consume(TokenType.RightParen)
@@ -2941,6 +3083,68 @@ export class MySqlParser extends Parser {
     }
 
     return dataType
+  }
+
+  references() {
+    const references = new References()
+    references.tableName = this.identifier()
+    this.consume(TokenType.LeftParen)
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      references.columns.push(this.identifier())
+    }
+    this.consume(TokenType.RightParen)
+    if (this.consumeIf(Keyword.MATCH)) {
+      if (this.consumeIf(Keyword.FULL)) {
+        references.match = MatchType.FULL
+      } else if (this.consumeIf(Keyword.PARTIAL)) {
+        references.match = MatchType.PARTIAL
+      } else if (this.consumeIf(Keyword.SIMPLE)) {
+        references.match = MatchType.SIMPLE
+      } else {
+        throw this.createParseError()
+      }
+    }
+    if (this.consumeIf(Keyword.ON, Keyword.DELETE)) {
+      if (this.consumeIf(Keyword.CASCADE)) {
+        references.onDelete = ReferenceOption.CASCADE
+      } else if (this.consumeIf(Keyword.SET)) {
+        if (this.consumeIf(Keyword.NULL)) {
+          references.onDelete = ReferenceOption.SET_NULL
+        } else if (this.consumeIf(Keyword.DEFAULT)) {
+          references.onDelete = ReferenceOption.SET_DEFAULT
+        } else {
+          throw this.createParseError()
+        }
+      } else if (this.consumeIf(Keyword.RESTRICT)) {
+        references.onDelete = ReferenceOption.RESTRICT
+      } else if (this.consumeIf(Keyword.NO)) {
+        this.consume(Keyword.ACTION)
+        references.onDelete = ReferenceOption.NO_ACTION
+      } else {
+        throw this.createParseError()
+      }
+    }
+    if (this.consumeIf(Keyword.ON, Keyword.UPDATE)) {
+      if (this.consumeIf(Keyword.CASCADE)) {
+        references.onUpdate = ReferenceOption.CASCADE
+      } else if (this.consumeIf(Keyword.SET)) {
+        if (this.consumeIf(Keyword.NULL)) {
+          references.onUpdate = ReferenceOption.SET_NULL
+        } else if (this.consumeIf(Keyword.DEFAULT)) {
+          references.onUpdate = ReferenceOption.SET_DEFAULT
+        } else {
+          throw this.createParseError()
+        }
+      } else if (this.consumeIf(Keyword.RESTRICT)) {
+        references.onUpdate = ReferenceOption.RESTRICT
+      } else if (this.consumeIf(Keyword.NO)) {
+        this.consume(Keyword.ACTION)
+        references.onUpdate = ReferenceOption.NO_ACTION
+      } else {
+        throw this.createParseError()
+      }
+    }
+    return references
   }
 
   expression() {
