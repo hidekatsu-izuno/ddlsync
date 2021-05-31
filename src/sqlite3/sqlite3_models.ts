@@ -143,6 +143,13 @@ export class AnalyzeStatement extends Statement {
 }
 
 export class ExplainStatement extends Statement {
+  queryPlan = false
+
+  constructor(
+    public statement: Statement
+  ) {
+    super()
+  }
 }
 
 export class BeginTransactionStatement extends Statement {

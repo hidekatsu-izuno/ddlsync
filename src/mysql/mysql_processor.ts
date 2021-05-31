@@ -1,36 +1,53 @@
-import mysql2 from "mysql2"
+import mariadb from "mariadb"
 import { Statement } from "../models"
 import { DdlSyncProcessor } from "../processor"
+import { ucase } from "../util/functions"
 import { MySqlParser } from "./mysql_parser"
 
 export default class MysqlProcessor extends DdlSyncProcessor {
-  private con
+  private con?: mariadb.Connection
 
   constructor(
     config: { [key: string]: any },
     dryrun: boolean,
   ) {
     super(config, dryrun)
-    this.con = mysql2.createConnection({
-      host: config.host,
-      port: config.port,
-      user: config.user,
-      password: config.password,
-      database: config.database,
-    })
   }
 
   protected async init() {
     const options = {} as any
 
-    const versions = await this.con.promise().query("SELECT version() AS version") as [any[], any[]]
-    if (versions[0].length) {
-      options.version = versions[0][0].version
+    this.con = await mariadb.createConnection({
+      host: this.config.host,
+      port: this.config.port,
+      user: this.config.username,
+      password: this.config.password,
+      database: this.config.database,
+    })
+
+    const versions = await this.con.query("SELECT version() AS version") as any[]
+    if (versions.length) {
+      options.version = versions[0].version
     }
 
-    const sqlModes = await this.con.promise().query("SELECT @@sql_mode AS sql_mode") as [any[], any[]]
-    if (sqlModes[0].length) {
-      options.sqlModes = (sqlModes[0][0].sql_mode || "").split(/,/g)
+    const sqlModes = await this.con.query("SELECT @@sql_mode AS sql_mode") as any[]
+    if (sqlModes.length) {
+      options.sqlModes = (sqlModes[0].sql_mode || "").split(/,/g)
+    }
+
+    const keywordsSchema = await this.con.query("SELECT TABLE_NAME" +
+      " FROM INFORMATION_SCHEMA.TABLES" +
+      " WHERE TABLE_SCHEMA = 'information_schema'" +
+      " AND TABLE_NAME = 'KEYWORDS'" +
+      " AND TABLE_TYPE = 'SYSTEM VIEW'"
+    ) as any[]
+    if (keywordsSchema.length) {
+      for await (const row of await this.con.queryStream("SELECT WORD " +
+        " FROM INFORMATION_SCHEMA.KEYWORDS" +
+        " WHERE WHERE RESERVED = 1"
+      )) {
+        options.reservedWords.push(ucase(row.WORD))
+      }
     }
 
     return options
@@ -45,7 +62,7 @@ export default class MysqlProcessor extends DdlSyncProcessor {
   }
 
   async destroy() {
-    this.con.destroy()
+    this.con?.destroy()
   }
 }
 

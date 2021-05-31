@@ -3,6 +3,7 @@ import { types } from "util"
 import { Statement } from "./models"
 
 export interface ITokenType {
+  name: string
   options: { [key: string]: any }
 }
 

@@ -120,7 +120,7 @@ async function initConfig(args: string[], options: { [key: string]: any }) {
       }
       ddlSyncConfg.host = config.connection?.host
       ddlSyncConfg.port = config.connection?.port
-      ddlSyncConfg.username = config.connection?.username
+      ddlSyncConfg.username = config.connection?.user
       ddlSyncConfg.password = config.connection?.password
       ddlSyncConfg.database = config.connection?.database
     }

@@ -412,6 +412,17 @@ export class Sqlite3Parser extends Parser {
     const start = this.pos
 
     let stmt
+
+    let explain = false
+    let queryPlan = false
+    if (this.consumeIf(Keyword.EXPLAIN)) {
+      explain = true
+      if (this.consumeIf(Keyword.QUERY)) {
+        this.consume(Keyword.PLAN)
+        queryPlan = true
+      }
+    }
+
     if (this.consumeIf(Keyword.CREATE)) {
       if (
         this.consumeIf(Keyword.TEMPORARY, Keyword.TABLE) ||
@@ -664,8 +675,6 @@ export class Sqlite3Parser extends Parser {
         stmt.value = this.pragmaValue()
         this.consume(TokenType.RightParen)
       }
-    } else if (this.consumeIf(Keyword.EXPLAIN)) {
-      stmt = new ExplainStatement()
     } else if (this.consumeIf(Keyword.BEGIN)) {
       stmt = new BeginTransactionStatement()
       if (this.consumeIf(Keyword.DEFERRED)) {
@@ -713,6 +722,9 @@ export class Sqlite3Parser extends Parser {
           stmt.schemaName = stmt.name
           stmt.name = this.identifier()
         }
+        while (this.peek() && !this.peekIf(TokenType.SemiColon)) {
+          this.consume()
+        }
       } else if (this.consumeIf(Keyword.UPDATE)) {
         stmt = new UpdateStatement()
         if (this.consumeIf(Keyword.OR)) {
@@ -723,6 +735,9 @@ export class Sqlite3Parser extends Parser {
           stmt.schemaName = stmt.name
           stmt.name = this.identifier()
         }
+        while (this.peek() && !this.peekIf(TokenType.SemiColon)) {
+          this.consume()
+        }
       } else if (this.consumeIf(Keyword.DELETE)) {
         this.consume(Keyword.FROM)
         stmt = new DeleteStatement()
@@ -731,6 +746,9 @@ export class Sqlite3Parser extends Parser {
           stmt.schemaName = stmt.name
           stmt.name = this.identifier()
         }
+        while (this.peek() && !this.peekIf(TokenType.SemiColon)) {
+          this.consume()
+        }
       } else if (this.peekIf(Keyword.SELECT)) {
         stmt = new SelectStatement()
         this.selectClause()
@@ -738,13 +756,16 @@ export class Sqlite3Parser extends Parser {
     }
 
     if (!stmt) {
-      stmt = new OtherStatement()
+      throw this.createParseError()
     }
+
+    if (explain) {
+      stmt = new ExplainStatement(stmt)
+      stmt.queryPlan = queryPlan
+    }
+
     if (typeof this.options.filename === "string") {
       stmt.filename = this.options.filename
-    }
-    while (this.peek() && !this.peekIf(TokenType.SemiColon)) {
-      this.consume()
     }
     stmt.tokens = this.tokens.slice(start, this.pos)
 
