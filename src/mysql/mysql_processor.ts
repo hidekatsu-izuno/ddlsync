@@ -32,7 +32,7 @@ export default class MysqlProcessor extends DdlSyncProcessor {
 
     const sqlModes = await this.con.query("SELECT @@sql_mode AS sql_mode") as any[]
     if (sqlModes.length) {
-      options.sqlModes = (sqlModes[0].sql_mode || "").split(/,/g)
+      options.sqlMode = sqlModes[0].sql_mode
     }
 
     const keywordsSchema = await this.con.query("SELECT TABLE_NAME" +
@@ -42,11 +42,12 @@ export default class MysqlProcessor extends DdlSyncProcessor {
       " AND TABLE_TYPE = 'SYSTEM VIEW'"
     ) as any[]
     if (keywordsSchema.length) {
+      options.reservedWords = []
       for await (const row of await this.con.queryStream("SELECT WORD " +
         " FROM INFORMATION_SCHEMA.KEYWORDS" +
         " WHERE WHERE RESERVED = 1"
       )) {
-        options.reservedWords.push(ucase(row.WORD))
+        options.reservedWords.push(row.WORD)
       }
     }
 

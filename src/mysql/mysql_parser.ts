@@ -125,8 +125,7 @@ import {
   IndexType,
   CommandStatement,
   ResourceGroupType,
-  RoleDef,
-  UserDef,
+  UserRoleDef as UserRole,
   TlsOption,
   ConflictAction,
   InsertMethod,
@@ -167,6 +166,11 @@ import {
   KeyPart,
   GeneratedColumn,
   PartitionDef,
+  SchemaObject,
+  DropOption,
+  RenameObjPair,
+  RenameUserPair,
+  AlterInstanceStatement,
 } from "./mysql_models"
 
 export class TokenType implements ITokenType {
@@ -743,7 +747,7 @@ export class MysqlLexer extends Lexer {
   private reserved = new Set<Keyword>()
   private reCommand = new RegExp(COMMAND_PATTERN + "(;|$)", "iy")
   private reDelimiter = new RegExp(";", "y")
-  private sqlModes
+  private sqlMode = new Set<string>()
 
   constructor(
     private options: { [key: string]: any } = {}
@@ -762,8 +766,8 @@ export class MysqlLexer extends Lexer {
       { type: TokenType.Number, re: /0[xX][0-9a-fA-F]+|((0|[1-9][0-9]*)(\.[0-9]+)?|(\.[0-9]+))([eE][+-]?[0-9]+)?/y },
       { type: TokenType.Size, re: /(0|[1-9][0-9]*)[KMG]/iy },
       { type: TokenType.Dot, re: /\./y },
-      { type: TokenType.String, re: () => this.sqlModes.has("ANSI_QUOTES") ? /([bBnN]|_[a-zA-Z]+)?'([^']|'')*'/y :  /([bBnN]|_[a-zA-Z]+)?('([^']|'')*'|"([^"]|"")*")/y },
-      { type: TokenType.QuotedIdentifier, re: () => this.sqlModes.has("ANSI_QUOTES") ? /"([^"]|"")*"|`([^`]|``)*`/y : /`([^`]|``)*`/y },
+      { type: TokenType.String, re: () => this.sqlMode.has("ANSI_QUOTES") ? /([bBnN]|_[a-zA-Z]+)?'([^']|'')*'/y :  /([bBnN]|_[a-zA-Z]+)?('([^']|'')*'|"([^"]|"")*")/y },
+      { type: TokenType.QuotedIdentifier, re: () => this.sqlMode.has("ANSI_QUOTES") ? /"([^"]|"")*"|`([^`]|``)*`/y : /`([^`]|``)*`/y },
       { type: TokenType.BindVariable, re: /\?/y },
       { type: TokenType.SessionVariable, re: /@@[a-zA-Z0-9._$\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*|`([^`]|``)*`|'([^']|'')*'|"([^"]|"")*"/y },
       { type: TokenType.UserDefinedVariable, re: /@[a-zA-Z0-9._$\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*|`([^`]|``)*`|'([^']|'')*'|"([^"]|"")*"/y },
@@ -773,18 +777,29 @@ export class MysqlLexer extends Lexer {
       { type: TokenType.Error, re: /./y },
     ])
 
-    this.sqlModes = new Set<string>()
-    for (const sqlMode of (options.sqlModes || [])) {
-      this.sqlModes.add(sqlMode)
+    if (options.sqlMode) {
+      this.setSqlMode(options.sqlMode)
     }
 
-    for (const keyword of KeywordMap.values()) {
-      if (typeof keyword.options.reserved === "function") {
-        if (keyword.options.reserved(options)) {
+    if (Array.isArray(options.reservedWords)) {
+      const reserved = new Set<string>()
+      for (const keyword of options.reservedWords) {
+        reserved.add(ucase(keyword))
+      }
+      for (const keyword of KeywordMap.values()) {
+        if (reserved.has(keyword.name)) {
           this.reserved.add(keyword)
         }
-      } else if (keyword.options.reserved === true) {
-        this.reserved.add(keyword)
+      }
+    } else {
+      for (const keyword of KeywordMap.values()) {
+        if (typeof keyword.options.reserved === "function") {
+          if (keyword.options.reserved(options)) {
+            this.reserved.add(keyword)
+          }
+        } else if (keyword.options.reserved === true) {
+          this.reserved.add(keyword)
+        }
       }
     }
   }
@@ -795,12 +810,11 @@ export class MysqlLexer extends Lexer {
     this.reDelimiter = new RegExp(sep, "y")
   }
 
-  setSqlModes(modes: string[]) {
-    const sqlModes = new Set<string>()
-    for (const mode of modes) {
-      sqlModes.add(mode)
+  setSqlMode(sqlMode: string) {
+    this.sqlMode.clear()
+    for (const mode of (sqlMode || "").split(/,/g)) {
+      this.sqlMode.add(mode)
     }
-    this.sqlModes = sqlModes
   }
 
   protected filter(input: string) {
@@ -1014,161 +1028,8 @@ export class MySqlParser extends Parser {
           this.consume(Keyword.EXISTS)
           stmt.ifNotExists = true
         }
-      } else if (this.consumeIf(Keyword.SERVER)) {
-        stmt = new CreateServerStatement()
-      } else if (this.consumeIf(Keyword.RESOURCE, Keyword.GROUP)) {
-        stmt = new CreateResourceGroupStatement()
-      } else if (this.consumeIf(Keyword.LOGFILE, Keyword.GROUP)) {
-        stmt = new CreateLogfileGroupStatement()
-      } else if (this.consumeIf(Keyword.UNDO, Keyword.TABLESPACE)) {
-        stmt = new CreateTablespaceStatement()
-        stmt.undo = true
-      } else if (this.consumeIf(Keyword.TABLESPACE)) {
-        stmt = new CreateTablespaceStatement()
-      } else if (this.consumeIf(Keyword.ROLE)) {
-        stmt = new CreateRoleStatement()
-        if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.NOT)
-          this.consume(Keyword.EXISTS)
-          stmt.ifNotExists = true
-        }
-      } else if (this.consumeIf(Keyword.USER)) {
-        stmt = new CreateUserStatement()
-        if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.NOT)
-          this.consume(Keyword.EXISTS)
-          stmt.ifNotExists = true
-        }
-      } else if (this.consumeIf(Keyword.TEMPORARY, Keyword.TABLE)) {
-        stmt = new CreateTableStatement()
-        stmt.temporary = true
-        if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.NOT)
-          this.consume(Keyword.EXISTS)
-          stmt.ifNotExists = true
-        }
-      } else if (this.consumeIf(Keyword.TABLE)) {
-        stmt = new CreateTableStatement()
-        if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.NOT)
-          this.consume(Keyword.EXISTS)
-          stmt.ifNotExists = true
-        }
-      } else if (this.consumeIf(Keyword.UNIQUE, Keyword.INDEX)) {
-        stmt = new CreateIndexStatement()
-        stmt.type = IndexType.UNIQUE
-      } else if (this.consumeIf(Keyword.FULLTEXT, Keyword.INDEX)) {
-        stmt = new CreateIndexStatement()
-        stmt.type = IndexType.FULLTEXT
-      } else if (this.consumeIf(Keyword.SPATIAL, Keyword.INDEX)) {
-        stmt = new CreateIndexStatement()
-        stmt.type = IndexType.SPATIAL
-      } else if (this.consumeIf(Keyword.INDEX)) {
-        stmt = new CreateIndexStatement()
-      } else if (this.consumeIf(Keyword.OR, Keyword.REPLACE, Keyword.SPATIAL, Keyword.REFERENCE, Keyword.SYSTEM)) {
-        stmt = new CreateSpatialReferenceSystemStatement()
-        stmt.orReplace = true
-      } else if (this.consumeIf(Keyword.SPATIAL, Keyword.REFERENCE, Keyword.SYSTEM)) {
-        stmt = new CreateSpatialReferenceSystemStatement()
-        if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.NOT)
-          this.consume(Keyword.EXISTS)
-          stmt.ifNotExists = true
-        }
-      } else {
-        let orReplace = false
-        if (this.consumeIf(Keyword.OR)) {
-          this.consume(Keyword.REPLACE)
-          orReplace = true
-        }
-
-        let algorithm
-        if (this.consumeIf(Keyword.ALGORITHM)) {
-          this.consume(Keyword.OPE_EQ)
-          if (this.consumeIf(Keyword.UNDEFINED)) {
-            algorithm = Algortihm.UNDEFINED
-          } else if (this.consumeIf(Keyword.MERGE)) {
-            algorithm = Algortihm.MERGE
-          } else if (this.consumeIf(Keyword.TEMPTABLE)) {
-            algorithm = Algortihm.TEMPTABLE
-          } else {
-            throw this.createParseError()
-          }
-        }
-
-        let definer
-        let aggregate = false
-        if (this.consumeIf(Keyword.DEFINER)) {
-          this.consume(Keyword.OPE_EQ)
-          definer = this.consume(TokenType.String).text
-        } else if (this.consumeIf(Keyword.AGGREGATE)) {
-          aggregate = true
-        }
-
-        let sqlSecurity
-        if (this.consumeIf(Keyword.SQL)) {
-          this.consume(Keyword.SECURITY)
-          if (this.peekIf(Keyword.DEFINER)) {
-            sqlSecurity = SqlSecurity.DEFINER
-          } else if (this.peekIf(Keyword.INVOKER)) {
-            sqlSecurity = SqlSecurity.INVOKER
-          } else {
-            throw this.createParseError()
-          }
-        }
-
-        if (
-          !aggregate &&
-          this.consumeIf(Keyword.VIEW)
-        ) {
-          stmt = new CreateViewStatement()
-          stmt.orReplace = orReplace
-          stmt.algorithm = algorithm
-          stmt.definer = definer
-          stmt.sqlSecurity = sqlSecurity
-        } else if (
-          !orReplace && !algorithm && !aggregate && !sqlSecurity &&
-          this.consumeIf(Keyword.PROCEDURE)
-        ) {
-          stmt = new CreateProcedureStatement()
-          stmt.definer = definer
-        } else if (
-          !orReplace && !algorithm && !sqlSecurity &&
-          this.consumeIf(Keyword.FUNCTION)
-        ) {
-          stmt = new CreateFunctionStatement()
-          stmt.definer = definer
-          stmt.aggregate = aggregate
-        } else if (
-          !orReplace && !algorithm && !aggregate && !sqlSecurity &&
-          this.consumeIf(Keyword.TRIGGER)
-        ) {
-          stmt = new CreateTriggerStatement()
-          stmt.definer = definer
-        } else if (
-          !orReplace && !algorithm && !aggregate && !sqlSecurity &&
-          this.consumeIf(Keyword.EVENT)
-        ) {
-          stmt = new CreateEventStatement()
-          stmt.definer = definer
-          if (this.consumeIf(Keyword.IF)) {
-            this.consume(Keyword.NOT)
-            this.consume(Keyword.EXISTS)
-            stmt.ifNotExists = true
-          }
-        } else {
-          throw this.createParseError()
-        }
-      }
-
-      if (stmt instanceof CreateDatabaseStatement) {
         stmt.name = this.identifier()
-        while (
-          this.peekIf(Keyword.DEFAULT) ||
-          this.peekIf(Keyword.CHARACTER) ||
-          this.peekIf(Keyword.COLLATE) ||
-          this.peekIf(Keyword.ENCRYPTION)
-        ) {
+        while (this.peek()) {
           this.consumeIf(Keyword.DEFAULT)
           if (this.consumeIf(Keyword.CHARACTER)) {
             this.consume(Keyword.SET)
@@ -1184,7 +1045,8 @@ export class MySqlParser extends Parser {
             throw new Error()
           }
         }
-      } else if (stmt instanceof CreateServerStatement) {
+      } else if (this.consumeIf(Keyword.SERVER)) {
+        stmt = new CreateServerStatement()
         stmt.name = this.identifier()
         this.consume(Keyword.FOREIGN)
         this.consume(Keyword.DATA)
@@ -1212,7 +1074,9 @@ export class MySqlParser extends Parser {
           }
         }
         this.consume(TokenType.RightParen)
-      } else if (stmt instanceof CreateResourceGroupStatement) {
+      } else if (this.consumeIf(Keyword.RESOURCE)) {
+        this.consume(Keyword.GROUP)
+        stmt = new CreateResourceGroupStatement()
         stmt.name = this.identifier()
         this.consume(Keyword.TYPE)
         this.consume(Keyword.OPE_EQ)
@@ -1245,7 +1109,9 @@ export class MySqlParser extends Parser {
         } else if (this.consumeIf(Keyword.DISABLE)) {
           stmt.disable = true
         }
-      } else if (stmt instanceof CreateLogfileGroupStatement) {
+      } else if (this.consumeIf(Keyword.LOGFILE)) {
+        this.consume(Keyword.GROUP)
+        stmt = new CreateLogfileGroupStatement()
         stmt.name = this.identifier()
         this.consume(Keyword.ADD)
         this.consume(Keyword.UNDOFILE)
@@ -1277,7 +1143,12 @@ export class MySqlParser extends Parser {
           this.consumeIf(Keyword.OPE_EQ)
           stmt.engine = this.identifier()
         }
-      } else if (stmt instanceof CreateTablespaceStatement) {
+      } else if (this.peekIf(Keyword.UNDO) || this.peekIf(Keyword.TABLESPACE)) {
+        stmt = new CreateTablespaceStatement()
+        if (this.consumeIf(Keyword.UNDO)) {
+          stmt.undo = true
+        }
+        this.consume(Keyword.TABLESPACE)
         stmt.name = this.identifier()
         if (this.consumeIf(Keyword.ADD)) {
           this.consume(Keyword.DATAFILE)
@@ -1331,26 +1202,25 @@ export class MySqlParser extends Parser {
           this.consumeIf(Keyword.OPE_EQ)
           stmt.engineAttribute = this.stringValue()
         }
-      } else if (stmt instanceof CreateSpatialReferenceSystemStatement) {
-        stmt.srid = this.consume(TokenType.Number).text
-      } else if (stmt instanceof CreateRoleStatement) {
-        for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-          const role = new RoleDef()
-          role.name = this.username()
-          let token
-          if (token = this.consumeIf(TokenType.UserDefinedVariable)) {
-            role.host = dequote(token.text.substring(1))
-          }
-          stmt.roles.push(role)
+      } else if (this.consumeIf(Keyword.ROLE)) {
+        stmt = new CreateRoleStatement()
+        if (this.consumeIf(Keyword.IF)) {
+          this.consume(Keyword.NOT)
+          this.consume(Keyword.EXISTS)
+          stmt.ifNotExists = true
         }
-      } else if (stmt instanceof CreateUserStatement) {
         for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-          const user = new UserDef()
-          user.name = this.username()
-          let token
-          if (token = this.consumeIf(TokenType.UserDefinedVariable)) {
-            user.host = dequote(token.text.substring(1))
-          }
+          stmt.roles.push(this.userRole())
+        }
+      } else if (this.consumeIf(Keyword.USER)) {
+        stmt = new CreateUserStatement()
+        if (this.consumeIf(Keyword.IF)) {
+          this.consume(Keyword.NOT)
+          this.consume(Keyword.EXISTS)
+          stmt.ifNotExists = true
+        }
+        for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+          const user = this.userRole()
           if (this.consumeIf(Keyword.IDENTIFIED)) {
             if (this.consumeIf(Keyword.BY)) {
               if (this.consumeIf(Keyword.RANDOM)) {
@@ -1379,7 +1249,7 @@ export class MySqlParser extends Parser {
         if (this.consumeIf(Keyword.DEFAULT)) {
           this.consume(Keyword.ROLE)
           for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-            stmt.defaultRoles.push(this.username())
+            stmt.defaultRoles.push(this.userRole())
           }
         }
         if (this.consumeIf(Keyword.REQUIRE)) {
@@ -1405,28 +1275,134 @@ export class MySqlParser extends Parser {
             }
           }
         }
-      } else if (stmt instanceof CreateTableStatement) {
-        stmt.name = this.identifier()
-        if (this.consumeIf(TokenType.Dot)) {
-          stmt.schemaName = stmt.name
-          stmt.name = this.identifier()
+      } else if (this.peekIf(Keyword.TEMPORARY) || this.peekIf(Keyword.TABLE)) {
+        stmt = new CreateTableStatement()
+        if (this.consumeIf(Keyword.TEMPORARY)) {
+          stmt.temporary = true
+        }
+        this.consume(Keyword.TABLE)
+        if (this.consumeIf(Keyword.IF)) {
+          this.consume(Keyword.NOT)
+          this.consume(Keyword.EXISTS)
+          stmt.ifNotExists = true
+        }
+      } else if (this.consumeIf(Keyword.UNIQUE)) {
+        this.consume(Keyword.INDEX)
+        stmt = new CreateIndexStatement()
+        stmt.type = IndexType.UNIQUE
+      } else if (this.consumeIf(Keyword.FULLTEXT)) {
+        this.consume(Keyword.INDEX)
+        stmt = new CreateIndexStatement()
+        stmt.type = IndexType.FULLTEXT
+      } else if (this.consumeIf(Keyword.SPATIAL, Keyword.INDEX)) {
+        this.consume(Keyword.INDEX)
+        stmt = new CreateIndexStatement()
+        stmt.type = IndexType.SPATIAL
+      } else if (this.consumeIf(Keyword.INDEX)) {
+        stmt = new CreateIndexStatement()
+      } else {
+        let orReplace = false
+        if (this.consumeIf(Keyword.OR)) {
+          this.consume(Keyword.REPLACE)
+          orReplace = true
         }
 
-        if (this.consumeIf(Keyword.LIKE)) {
-          stmt.like = true
-          stmt.likeName = this.identifier()
-          if (this.consumeIf(TokenType.Dot)) {
-            stmt.likeSchemaName = stmt.likeName
-            stmt.likeName = this.identifier()
+        let algorithm
+        if (this.consumeIf(Keyword.ALGORITHM)) {
+          this.consume(Keyword.OPE_EQ)
+          if (this.consumeIf(Keyword.UNDEFINED)) {
+            algorithm = Algortihm.UNDEFINED
+          } else if (this.consumeIf(Keyword.MERGE)) {
+            algorithm = Algortihm.MERGE
+          } else if (this.consumeIf(Keyword.TEMPTABLE)) {
+            algorithm = Algortihm.TEMPTABLE
+          } else {
+            throw this.createParseError()
           }
+        }
+
+        let definer
+        let aggregate = false
+        if (this.consumeIf(Keyword.DEFINER)) {
+          this.consume(Keyword.OPE_EQ)
+          definer = this.userRole()
+        } else if (this.consumeIf(Keyword.AGGREGATE)) {
+          aggregate = true
+        }
+
+        let sqlSecurity
+        if (this.consumeIf(Keyword.SQL)) {
+          this.consume(Keyword.SECURITY)
+          if (this.peekIf(Keyword.DEFINER)) {
+            sqlSecurity = SqlSecurity.DEFINER
+          } else if (this.peekIf(Keyword.INVOKER)) {
+            sqlSecurity = SqlSecurity.INVOKER
+          } else {
+            throw this.createParseError()
+          }
+        }
+
+        if (
+          !algorithm && !aggregate && !sqlSecurity &&
+          this.consumeIf(Keyword.SPATIAL)
+        ) {
+          this.consume(Keyword.REFERENCE)
+          this.consume(Keyword.SYSTEM)
+          stmt = new CreateSpatialReferenceSystemStatement()
+          stmt.orReplace = true
+          stmt.srid = this.numberValue()
+        } else if (
+          !aggregate &&
+          this.consumeIf(Keyword.VIEW)
+        ) {
+          stmt = new CreateViewStatement()
+          stmt.orReplace = orReplace
+          stmt.algorithm = algorithm
+          stmt.definer = definer
+          stmt.sqlSecurity = sqlSecurity
+        } else if (
+          !orReplace && !algorithm && !aggregate && !sqlSecurity &&
+          this.consumeIf(Keyword.PROCEDURE)
+        ) {
+          stmt = new CreateProcedureStatement()
+          stmt.definer = definer
+        } else if (
+          !orReplace && !algorithm && !sqlSecurity &&
+          this.consumeIf(Keyword.FUNCTION)
+        ) {
+          stmt = new CreateFunctionStatement()
+          stmt.definer = definer
+          stmt.aggregate = aggregate
+        } else if (
+          !orReplace && !algorithm && !aggregate && !sqlSecurity &&
+          this.consumeIf(Keyword.TRIGGER)
+        ) {
+          stmt = new CreateTriggerStatement()
+          stmt.definer = definer
+        } else if (
+          !orReplace && !algorithm && !aggregate && !sqlSecurity &&
+          this.consumeIf(Keyword.EVENT)
+        ) {
+          stmt = new CreateEventStatement()
+          stmt.definer = definer
+          if (this.consumeIf(Keyword.IF)) {
+            this.consume(Keyword.NOT)
+            this.consume(Keyword.EXISTS)
+            stmt.ifNotExists = true
+          }
+        } else {
+          throw this.createParseError()
+        }
+      }
+
+      if (stmt instanceof CreateTableStatement) {
+        stmt.obj = this.schemaObject()
+
+        if (this.consumeIf(Keyword.LIKE)) {
+          stmt.like = this.schemaObject()
         } else if (this.consumeIf(TokenType.LeftParen)) {
           if (this.consumeIf(Keyword.LIKE)) {
-            stmt.like = true
-            stmt.likeName = this.identifier()
-            if (this.consumeIf(TokenType.Dot)) {
-              stmt.likeSchemaName = stmt.likeName
-              stmt.likeName = this.identifier()
-            }
+            stmt.like = this.schemaObject()
           } else {
             stmt.columns = []
             stmt.constraints = []
@@ -1541,7 +1517,7 @@ export class MySqlParser extends Parser {
           stmt.asSelect = true
         }
 
-        if (!stmt.likeName) {
+        if (!stmt.like) {
           for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
             if (this.consumeIf(Keyword.AUTOEXTEND_SIZE)) {
               this.consumeIf(Keyword.OPE_EQ)
@@ -1894,10 +1870,10 @@ export class MySqlParser extends Parser {
           }
         }
       } else if (stmt instanceof CreateIndexStatement) {
-        stmt.name = this.identifier()
+        stmt.obj.name = this.identifier()
         if (this.consumeIf(TokenType.Dot)) {
-          stmt.schemaName = stmt.name
-          stmt.name = this.identifier()
+          stmt.obj.schemaName = stmt.obj.name
+          stmt.obj.name = this.identifier()
         }
         if (this.consumeIf(Keyword.USING)) {
           if (this.consumeIf(Keyword.BTREE)) {
@@ -1909,10 +1885,10 @@ export class MySqlParser extends Parser {
           }
         }
         this.consume(Keyword.ON)
-        stmt.tableName = this.identifier()
+        stmt.table.schemaName = this.identifier()
         if (this.consumeIf(TokenType.Dot)) {
-          stmt.tableSchemaName = stmt.tableName
-          stmt.tableName = this.identifier()
+          stmt.table.schemaName = stmt.table.name
+          stmt.table.name = this.identifier()
         }
         this.consume(TokenType.LeftParen)
         for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
@@ -1986,11 +1962,7 @@ export class MySqlParser extends Parser {
           }
         }
       } else if (stmt instanceof CreateViewStatement) {
-        stmt.name = this.identifier()
-        if (this.consumeIf(TokenType.Dot)) {
-          stmt.schemaName = stmt.name
-          stmt.name = this.identifier()
-        }
+        stmt.obj = this.schemaObject()
         if (this.consumeIf(TokenType.LeftParen)) {
           stmt.columns = []
           for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
@@ -2015,11 +1987,7 @@ export class MySqlParser extends Parser {
         stmt instanceof CreateProcedureStatement ||
         stmt instanceof CreateFunctionStatement
       ) {
-        stmt.name = this.identifier()
-        if (this.consumeIf(TokenType.Dot)) {
-          stmt.schemaName = stmt.name
-          stmt.name = this.identifier()
-        }
+        stmt.obj = this.schemaObject()
         this.consume(TokenType.LeftParen)
         for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
           if (stmt instanceof CreateFunctionStatement) {
@@ -2080,11 +2048,7 @@ export class MySqlParser extends Parser {
           this.consume()
         }
       } else if (stmt instanceof CreateTriggerStatement) {
-        stmt.name = this.identifier()
-        if (this.consumeIf(TokenType.Dot)) {
-          stmt.schemaName = stmt.name
-          stmt.name = this.identifier()
-        }
+        stmt.obj = this.schemaObject()
         if (this.consumeIf(Keyword.BEFORE)) {
           stmt.triggerTime = TriggerTime.BEFORE
         } else if (this.consumeIf(Keyword.AFTER)) {
@@ -2121,11 +2085,7 @@ export class MySqlParser extends Parser {
           this.consume()
         }
       } else if (stmt instanceof CreateEventStatement) {
-        stmt.name = this.identifier()
-        if (this.consumeIf(TokenType.Dot)) {
-          stmt.schemaName = stmt.name
-          stmt.name = this.identifier()
-        }
+        stmt.obj = this.schemaObject()
         this.consume(Keyword.ON)
         this.consume(Keyword.SCHEDULE)
         if (this.consumeIf(Keyword.AT)) {
@@ -2143,19 +2103,74 @@ export class MySqlParser extends Parser {
     } else if (this.consumeIf(Keyword.ALTER)) {
       if (this.consumeIf(Keyword.DATABASE) || this.consumeIf(Keyword.SCHEMA)) {
         stmt = new AlterDatabaseStatement()
+        stmt.name = this.identifier()
+        while (this.peek()) {
+          let defaultPrefix = false
+          if (this.consumeIf(Keyword.DEFAULT)) {
+            defaultPrefix = true
+          }
+          if (this.consumeIf(Keyword.CHARACTER)) {
+            this.consume(Keyword.SET)
+            this.consumeIf(Keyword.OPE_EQ)
+            stmt.characterSet = this.stringValue()
+          } else if (this.consumeIf(Keyword.COLLATE)) {
+            this.consumeIf(Keyword.OPE_EQ)
+            stmt.collate = this.stringValue()
+          } else if (this.consumeIf(Keyword.ENCRYPTION)) {
+            this.consumeIf(Keyword.OPE_EQ)
+            stmt.encryption = this.stringValue()
+          } else if (!defaultPrefix && this.consumeIf(Keyword.READ)) {
+            this.consume(Keyword.ONLY)
+            this.consumeIf(Keyword.OPE_EQ)
+            if (this.consumeIf(Keyword.DEFAULT)) {
+              stmt.readOnly = "DEFAULT"
+            } else {
+              stmt.readOnly = this.numberValue()
+            }
+          } else {
+            throw new Error()
+          }
+        }
       } else if (this.consumeIf(Keyword.SERVER)) {
         stmt = new AlterServerStatement()
-      } else if (this.consumeIf(Keyword.RESOURCE, Keyword.GROUP)) {
+        stmt.name = this.identifier()
+        this.consume(Keyword.OPTIONS)
+        this.consume(TokenType.LeftParen)
+        for (let i = 0; i === 0 || this.consume(TokenType.Comma); i++) {
+          if (this.consumeIf(Keyword.HOST)) {
+            stmt.host = this.stringValue()
+          } else if (this.consumeIf(Keyword.DATABASE)) {
+            stmt.database = this.stringValue()
+          } else if (this.consumeIf(Keyword.USER)) {
+            stmt.user = this.stringValue()
+          } else if (this.consumeIf(Keyword.PASSWORD)) {
+            stmt.password = this.stringValue()
+          } else if (this.consumeIf(Keyword.SOCKET)) {
+            stmt.socket = this.stringValue()
+          } else if (this.consumeIf(Keyword.OWNER)) {
+            stmt.owner = this.stringValue()
+          } else if (this.consumeIf(Keyword.PORT)) {
+            stmt.port = this.numberValue()
+          } else {
+            throw this.createParseError()
+          }
+        }
+        this.consume(TokenType.RightParen)
+      } else if (this.consumeIf(Keyword.RESOURCE)) {
+        this.consume(Keyword.GROUP)
         stmt = new AlterResourceGroupStatement()
+        //TODO
       } else if (this.consumeIf(Keyword.INSTANCE)) {
-        stmt = new OtherStatement()
-      } else if (this.consumeIf(Keyword.LOGFILE, Keyword.GROUP)) {
+        stmt = new AlterInstanceStatement()
+      } else if (this.consumeIf(Keyword.LOGFILE)) {
+        this.consume(Keyword.GROUP)
         stmt = new AlterLogfileGroupStatement()
-      } else if (this.peekIf(Keyword.UNDO, Keyword.TABLESPACE)) {
+      } else if (this.peekIf(Keyword.UNDO) || this.peekIf(Keyword.TABLESPACE)) {
         stmt = new AlterTablespaceStatement()
-        stmt.undo = true
-      } else if (this.peekIf(Keyword.TABLESPACE)) {
-        stmt = new AlterTablespaceStatement()
+        if (this.consumeIf(Keyword.UNDO)) {
+          stmt.undo = true
+        }
+        this.consume(Keyword.TABLESPACE)
       } else if (this.consumeIf(Keyword.USER)) {
         stmt = new AlterUserStatement()
         if (this.consumeIf(Keyword.IF)) {
@@ -2182,7 +2197,7 @@ export class MySqlParser extends Parser {
         let definer
         if (this.consumeIf(Keyword.DEFINER)) {
           this.consume(Keyword.OPE_EQ)
-          definer = this.username()
+          definer = this.userRole()
         }
 
         let sqlSecurity
@@ -2227,8 +2242,22 @@ export class MySqlParser extends Parser {
     } else if (this.consumeIf(Keyword.RENAME)) {
       if (this.consumeIf(Keyword.TABLE)) {
         stmt = new RenameTableStatement()
+        for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+          const pair = new RenameObjPair()
+          pair.obj = this.schemaObject()
+          this.consumeIf(Keyword.TO)
+          pair.newObj = this.schemaObject()
+          stmt.pairs.push(pair)
+        }
       } else if (this.consumeIf(Keyword.USER)) {
         stmt = new RenameUserStatement()
+        for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+          const pair = new RenameUserPair()
+          pair.user = this.userRole()
+          this.consumeIf(Keyword.TO)
+          pair.newUser = this.userRole()
+          stmt.pairs.push(pair)
+        }
       } else {
         throw this.createParseError()
       }
@@ -2239,26 +2268,56 @@ export class MySqlParser extends Parser {
           this.consume(Keyword.EXISTS)
           stmt.ifExists = true
         }
+        stmt.name = this.identifier()
       } else if (this.consumeIf(Keyword.SERVER)) {
         stmt = new DropServerStatement()
         if (this.consumeIf(Keyword.IF)) {
           this.consume(Keyword.EXISTS)
           stmt.ifExists = true
         }
-      } else if (this.consumeIf(Keyword.RESOURCE, Keyword.GROUP)) {
+        stmt.name = this.identifier()
+      } else if (this.consumeIf(Keyword.RESOURCE)) {
+        this.consume(Keyword.GROUP)
         stmt = new DropResourceGroupStatement()
-      } else if (this.consumeIf(Keyword.LOGFILE, Keyword.GROUP)) {
+        stmt.name = this.identifier()
+        if (this.consumeIf(Keyword.FORCE)) {
+          stmt.force = true
+        }
+      } else if (this.consumeIf(Keyword.LOGFILE)) {
+        this.consume(Keyword.GROUP)
         stmt = new DropLogfileGroupStatement()
-      } else if (this.peekIf(Keyword.UNDO, Keyword.TABLESPACE)) {
+        stmt.name = this.identifier()
+        this.consume(Keyword.ENGINE)
+        this.consumeIf(Keyword.OPE_EQ)
+        stmt.engine = this.identifier()
+      } else if (this.peekIf(Keyword.UNDO) || this.peekIf(Keyword.TABLESPACE)) {
         stmt = new DropTablespaceStatement()
-        stmt.undo = true
-      } else if (this.peekIf(Keyword.TABLESPACE)) {
-        stmt = new DropTablespaceStatement()
+        if (this.consumeIf(Keyword.UNDO)) {
+          stmt.undo = true
+        }
+        this.consume(Keyword.TABLESPACE)
+        stmt.name = this.identifier()
+        if (this.consumeIf(Keyword.ENGINE)) {
+          this.consumeIf(Keyword.OPE_EQ)
+          stmt.engine = this.identifier()
+        }
+      } else if (this.consumeIf(Keyword.SPATIAL)) {
+        this.consume(Keyword.REFERENCE)
+        this.consume(Keyword.SYSTEM)
+        stmt = new DropSpatialReferenceSystemStatement()
+        if (this.consumeIf(Keyword.IF)) {
+          this.consume(Keyword.EXISTS)
+          stmt.ifExists = true
+        }
+        stmt.srid = this.numberValue()
       } else if (this.consumeIf(Keyword.ROLE)) {
         stmt = new DropRoleStatement()
         if (this.consumeIf(Keyword.IF)) {
           this.consume(Keyword.EXISTS)
           stmt.ifExists = true
+        }
+        for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+          stmt.roles.push(this.userRole())
         }
       } else if (this.consumeIf(Keyword.USER)) {
         stmt = new DropUserStatement()
@@ -2266,18 +2325,26 @@ export class MySqlParser extends Parser {
           this.consume(Keyword.EXISTS)
           stmt.ifExists = true
         }
-      } else if (this.consumeIf(Keyword.TEMPORARY, Keyword.TABLE)) {
+        for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+          stmt.users.push(this.userRole())
+        }
+      } else if (this.peekIf(Keyword.TEMPORARY) || this.peekIf(Keyword.TABLE)) {
         stmt = new DropTableStatement()
-        stmt.temporary = true
+        if (this.consumeIf(Keyword.TEMPORARY)) {
+          stmt.temporary = true
+        }
+        this.consume(Keyword.TABLE)
         if (this.consumeIf(Keyword.IF)) {
           this.consume(Keyword.EXISTS)
           stmt.ifExists = true
         }
-      } else if (this.consumeIf(Keyword.TABLE)) {
-        stmt = new DropTableStatement()
-        if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.EXISTS)
-          stmt.ifExists = true
+        for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+          stmt.objs.push(this.schemaObject())
+        }
+        if (this.consumeIf(Keyword.RESTRICT)) {
+          stmt.dropOption = DropOption.RESTRICT
+        } else if (this.consumeIf(Keyword.CASCADE)) {
+          stmt.dropOption = DropOption.CASCADE
         }
       } else if (this.consumeIf(Keyword.VIEW)) {
         stmt = new DropViewStatement()
@@ -2285,64 +2352,114 @@ export class MySqlParser extends Parser {
           this.consume(Keyword.EXISTS)
           stmt.ifExists = true
         }
-      } else if (this.consumeIf(Keyword.PROCEDURE)) {
-        stmt = new DropProcedureStatement()
+        for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+          stmt.objs.push(this.schemaObject())
+        }
+        if (this.consumeIf(Keyword.RESTRICT)) {
+          stmt.dropOption = DropOption.RESTRICT
+        } else if (this.consumeIf(Keyword.CASCADE)) {
+          stmt.dropOption = DropOption.CASCADE
+        }
+      } else if (
+        this.peekIf(Keyword.PROCEDURE) ||
+        this.peekIf(Keyword.FUNCTION) ||
+        this.peekIf(Keyword.TRIGGER) ||
+        this.peekIf(Keyword.EVENT)
+      ) {
+        if (this.consumeIf(Keyword.PROCEDURE)) {
+          stmt = new DropProcedureStatement()
+        } else if (this.consumeIf(Keyword.FUNCTION)) {
+          stmt = new DropFunctionStatement()
+        } else if (this.consumeIf(Keyword.TRIGGER)) {
+          stmt = new DropTriggerStatement()
+        } else if (this.consumeIf(Keyword.EVENT)) {
+          stmt = new DropEventStatement()
+        } else {
+          throw this.createParseError()
+        }
         if (this.consumeIf(Keyword.IF)) {
           this.consume(Keyword.EXISTS)
           stmt.ifExists = true
         }
-      } else if (this.consumeIf(Keyword.FUNCTION)) {
-        stmt = new DropFunctionStatement()
-        if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.EXISTS)
-          stmt.ifExists = true
-        }
-      } else if (this.consumeIf(Keyword.TRIGGER)) {
-        stmt = new DropTriggerStatement()
-      } else if (this.consumeIf(Keyword.EVENT)) {
-        stmt = new DropEventStatement()
-        if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.EXISTS)
-          stmt.ifExists = true
-        }
-      } else if (this.consumeIf(Keyword.SPATIAL, Keyword.REFERENCE, Keyword.SYSTEM)) {
-        stmt = new DropSpatialReferenceSystemStatement()
-        if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.EXISTS)
-          stmt.ifExists = true
-        }
+        stmt.obj = this.schemaObject()
       } else if (this.consumeIf(Keyword.INDEX)) {
         stmt = new DropIndexStatement()
+        stmt.obj = this.schemaObject()
+        this.consumeIf(Keyword.ON)
+        stmt.table = this.schemaObject()
+        while (this.peek()) {
+          if (this.consumeIf(Keyword.ALGORITHM)) {
+            this.consumeIf(Keyword.OPE_EQ)
+            if (this.consumeIf(Keyword.DEFAULT)) {
+              stmt.algorithmOption = IndexAlgorithmOption.DEFAULT
+            } else if (this.consumeIf(Keyword.INPLACE)) {
+              stmt.algorithmOption = IndexAlgorithmOption.INPLACE
+            } else if (this.consumeIf(Keyword.COPY)) {
+              stmt.algorithmOption = IndexAlgorithmOption.COPY
+            } else {
+              throw this.createParseError()
+            }
+          } else if (this.consumeIf(Keyword.LOCK)) {
+            this.consumeIf(Keyword.OPE_EQ)
+            if (this.consumeIf(Keyword.DEFAULT)) {
+              stmt.lockOption = IndexLockOption.DEFAULT
+            } else if (this.consumeIf(Keyword.NONE)) {
+              stmt.lockOption = IndexLockOption.NONE
+            } else if (this.consumeIf(Keyword.SHARED)) {
+              stmt.lockOption = IndexLockOption.SHARED
+            } else if (this.consumeIf(Keyword.EXCLUSIVE)) {
+              stmt.lockOption = IndexLockOption.EXCLUSIVE
+            } else {
+              throw this.createParseError()
+            }
+          } else {
+            break
+          }
+        }
       } else if (this.consumeIf(Keyword.PREPARE)) {
         stmt = new DeallocatePrepareStatement()
+        stmt.name = this.identifier()
       } else {
         throw this.createParseError()
       }
-    } else if (this.consumeIf(Keyword.TRUNCATE, Keyword.TABLE)) {
+    } else if (this.consumeIf(Keyword.TRUNCATE)) {
+      this.consumeIf(Keyword.TABLE)
       stmt = new TruncateTableStatement()
-    } else if (this.consumeIf(Keyword.DEALLOCATE, Keyword.PREPARE)) {
+      stmt.obj = this.schemaObject()
+    } else if (this.consumeIf(Keyword.DEALLOCATE)) {
+      this.consume(Keyword.PREPARE)
       stmt = new DeallocatePrepareStatement()
-    } else if (this.consumeIf(Keyword.START, Keyword.TRANSACTION)) {
-      stmt = new StartTransactionStatement()
-    } else if (this.consumeIf(Keyword.START, Keyword.SLAVE)) {
-      stmt = new StartSlaveStatement()
-    } else if (this.consumeIf(Keyword.CHANGE, Keyword.MASTER)) {
+      stmt.name = this.identifier()
+    } else if (this.consumeIf(Keyword.START)) {
+      if (this.consumeIf(Keyword.TRANSACTION)) {
+        stmt = new StartTransactionStatement()
+      } else if (this.consumeIf(Keyword.SLAVE)) {
+        stmt = new StartSlaveStatement()
+      } else {
+        throw this.createParseError()
+      }
+    } else if (this.consumeIf(Keyword.CHANGE)) {
+      this.consume(Keyword.MASTER)
       stmt = new ChangeMasterStatement()
-    } else if (this.consumeIf(Keyword.STOP, Keyword.SLAVE)) {
+    } else if (this.consumeIf(Keyword.STOP)) {
+      this.consume(Keyword.SLAVE)
       stmt = new StopSlaveStatement()
     } else if (this.consumeIf(Keyword.BEGIN)) {
       stmt = new BeginStatement()
     } else if (this.consumeIf(Keyword.SAVEPOINT)) {
       stmt = new SavepointStatement()
-    } else if (this.consumeIf(Keyword.RELEASE, Keyword.SAVEPOINT)) {
+    } else if (this.consumeIf(Keyword.RELEASE)) {
+      this.consume(Keyword.SAVEPOINT)
       stmt = new ReleaseSavepointStatement()
     } else if (this.consumeIf(Keyword.COMMIT)) {
       stmt = new CommitStatement()
     } else if (this.consumeIf(Keyword.ROLLBACK)) {
       stmt = new RollbackStatement()
-    } else if (this.consumeIf(Keyword.LOCK, Keyword.TABLE)) {
+    } else if (this.consumeIf(Keyword.LOCK)) {
+      this.consume(Keyword.TABLE)
       stmt = new LockTableStatement()
-    } else if (this.consumeIf(Keyword.UNLOCK, Keyword.TABLE)) {
+    } else if (this.consumeIf(Keyword.UNLOCK)) {
+      this.consume(Keyword.TABLE)
       stmt = new UnlockTableStatement()
     } else if (this.consumeIf(Keyword.XA)) {
       if (this.consumeIf(Keyword.START)) {
@@ -2363,10 +2480,8 @@ export class MySqlParser extends Parser {
         throw this.createParseError()
       }
     } else if (this.consumeIf(Keyword.PURGE)) {
-      if (
-        this.consumeIf(Keyword.BINARY, Keyword.LOGS) ||
-        this.consumeIf(Keyword.MASTER, Keyword.LOGS)
-       ) {
+      if (this.consumeIf(Keyword.BINARY) || this.consumeIf(Keyword.MASTER)) {
+        this.consume(Keyword.LOGS)
         stmt = new PurgeBinaryLogsStatement()
       } else {
         throw this.createParseError()
@@ -2408,11 +2523,11 @@ export class MySqlParser extends Parser {
       }
       this.consume(Keyword.TABLE)
     } else if (this.consumeIf(Keyword.INSTALL)) {
+      this.consume(Keyword.PLUGIN)
       stmt = new InstallPluginStatement()
-      this.consume(Keyword.PLUGIN)
     } else if (this.consumeIf(Keyword.UNINSTALL)) {
-      stmt = new UninstallPluginStatement()
       this.consume(Keyword.PLUGIN)
+      stmt = new UninstallPluginStatement()
     } else if (this.consumeIf(Keyword.EXPLAIN) || this.consumeIf(Keyword.DESCRIBE)) {
       stmt = new ExplainStatement()
     } else if (this.consumeIf(Keyword.CALL)) {
@@ -2436,14 +2551,7 @@ export class MySqlParser extends Parser {
         stmt.conflictAction = ConflictAction.IGNORE
       }
       this.consumeIf(Keyword.INTO)
-      stmt.markers.set("nameStart", this.pos - start)
-      stmt.name = this.identifier()
-      if (this.consumeIf(TokenType.Dot)) {
-        stmt.schemaName = stmt.name
-        stmt.markers.set("nameStart", this.pos - start)
-        stmt.name = this.identifier()
-      }
-      stmt.markers.set("nameEnd", this.pos - start)
+      stmt.obj = this.schemaObject()
     } else if (this.consumeIf(Keyword.UPDATE)) {
       stmt = new UpdateStatement()
       if (this.consumeIf(Keyword.LOW_PRIORITY)) {
@@ -2452,14 +2560,7 @@ export class MySqlParser extends Parser {
       if (this.consumeIf(Keyword.IGNORE)) {
         stmt.conflictAction = ConflictAction.IGNORE
       }
-      stmt.markers.set("nameStart", this.pos - start)
-      stmt.name = this.identifier()
-      if (this.consumeIf(TokenType.Dot)) {
-        stmt.schemaName = stmt.name
-        stmt.markers.set("nameStart", this.pos - start)
-        stmt.name = this.identifier()
-      }
-      stmt.markers.set("nameEnd", this.pos - start)
+      stmt.obj = this.schemaObject()
     } else if (this.consumeIf(Keyword.REPLACE)) {
       stmt = new ReplaceStatement()
       if (this.consumeIf(Keyword.LOW_PRIORITY)) {
@@ -2471,14 +2572,7 @@ export class MySqlParser extends Parser {
         stmt.conflictAction = ConflictAction.IGNORE
       }
       this.consumeIf(Keyword.INTO)
-      stmt.markers.set("nameStart", this.pos - start)
-      stmt.name = this.identifier()
-      if (this.consumeIf(TokenType.Dot)) {
-        stmt.schemaName = stmt.name
-        stmt.markers.set("nameStart", this.pos - start)
-        stmt.name = this.identifier()
-      }
-      stmt.markers.set("nameEnd", this.pos - start)
+      stmt.obj = this.schemaObject()
     } else if (this.consumeIf(Keyword.DELETE)) {
       stmt = new DeleteStatement()
       if (this.consumeIf(Keyword.LOW_PRIORITY)) {
@@ -2495,14 +2589,7 @@ export class MySqlParser extends Parser {
         stmt.conflictAction = ConflictAction.IGNORE
       }
       this.consumeIf(Keyword.FROM)
-      stmt.markers.set("nameStart", this.pos - start)
-      stmt.name = this.identifier()
-      if (this.consumeIf(TokenType.Dot)) {
-        stmt.schemaName = stmt.name
-        stmt.markers.set("nameStart", this.pos - start)
-        stmt.name = this.identifier()
-      }
-      stmt.markers.set("nameEnd", this.pos - start)
+      stmt.obj = this.schemaObject()
     } else if (this.consumeIf(Keyword.LOAD)) {
       if (this.peekIf(Keyword.DATA) || this.peekIf(Keyword.XML)) {
         if (this.consumeIf(Keyword.DATA)) {
@@ -2520,22 +2607,25 @@ export class MySqlParser extends Parser {
         }
         this.consume(Keyword.INFILE)
       } else if (this.consumeIf(Keyword.INDEX)) {
-        stmt = new LoadIndexIntoCacheStatement()
         this.consume(Keyword.INTO)
         this.consume(Keyword.CACHE)
+        stmt = new LoadIndexIntoCacheStatement()
       } else {
         throw this.createParseError()
       }
     } else if (this.consumeIf(Keyword.SET)) {
-      if (this.consumeIf(Keyword.RESOURCE, Keyword.GROUP)) {
+      if (this.consumeIf(Keyword.RESOURCE)) {
+        this.consume(Keyword.GROUP)
         stmt = new SetResourceGroupStatement()
-      } else if (this.consumeIf(Keyword.DEFAULT, Keyword.ROLE)) {
+      } else if (this.consumeIf(Keyword.DEFAULT)) {
+        this.consume(Keyword.ROLE)
         stmt = new SetDefaultRoleStatement()
       } else if (this.consumeIf(Keyword.ROLE)) {
         stmt = new SetRoleStatement()
       } else if (this.consumeIf(Keyword.PASSWORD)) {
         stmt = new SetPasswordStatement()
-      } else if (this.consumeIf(Keyword.CHARACTER, Keyword.SET)) {
+      } else if (this.consumeIf(Keyword.CHARACTER)) {
+        this.consume(Keyword.SET)
         stmt = new SetCharacterSetStatement()
       } else if (this.consumeIf(Keyword.NAMES)) {
         stmt = new SetNamesStatement()
@@ -2676,8 +2766,8 @@ export class MySqlParser extends Parser {
     } else if (this.consumeIf(Keyword.BINLOG)) {
       stmt = new BinlogStatement()
     } else if (this.consumeIf(Keyword.CACHE)) {
-      stmt = new CacheIndexStatement()
       this.consume(Keyword.INDEX)
+      stmt = new CacheIndexStatement()
     } else if (this.consumeIf(Keyword.FLUSH)) {
       stmt = new FlushStatement()
     } else if (this.consumeIf(Keyword.KILL)) {
@@ -2741,18 +2831,32 @@ export class MySqlParser extends Parser {
     return this.tokens.slice(start, this.pos)
   }
 
-  username() {
-    let text
+  schemaObject() {
+    const sobj = new SchemaObject()
+    sobj.name = this.identifier()
+    if (this.consumeIf(TokenType.Dot)) {
+      sobj.schemaName = sobj.name
+      sobj.name = this.identifier()
+    }
+    return sobj
+  }
+
+  userRole() {
+    const userRole = new UserRole()
     if (this.consumeIf(TokenType.QuotedIdentifier)) {
-      text = unescape(dequote(this.peek(-1).text))
+      userRole.name = unescape(dequote(this.peek(-1).text))
     } else if (this.consumeIf(TokenType.String)) {
-      text = unescape(dequote(this.peek(-1).text))
+      userRole.name = unescape(dequote(this.peek(-1).text))
     } else if (this.consumeIf(TokenType.Identifier)) {
-      text = lcase(this.peek(-1).text)
+      userRole.name = lcase(this.peek(-1).text)
     } else {
       throw this.createParseError()
     }
-    return text
+
+    if (this.consumeIf(TokenType.UserDefinedVariable)) {
+      userRole.host = dequote(this.peek(-1).text.substring(1))
+    }
+    return userRole
   }
 
   identifier() {
