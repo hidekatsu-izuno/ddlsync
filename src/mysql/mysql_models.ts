@@ -104,6 +104,10 @@ export class CreateResourceGroupStatement extends Statement {
 
 export class AlterResourceGroupStatement extends Statement {
   name = ""
+  vcpu = new Array<{ min: string, max: string}>()
+  threadPriority = "0"
+  disable = false
+  force = false
 }
 
 export class SetResourceGroupStatement extends Statement {
@@ -128,6 +132,10 @@ export class CreateLogfileGroupStatement extends Statement {
 
 export class AlterLogfileGroupStatement extends Statement {
   name = ""
+  undofile = ""
+  initialSize?: string
+  wait = false
+  engine?: string
 }
 
 export class DropLogfileGroupStatement extends Statement {
@@ -156,6 +164,16 @@ export class CreateTablespaceStatement extends Statement {
 export class AlterTablespaceStatement extends Statement {
   name = ""
   undo = false
+  addDataFile?: string
+  dropDataFile?: string
+  initialSize?: string
+  wait = false
+  newTableSpace?: string
+  autoextendSize?: string
+  active = true
+  encryption?: string
+  engine?: string
+  engineAttribute?: string
 }
 
 export class DropTablespaceStatement extends Statement {
@@ -556,6 +574,7 @@ export class StartTransactionStatement extends Statement {
 }
 
 export class BeginStatement extends Statement {
+  work = false
 }
 
 export class SetTransactionStatement extends Statement {
@@ -570,9 +589,15 @@ export class ReleaseSavepointStatement extends Statement {
 }
 
 export class CommitStatement extends Statement {
+  work = false
+  chain?: boolean
+  release?: boolean
 }
 
 export class RollbackStatement extends Statement {
+  work = false
+  chain?: boolean
+  release?: boolean
 }
 
 export class LockTableStatement extends Statement {
