@@ -1,5 +1,3 @@
-import { options } from "colorette"
-import { types } from "util"
 import { Statement } from "./models"
 
 export interface ITokenType {
@@ -194,7 +192,7 @@ export abstract class Parser {
 
   createParseError(message?: string) {
     const token = this.peek()
-    const lines = this.input.substring(0, token.start).split(/\r\n?|\n/g)
+    const lines = this.input.substring(0, token?.start || 0).split(/\r\n?|\n/g)
     let last = lines[lines.length-1]
     const rows = lines.length + 1
     const cols = last.length
@@ -203,7 +201,7 @@ export abstract class Parser {
       last = `${last2}\u21B5 ${last}`
     }
     const fileName = this.options.fileName || ""
-    const text = message || `Unexpected token: ${last}"${token.text}"`
+    const text = message || `Unexpected token: ${last}"${token?.text}"`
     return new ParseError(
       `${fileName}[${rows},${cols}] ${text}`,
       fileName,

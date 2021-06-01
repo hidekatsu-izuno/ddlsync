@@ -7,12 +7,12 @@ export abstract class Constraint {
 
 export class CommandStatement extends Statement {
   name = ""
-  args: string[] = []
+  args = new Array<string>()
 }
 
 export class AttachDatabaseStatement extends Statement {
   name = ""
-  expression = new Array<Token>()
+  expr = new Array<Token>()
 }
 
 export class DetachDatabaseStatement extends Statement {
@@ -211,7 +211,7 @@ export class DataType {
 
 export class IndexColumn {
   name?: string
-  expression?: Token[]
+  expr?: Token[]
   sortOrder = SortOrder.ASC
 }
 
@@ -256,7 +256,7 @@ export class CheckColumnConstraint extends Constraint {
 }
 
 export class DefaultColumnConstraint extends Constraint {
-  expression = new Array<Token>()
+  expr = new Array<Token>()
 }
 
 export class CollateColumnConstraint extends Constraint {
@@ -269,7 +269,7 @@ export class ReferencesKeyColumnConstraint extends Constraint {
 }
 
 export class GeneratedColumnConstraint extends Constraint {
-  expression = new Array<Token>()
+  expr = new Array<Token>()
   storeType = StoreType.VIRTUAL
 }
 
@@ -306,28 +306,4 @@ export enum TransactionBehavior {
   DEFERRED = "DEFERRED",
   IMMEDIATE = "IMMEDIATE",
   EXCLUSIVE = "EXCLUSIVE",
-}
-
-export enum AffinityType {
-  INTEGER = "INTEGER",
-  TEXT = "TEXT",
-  BLOB = "BLOB",
-  REAL = "REAL",
-  NUMERIC = "NUMERIC",
-}
-
-export function getAffinityType(type?: string) {
-  if (!type) {
-    return AffinityType.BLOB
-  } else if (/INT/i.test(type)) {
-    return AffinityType.INTEGER
-  } else if (/CHAR|CLOB|TEXT/i.test(type)) {
-    return AffinityType.TEXT
-  } else if (/BLOB/i.test(type)) {
-    return AffinityType.BLOB
-  } else if (/REAL|FLOA|DOUB/i.test(type)) {
-    return AffinityType.REAL
-  } else {
-    return AffinityType.NUMERIC
-  }
 }

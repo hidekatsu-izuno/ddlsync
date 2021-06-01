@@ -4,37 +4,7 @@ import sqlite3 from "better-sqlite3"
 import { Statement } from "../models"
 import { Token } from "../parser"
 import { DdlSyncProcessor } from "../processor"
-import {
-  CommandStatement,
-  AlterTableStatement,
-  AttachDatabaseStatement,
-  CreateIndexStatement,
-  CreateTableStatement,
-  CreateTriggerStatement,
-  CreateViewStatement,
-  DetachDatabaseStatement,
-  DropIndexStatement,
-  DropTableStatement,
-  DropTriggerStatement,
-  DropViewStatement,
-  InsertStatement,
-  NotNullColumnConstraint,
-  PrimaryKeyColumnConstraint,
-  PrimaryKeyTableConstraint,
-  SortOrder,
-  UpdateStatement,
-  SelectStatement,
-  DeleteStatement,
-  AlterTableAction,
-  GeneratedColumnConstraint,
-  TableColumn,
-  getAffinityType,
-  AffinityType,
-  DefaultColumnConstraint,
-  AnalyzeStatement,
-  VacuumStatement,
-  ReindexStatement
-} from "./sqlite3_models";
+import * as model from "./sqlite3_models";
 import { Sqlite3Parser, TokenType } from "./sqlite3_parser"
 import { lcase, ucase } from "../util/functions"
 import { writeGzippedCsv } from "../util/io"
@@ -82,38 +52,38 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     const refs = []
     for (const [i, stmt] of stmts.entries()) {
       switch (stmt.constructor) {
-        case AttachDatabaseStatement:
-          refs[i] = this.tryAttachDatabaseStatement(i, stmt as AttachDatabaseStatement, vdb)
+        case model.AttachDatabaseStatement:
+          refs[i] = this.tryAttachDatabaseStatement(i, stmt as model.AttachDatabaseStatement, vdb)
           break
-        case DetachDatabaseStatement:
-          refs[i] = this.tryDetachDatabaseStatement(i, stmt as DetachDatabaseStatement, vdb)
+        case model.DetachDatabaseStatement:
+          refs[i] = this.tryDetachDatabaseStatement(i, stmt as model.DetachDatabaseStatement, vdb)
           break
-        case CreateTableStatement:
-        case CreateViewStatement:
-        case CreateTriggerStatement:
-        case CreateIndexStatement:
+        case model.CreateTableStatement:
+        case model.CreateViewStatement:
+        case model.CreateTriggerStatement:
+        case model.CreateIndexStatement:
           refs[i] = this.tryCreateObjectStatement(i, stmt, vdb)
           break
-        case AlterTableStatement:
-          refs[i] = this.tryAlterTableStatement(i, stmt as AlterTableStatement, vdb)
+        case model.AlterTableStatement:
+          refs[i] = this.tryAlterTableStatement(i, stmt as model.AlterTableStatement, vdb)
           break
-        case DropTableStatement:
-        case DropViewStatement:
-        case DropTriggerStatement:
-        case DropIndexStatement:
+        case model.DropTableStatement:
+        case model.DropViewStatement:
+        case model.DropTriggerStatement:
+        case model.DropIndexStatement:
           refs[i] = this.tryDropObjectStatement(i, stmt, vdb)
           break
-        case VacuumStatement:
-          refs[i] = this.checkVacuumStatement(i, stmt as VacuumStatement, vdb)
+        case model.VacuumStatement:
+          refs[i] = this.checkVacuumStatement(i, stmt as model.VacuumStatement, vdb)
           break
-        case InsertStatement:
-        case UpdateStatement:
-        case DeleteStatement:
-        case AnalyzeStatement:
+        case model.InsertStatement:
+        case model.UpdateStatement:
+        case model.DeleteStatement:
+        case model.AnalyzeStatement:
           refs[i] = this.checkManipulateObjectStatement(i, stmt, vdb, "table")
           break
-        case ReindexStatement:
-          refs[i] = this.checkReindexStatement(i, stmt as ReindexStatement, vdb)
+        case model.ReindexStatement:
+          refs[i] = this.checkReindexStatement(i, stmt as model.ReindexStatement, vdb)
           break
         default:
         // no handle
@@ -123,21 +93,21 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     for (const [i, stmt] of stmts.entries()) {
       console.log(`-- ## statement ${i + 1}: ${stmt.summary()}`)
       switch (stmt.constructor) {
-        case CommandStatement:
-          await this.runCommandStatement(i, stmt as CommandStatement)
+        case model.CommandStatement:
+          await this.runCommandStatement(i, stmt as model.CommandStatement)
           break
-        case CreateTableStatement:
-        case CreateViewStatement:
-        case CreateTriggerStatement:
-        case CreateIndexStatement:
+        case model.CreateTableStatement:
+        case model.CreateViewStatement:
+        case model.CreateTriggerStatement:
+        case model.CreateIndexStatement:
           await this.runCreateObjectStatement(i, stmt, refs[i] as VObject)
           break
-        case InsertStatement:
-        case UpdateStatement:
-        case DeleteStatement:
+        case model.InsertStatement:
+        case model.UpdateStatement:
+        case model.DeleteStatement:
           await this.runStatement(i, stmt, QueryType.UPDATE)
           break
-        case SelectStatement:
+        case model.SelectStatement:
           await this.runStatement(i, stmt, QueryType.SELECT)
           break
         default:
@@ -151,7 +121,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     this.con.close()
   }
 
-  private tryAttachDatabaseStatement(seq: number, stmt: AttachDatabaseStatement, vdb: VDatabase) {
+  private tryAttachDatabaseStatement(seq: number, stmt: model.AttachDatabaseStatement, vdb: VDatabase) {
     let schema = vdb.schemas.get(lcase(stmt.name))
     if (schema) {
       if (schema.dropped) {
@@ -165,7 +135,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     return vschema
   }
 
-  private tryDetachDatabaseStatement(seq: number, stmt: DetachDatabaseStatement, vdb: VDatabase) {
+  private tryDetachDatabaseStatement(seq: number, stmt: model.DetachDatabaseStatement, vdb: VDatabase) {
     const schema = vdb.schemas.get(lcase(stmt.name))
     if (!schema || schema.dropped) {
       throw new Error(`no such database: ${stmt.name}`)
@@ -211,7 +181,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     return schema.add(type, stmt.name, stmt.tableName)
   }
 
-  private tryAlterTableStatement(seq: number, stmt: AlterTableStatement, vdb: VDatabase) {
+  private tryAlterTableStatement(seq: number, stmt: model.AlterTableStatement, vdb: VDatabase) {
     let schemaName = stmt.schemaName
     if (!schemaName) {
       const tempObject = vdb.schemas.get("temp")?.get(stmt.name)
@@ -230,7 +200,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
       throw new Error(`no such table: ${schemaName}.${stmt.name}`)
     }
 
-    if (stmt.alterTableAction == AlterTableAction.RENAME_TABLE && stmt.newTableName) {
+    if (stmt.alterTableAction == model.AlterTableAction.RENAME_TABLE && stmt.newTableName) {
       obj.dropped = true
       schema.add("table", stmt.newTableName)
       for (const aObj of schema) {
@@ -284,7 +254,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     return object
   }
 
-  private checkVacuumStatement(seq: number, stmt: VacuumStatement, vdb: VDatabase) {
+  private checkVacuumStatement(seq: number, stmt: model.VacuumStatement, vdb: VDatabase) {
     if (stmt.schemaName) {
       const schema = vdb.schemas.get(lcase(stmt.schemaName))
       if (!schema) {
@@ -294,7 +264,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     }
   }
 
-  private checkReindexStatement(seq: number, stmt: ReindexStatement, vdb: VDatabase) {
+  private checkReindexStatement(seq: number, stmt: model.ReindexStatement, vdb: VDatabase) {
     let schemaName = stmt.schemaName
     if (!schemaName) {
       const tempObject = vdb.schemas.get("temp")?.get(stmt.name)
@@ -336,7 +306,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     return obj
   }
 
-  private async runCommandStatement(seq: number, stmt: CommandStatement) {
+  private async runCommandStatement(seq: number, stmt: model.CommandStatement) {
     console.log(`-- skip: unknown command "${stmt.name}"`)
   }
 
@@ -358,8 +328,8 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
 
         if (!this.isSame(stmt, oldStmt)) {
           if (
-            stmt instanceof CreateTableStatement && !stmt.virtual && !(stmt as any).asSelect &&
-            oldStmt instanceof CreateTableStatement && !oldStmt.virtual
+            stmt instanceof model.CreateTableStatement && !stmt.virtual && !(stmt as any).asSelect &&
+            oldStmt instanceof model.CreateTableStatement && !oldStmt.virtual
           ) {
             if (this.hasData(obj.schemaName, obj.name)) {
               const columnMappings = this.mapColumns(stmt, oldStmt)
@@ -397,7 +367,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
           } else {
             // backup src table if object is a normal table
             if (
-              oldStmt instanceof CreateTableStatement && !oldStmt.virtual &&
+              oldStmt instanceof model.CreateTableStatement && !oldStmt.virtual &&
               this.hasData(obj.schemaName, obj.name)
             ) {
               // backup src table
@@ -505,23 +475,23 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     return true
   }
 
-  private mapColumns(newStmt: CreateTableStatement, oldStmt: CreateTableStatement) {
+  private mapColumns(newStmt: model.CreateTableStatement, oldStmt: model.CreateTableStatement) {
     const oldColumns = (oldStmt.columns || []).reduce((prev, current) => {
       prev.set(lcase(current.name), current)
       return prev
-    }, new Map<string, TableColumn>())
+    }, new Map<string, model.TableColumn>())
 
-    const droppedColumns = new Map<string, TableColumn>(oldColumns)
+    const droppedColumns = new Map<string, model.TableColumn>(oldColumns)
     const srcColumns = []
     const destColumns = []
     let sortColumns = []
 
     let newPkeyColumns = new Map<string, string>()
     for (const newCnst of newStmt.constraints || []) {
-      if (newPkeyColumns.size === 0 && newCnst instanceof PrimaryKeyTableConstraint) {
+      if (newPkeyColumns.size === 0 && newCnst instanceof model.PrimaryKeyTableConstraint) {
         for (const newCnstCols of newCnst.columns) {
           let sortColumn = bquote(newCnstCols.name || "")
-          if (newCnstCols.sortOrder === SortOrder.DESC) {
+          if (newCnstCols.sortOrder === model.SortOrder.DESC) {
             sortColumn += " DESC"
           }
           newPkeyColumns.set(lcase(newCnstCols.name || ""), sortColumn)
@@ -534,20 +504,20 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
       let defaultValue = false
       let generated = false
       for (const newCnst of newColumn.constraints) {
-        if (newPkeyColumns.size === 0 && newCnst instanceof PrimaryKeyColumnConstraint) {
+        if (newPkeyColumns.size === 0 && newCnst instanceof model.PrimaryKeyColumnConstraint) {
           if (newCnst.autoIncrement) {
             autoIncrement = true
           }
           let sortColumn = bquote(newColumn.name)
-          if (newCnst.sortOrder === SortOrder.DESC) {
+          if (newCnst.sortOrder === model.SortOrder.DESC) {
             sortColumn += " DESC"
           }
           newPkeyColumns.set(lcase(newColumn.name), sortColumn)
-        } else if (newCnst instanceof NotNullColumnConstraint) {
+        } else if (newCnst instanceof model.NotNullColumnConstraint) {
           notNull = true
-        } else if (newCnst instanceof DefaultColumnConstraint) {
+        } else if (newCnst instanceof model.DefaultColumnConstraint) {
           defaultValue = true
-        } else if (newCnst instanceof GeneratedColumnConstraint) {
+        } else if (newCnst instanceof model.GeneratedColumnConstraint) {
           generated = true
         }
       }
@@ -691,3 +661,28 @@ function dquote(text: string) {
 function bquote(text: string) {
   return "`" + text.replace(/`/g, "``") + "`"
 }
+
+enum AffinityType {
+  INTEGER = "INTEGER",
+  TEXT = "TEXT",
+  BLOB = "BLOB",
+  REAL = "REAL",
+  NUMERIC = "NUMERIC",
+}
+
+function getAffinityType(type?: string) {
+  if (!type) {
+    return AffinityType.BLOB
+  } else if (/INT/i.test(type)) {
+    return AffinityType.INTEGER
+  } else if (/CHAR|CLOB|TEXT/i.test(type)) {
+    return AffinityType.TEXT
+  } else if (/BLOB/i.test(type)) {
+    return AffinityType.BLOB
+  } else if (/REAL|FLOA|DOUB/i.test(type)) {
+    return AffinityType.REAL
+  } else {
+    return AffinityType.NUMERIC
+  }
+}
+
