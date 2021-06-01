@@ -289,25 +289,26 @@ export class Sqlite3Parser extends Parser {
       root[root.length - 1] instanceof model.CommandStatement && this.consumeIf(TokenType.LineBreak);
       i++
     ) {
-      if (this.peekIf(TokenType.Command)) {
-        const stmt = this.command()
-        root.push(stmt)
-      } else if (this.peek() && !this.peekIf(TokenType.SemiColon)) {
-        try {
+      try {
+        if (this.peekIf(TokenType.Command)) {
+          const stmt = this.command()
+          stmt.validate()
+          root.push(stmt)
+        } else if (this.peek() && !this.peekIf(TokenType.SemiColon)) {
           const stmt = this.statement()
           stmt.validate()
           root.push(stmt)
-        } catch (e) {
-          if (e instanceof ParseError) {
-            errors.push(e)
+        }
+      } catch (e) {
+        if (e instanceof ParseError) {
+          errors.push(e)
 
-            // skip tokens
-            while (this.peek() && !this.peekIf(TokenType.SemiColon)) {
-              this.consume()
-            }
-          } else {
-            throw e
+          // skip tokens
+          while (this.peek() && !this.peekIf(TokenType.SemiColon)) {
+            this.consume()
           }
+        } else {
+          throw e
         }
       }
     }

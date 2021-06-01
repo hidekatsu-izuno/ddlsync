@@ -1,8 +1,7 @@
 import mariadb from "mariadb"
 import { Statement } from "../models"
 import { DdlSyncProcessor } from "../processor"
-import { ucase } from "../util/functions"
-import { MySqlParser } from "./mysql_parser"
+import { MysqlParser } from "./mysql_parser"
 
 export default class MysqlProcessor extends DdlSyncProcessor {
   private con?: mariadb.Connection
@@ -57,7 +56,7 @@ export default class MysqlProcessor extends DdlSyncProcessor {
   }
 
   protected async parse(input: string, options: { [key: string]: any }) {
-    const parser = new MySqlParser(input)
+    const parser = new MysqlParser(input)
     return parser.root()
   }
 

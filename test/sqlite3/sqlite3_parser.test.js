@@ -8,7 +8,7 @@ describe("parse", () => {
     ["  "],
     ["--test"],
     ["/*test*/"],
-    ["/*test*/;  --test"],
+    [" /*test*/;  --test"],
   ])("empty imput \"%s\"", (input) => {
     const options = {}
     const result = new Sqlite3Parser(input, options).root()
@@ -116,7 +116,7 @@ describe("parse", () => {
     ["temporary", true],
     ["temp", true]
   ])("create %s view", (modifier, temporary) => {
-    const input = `CREATE ${modifier} VIEW  x AS SELECT * FROM x`
+    const input = `CREATE ${modifier} VIEW x AS SELECT * FROM x`
     const options = {}
     const result = new Sqlite3Parser(input, options).root()
     expect(result.length).toBe(1)
@@ -126,18 +126,12 @@ describe("parse", () => {
     expect(result[0].columns).toBe(undefined)
   })
 
-  test.each([
-    ["", false],
-    ["temporary", true],
-    ["temp", true]
-  ])("create %s view", (modifier, temporary) => {
-    const input = `CREATE ${modifier} VIEW  x AS SELECT * FROM x`
+  test("drop view", () => {
+    const input = `DROP VIEW x`
     const options = {}
     const result = new Sqlite3Parser(input, options).root()
     expect(result.length).toBe(1)
-    expect(result[0]).toBeInstanceOf(model.CreateViewStatement)
-    expect(result[0].temporary).toBe(temporary)
+    expect(result[0]).toBeInstanceOf(model.DropViewStatement)
     expect(result[0].name).toBe("x")
-    expect(result[0].columns).toBe(undefined)
   })
 })

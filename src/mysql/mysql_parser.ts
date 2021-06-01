@@ -879,7 +879,7 @@ export class MysqlLexer extends Lexer {
   }
 }
 
-export class MySqlParser extends Parser {
+export class MysqlParser extends Parser {
   constructor(
     input: string,
     options: { [key: string]: any } = {},
@@ -893,28 +893,29 @@ export class MySqlParser extends Parser {
     for (
       let i = 0;
       i === 0 || this.consumeIf(TokenType.Delimiter) ||
-      root[root.length - 1] instanceof CommandStatement;
+      root[root.length - 1] instanceof CommandStatement && this.consumeIf(TokenType.LineBreak);
       i++
     ) {
-      if (this.consumeIf(TokenType.Command)) {
-        const stmt = this.command()
-        root.push(stmt)
-      } else if (this.peek() && !this.peekIf(TokenType.Delimiter)) {
-        try {
+      try {
+        if (this.peekIf(TokenType.Command)) {
+          const stmt = this.command()
+          stmt.validate()
+          root.push(stmt)
+        } else if (this.peek() && !this.peekIf(TokenType.Delimiter)) {
           const stmt = this.statement()
           stmt.validate()
           root.push(stmt)
-        } catch (e) {
-          if (e instanceof ParseError) {
-            errors.push(e)
+        }
+      } catch (e) {
+        if (e instanceof ParseError) {
+          errors.push(e)
 
-            // skip tokens
-            while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
-              this.consume()
-            }
-          } else {
-            throw e
+          // skip tokens
+          while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+            this.consume()
           }
+        } else {
+          throw e
         }
       }
     }
@@ -940,110 +941,120 @@ export class MySqlParser extends Parser {
 
   command() {
     const start = this.pos
-    let stmt = new CommandStatement()
-    const text = (this.peek()?.text || "").split(/[ \t]/)
-    if (text[0] === "?" || text[0] === "\\?" || text[0] === "\\h" || /^help$/i.test(text[0])) {
+    this.consume(TokenType.Command)
+    const stmt = new CommandStatement()
+    const text = this.peek(-1).text || ""
+    const sep = Math.max(text.indexOf(" "), text.indexOf("\t"))
+    const name = sep != -1 ? text.substring(0, sep) : text
+    const args = sep != -1 ? text.substring(sep) : ""
+
+    if (name === "?" || name === "\\?" || name === "\\h" || /^help$/i.test(name)) {
       stmt.name = "help"
-    } else if (text[0] === "\\c" || /^clear$/i.test(text[0])) {
+    } else if (name === "\\c" || /^clear$/i.test(name)) {
       stmt.name = "clear"
-    } else if (text[0] === "\\r" || /^connect$/i.test(text[0])) {
+    } else if (name === "\\r" || /^connect$/i.test(name)) {
       stmt.name = "connect"
-    } else if (text[0] === "\\d" || /^delimiter$/i.test(text[0])) {
+    } else if (name === "\\d" || /^delimiter$/i.test(name)) {
       stmt.name = "delimiter"
-    } else if (text[0] === "\\e" || /^edit$/i.test(text[0])) {
+    } else if (name === "\\e" || /^edit$/i.test(name)) {
       stmt.name = "edit"
-    } else if (text[0] === "\\G" || /^ego$/i.test(text[0])) {
+    } else if (name === "\\G" || /^ego$/i.test(name)) {
       stmt.name = "ego"
-    } else if (text[0] === "\\q" || /^exit$/i.test(text[0])) {
+    } else if (name === "\\q" || /^exit$/i.test(name)) {
       stmt.name = "exit"
-    } else if (text[0] === "\\g" || /^go$/i.test(text[0])) {
+    } else if (name === "\\g" || /^go$/i.test(name)) {
       stmt.name = "go"
-    } else if (text[0] === "\\n" || /^nopager$/i.test(text[0])) {
+    } else if (name === "\\n" || /^nopager$/i.test(name)) {
       stmt.name = "nopager"
-    } else if (text[0] === "\\t" || /^notee$/i.test(text[0])) {
+    } else if (name === "\\t" || /^notee$/i.test(name)) {
       stmt.name = "notee"
-    } else if (text[0] === "\\P" || /^pager$/i.test(text[0])) {
+    } else if (name === "\\P" || /^pager$/i.test(name)) {
       stmt.name = "pager"
-    } else if (text[0] === "\\p" || /^print$/i.test(text[0])) {
+    } else if (name === "\\p" || /^print$/i.test(name)) {
       stmt.name = "print"
-    } else if (text[0] === "\\R" || /^prompt$/i.test(text[0])) {
+    } else if (name === "\\R" || /^prompt$/i.test(name)) {
       stmt.name = "prompt"
-    } else if (text[0] === "\\q" || /^quit$/i.test(text[0])) {
+    } else if (name === "\\q" || /^quit$/i.test(name)) {
       stmt.name = "quit"
-    } else if (text[0] === "\\#" || /^rehash$/i.test(text[0])) {
+    } else if (name === "\\#" || /^rehash$/i.test(name)) {
       stmt.name = "rehash"
-    } else if (text[0] === "\\." || /^source$/i.test(text[0])) {
+    } else if (name === "\\." || /^source$/i.test(name)) {
       stmt.name = "source"
-    } else if (text[0] === "\\s" || /^status$/i.test(text[0])) {
+    } else if (name === "\\s" || /^status$/i.test(name)) {
       stmt.name = "status"
-    } else if (text[0] === "\\!" || /^system$/i.test(text[0])) {
+    } else if (name === "\\!" || /^system$/i.test(name)) {
       stmt.name = "system"
-    } else if (text[0] === "\\T" || /^tee$/i.test(text[0])) {
+    } else if (name === "\\T" || /^tee$/i.test(name)) {
       stmt.name = "tee"
-    } else if (text[0] === "\\u" || /^use$/i.test(text[0])) {
+    } else if (name === "\\u" || /^use$/i.test(name)) {
       stmt.name = "use"
-    } else if (text[0] === "\\C" || /^charset$/i.test(text[0])) {
+    } else if (name === "\\C" || /^charset$/i.test(name)) {
       stmt.name = "charset"
-    } else if (text[0] === "\\W" || /^warnings$/i.test(text[0])) {
+    } else if (name === "\\W" || /^warnings$/i.test(name)) {
       stmt.name = "warnings"
-    } else if (text[0] === "\\w" || /^nowarning$/i.test(text[0])) {
+    } else if (name === "\\w" || /^nowarning$/i.test(name)) {
       stmt.name = "nowarning"
     } else {
       throw this.createParseError()
     }
 
-    if (stmt.name === "prompt") {
-      stmt.args.push(text[1])
-    } else if (
-      stmt.name === "help" ||
-      stmt.name === "pager" ||
-      stmt.name === "prompt" ||
-      stmt.name === "source" ||
-      stmt.name === "system" ||
-      stmt.name === "tee"
-    ) {
-      const re = /[ \t]+|'(''|[^']+)*'|([^ \t']+)/y
-      let pos = 0
-      while (pos < text[1].length) {
-        re.lastIndex = pos
-        const m = re.exec(text[1])
-        if (m) {
-          if (m[1] || m[2]) {
-            stmt.args.push(m[1].replace(/''/g, "'").replace(/\\(.)/g, "$1") || m[2])
+    if (args) {
+      if (stmt.name === "prompt") {
+        stmt.args.push(args)
+      } else if (
+        stmt.name === "help" ||
+        stmt.name === "pager" ||
+        stmt.name === "prompt" ||
+        stmt.name === "source" ||
+        stmt.name === "system" ||
+        stmt.name === "tee"
+      ) {
+        const re = /[ \t]+|'((?:''|[^']+)*)'|([^ \t']+)/y
+        let pos = 0
+        while (pos < args.length) {
+          re.lastIndex = pos
+          const m = re.exec(args)
+          if (m) {
+            if (m[1]) {
+              stmt.args.push(m[1].replace(/''/g, "'").replace(/\\(.)/g, "$1"))
+            } else if (m[2]) {
+              stmt.args.push(m[2])
+            }
+            pos = re.lastIndex
           }
-          pos = re.lastIndex
         }
-      }
-    } else if (
-      stmt.name === "connect" ||
-      stmt.name === "delimiter" ||
-      stmt.name === "use" ||
-      stmt.name === "charset"
-    ) {
-      const re = /[ \t]+|'(''|[^']+)*'|`(``|[^`]+)*`|([^ \t']+)/y
-      let pos = 0
-      while (pos < text[1].length) {
-        re.lastIndex = pos
-        const m = re.exec(text[1])
-        if (m) {
-          if (m[1] || m[2] || m[3]) {
-            stmt.args.push(m[1].replace(/''/g, "'").replace(/\\(.)/g, "$1") ||
-              m[2].replace(/``/g, "`") ||
-              m[3])
+      } else if (
+        stmt.name === "connect" ||
+        stmt.name === "delimiter" ||
+        stmt.name === "use" ||
+        stmt.name === "charset"
+      ) {
+        const re = /[ \t]+|'((?:''|[^']+)*)'|`((?:``|[^`]+)*)`|([^ \t']+)/y
+        let pos = 0
+        while (pos < args.length) {
+          re.lastIndex = pos
+          const m = re.exec(args)
+          if (m) {
+            if (m[1]) {
+              stmt.args.push(m[1].replace(/''/g, "'").replace(/\\(.)/g, "$1"))
+            } else if (m[2]) {
+              stmt.args.push(m[2].replace(/``/g, "`"))
+            } else if (m[3]) {
+              stmt.args.push(m[3])
+            }
+            pos = re.lastIndex
           }
-          pos = re.lastIndex
         }
+      } else {
+        throw this.createParseError()
       }
-    } else {
-      throw this.createParseError()
     }
 
-    if (stmt.name === "delimiter") {
+    if (stmt.name === "delimiter" && stmt.args.length > 0) {
       const lexer = this.lexer as MysqlLexer
       lexer.setDelimiter(stmt.args[0])
     }
 
-    this.consume()
     stmt.tokens = this.tokens.slice(start, this.pos)
     return stmt
   }
