@@ -68,7 +68,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
 
   protected async parse(input: string, options: { [key: string]: any }) {
     const parser = new Sqlite3Parser(input)
-    return await parser.root()
+    return parser.root()
   }
 
   protected async run(stmts: Statement[], options: { [key: string]: any }) {

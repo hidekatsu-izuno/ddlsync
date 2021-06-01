@@ -49,10 +49,6 @@ export class CreateDatabaseStatement extends Statement {
 
 export class AlterDatabaseStatement extends Statement {
   name = ""
-  characterSet?: string
-  collate?: string
-  encryption?: string
-  readOnly?: string
 }
 
 export class DropDatabaseStatement extends Statement {
@@ -80,13 +76,6 @@ export class CreateServerStatement extends Statement {
 
 export class AlterServerStatement extends Statement {
   name = ""
-  host?: string
-  database?: string
-  user?: string
-  password?: string
-  socket?: string
-  owner?: string
-  port?: string
 }
 
 export class DropServerStatement extends Statement {
@@ -104,13 +93,10 @@ export class CreateResourceGroupStatement extends Statement {
 
 export class AlterResourceGroupStatement extends Statement {
   name = ""
-  vcpu = new Array<{ min: string, max: string}>()
-  threadPriority = "0"
-  disable = false
-  force = false
 }
 
 export class SetResourceGroupStatement extends Statement {
+  name = ""
 }
 
 export class DropResourceGroupStatement extends Statement {
@@ -132,10 +118,6 @@ export class CreateLogfileGroupStatement extends Statement {
 
 export class AlterLogfileGroupStatement extends Statement {
   name = ""
-  undofile = ""
-  initialSize?: string
-  wait = false
-  engine?: string
 }
 
 export class DropLogfileGroupStatement extends Statement {
@@ -164,22 +146,11 @@ export class CreateTablespaceStatement extends Statement {
 export class AlterTablespaceStatement extends Statement {
   name = ""
   undo = false
-  addDataFile?: string
-  dropDataFile?: string
-  initialSize?: string
-  wait = false
-  newTableSpace?: string
-  autoextendSize?: string
-  active = true
-  encryption?: string
-  engine?: string
-  engineAttribute?: string
 }
 
 export class DropTablespaceStatement extends Statement {
   name = ""
   undo = false
-  engine?: string
 }
 
 export class CreateSpatialReferenceSystemStatement extends Statement {
@@ -200,7 +171,7 @@ export class DropSpatialReferenceSystemStatement extends Statement {
 }
 
 export class CreateRoleStatement extends Statement {
-  roles = new Array<UserRoleDef>()
+  roles = new Array<UserRole>()
   ifNotExists = false
 }
 
@@ -211,42 +182,40 @@ export class SetRoleStatement extends Statement {
 }
 
 export class DropRoleStatement extends Statement {
-  roles = new Array<UserRoleDef>()
+  roles = new Array<UserRole>()
   ifExists = false
 }
 
-export class UserRoleDef {
+export class UserRole {
   name = ""
   host?: string
   authPlugin?: string
   randowmPassword = false
   asPassword = false
   password?: string
-}
-
-export class TlsOption {
-  ssl = false
-  x509 = false
-  issuer?: string
-  subject?: string
-  chiper?: string
+  discardOldPassword = false
 }
 
 export class CreateUserStatement extends Statement {
-  users = new Array<UserRoleDef>()
-  defaultRoles = new Array<UserRoleDef>()
-  tlsOptions = new Array<TlsOption>()
   ifNotExists = false
+  users = new Array<UserRole>()
+  defaultRoles = new Array<UserRole>()
+  tlsOptions = new Array<{ key: string, value: string | boolean }>()
+  resourceOptions = new Array<{ key: string, value: string }>()
+  passwordOptions = new Array<{ key: string, value: string | boolean }>()
+  lockOptions = new Array<{ key: string, value: boolean }>()
+  comment?: string
+  attribute?: string
 }
 
 export class AlterUserStatement extends Statement {
-  name = ""
   ifExists = false
+  users?: Array<UserRole>
 }
 
 export class RenameUserPair {
-  user = new UserRoleDef()
-  newUser = new UserRoleDef()
+  user = new UserRole()
+  newUser = new UserRole()
 }
 
 export class RenameUserStatement extends Statement {
@@ -257,7 +226,7 @@ export class SetPasswordStatement extends Statement {
 }
 
 export class DropUserStatement extends Statement {
-  users = new Array<UserRoleDef>()
+  users = new Array<UserRole>()
   ifExists = false
 }
 
@@ -441,15 +410,13 @@ export class CreateIndexStatement extends Statement {
 export class DropIndexStatement extends Statement {
   obj = new SchemaObject()
   table = new SchemaObject()
-  algorithmOption = IndexAlgorithmOption.DEFAULT
-  lockOption = IndexLockOption.DEFAULT
 }
 
 export class CreateViewStatement extends Statement {
   obj = new SchemaObject()
   orReplace = false
   algorithm?: Algortihm
-  definer?: UserRoleDef
+  definer?: UserRole
   sqlSecurity?: SqlSecurity
   columns?: Array<string>
   checkOption?: CheckOption
@@ -458,7 +425,7 @@ export class CreateViewStatement extends Statement {
 export class AlterViewStatement extends Statement {
   obj = new SchemaObject()
   algorithm?: Algortihm
-  definer?: UserRoleDef
+  definer?: UserRole
   sqlSecurity?: SqlSecurity
 }
 
@@ -476,7 +443,7 @@ export class ProcedureParam {
 
 export class CreateProcedureStatement extends Statement {
   obj = new SchemaObject()
-  definer?: UserRoleDef
+  definer?: UserRole
   params = new Array<ProcedureParam>()
   comment?: string
   language = ProcedureLanguage.SQL
@@ -487,7 +454,7 @@ export class CreateProcedureStatement extends Statement {
 
 export class AlterProcedureStatement extends Statement {
   obj = new SchemaObject()
-  definer?: UserRoleDef
+  definer?: UserRole
 }
 
 export class DropProcedureStatement extends Statement {
@@ -502,7 +469,7 @@ export class FunctionParam {
 
 export class CreateFunctionStatement extends Statement {
   obj = new SchemaObject()
-  definer?: UserRoleDef
+  definer?: UserRole
   aggregate = false
   params = new Array<FunctionParam>()
   returnDataType = new DataType()
@@ -515,7 +482,7 @@ export class CreateFunctionStatement extends Statement {
 
 export class AlterFunctionStatement extends Statement {
   obj = new SchemaObject()
-  definer?: UserRoleDef
+  definer?: UserRole
 }
 
 export class DropFunctionStatement extends Statement {
@@ -530,7 +497,7 @@ export class TriggerOrder {
 
 export class CreateTriggerStatement extends Statement {
   obj = new SchemaObject()
-  definer?: UserRoleDef
+  definer?: UserRole
   triggerTime = TriggerTime.BEFORE
   triggerEvent = TriggerEvent.INSERT
   tableName: string = ""
@@ -544,7 +511,7 @@ export class DropTriggerStatement extends Statement {
 
 export class CreateEventStatement extends Statement {
   obj = new SchemaObject()
-  definer?: UserRoleDef
+  definer?: UserRole
   ifNotExists = false
   at?: Array<Token>
   every?: Interval
@@ -554,7 +521,7 @@ export class CreateEventStatement extends Statement {
 
 export class AlterEventStatement extends Statement {
   obj = new SchemaObject()
-  definer?: UserRoleDef
+  definer?: UserRole
 }
 
 export class DropEventStatement extends Statement {
@@ -589,15 +556,9 @@ export class ReleaseSavepointStatement extends Statement {
 }
 
 export class CommitStatement extends Statement {
-  work = false
-  chain?: boolean
-  release?: boolean
 }
 
 export class RollbackStatement extends Statement {
-  work = false
-  chain?: boolean
-  release?: boolean
 }
 
 export class LockTableStatement extends Statement {
@@ -636,13 +597,13 @@ export class ResetMasterStatement extends Statement {
 export class ChangeMasterStatement extends Statement {
 }
 
-export class ResetSlaveStatement extends Statement {
+export class ResetReplicaStatement extends Statement {
 }
 
-export class StartSlaveStatement extends Statement {
+export class StartReplicaStatement extends Statement {
 }
 
-export class StopSlaveStatement extends Statement {
+export class StopReplicaStatement extends Statement {
 }
 
 export class GrantStatement extends Statement {
@@ -688,10 +649,19 @@ export class RepairTableStatement extends Statement {
 export class InstallPluginStatement extends Statement {
 }
 
+export class InstallComponentStatement extends Statement {
+
+}
+
 export class UninstallPluginStatement extends Statement {
 }
 
+export class UninstallComponentStatement extends Statement {
+
+}
+
 export class UseStatement extends Statement {
+  name = ""
 }
 
 export class InsertStatement extends Statement {
@@ -778,10 +748,17 @@ export class KillStatement extends Statement {
 export class LoadIndexIntoCacheStatement extends Statement {
 }
 
-export class ResetStatement extends Statement {
+export class RestartStatement extends Statement {
+
 }
 
-export class OtherStatement extends Statement {
+export class ShutdownStatement extends Statement {
+
+}
+
+
+export class CloneStatement extends Statement {
+
 }
 
 export enum Algortihm {

@@ -197,12 +197,6 @@ export class DeleteStatement extends Statement {
 export class SelectStatement extends Statement {
 }
 
-export class OtherStatement extends Statement {
-  constructor() {
-    super()
-  }
-}
-
 export class TableColumn {
   name = ""
   dataType = new DataType()

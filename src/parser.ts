@@ -142,7 +142,7 @@ export abstract class Parser {
     this.tokens = lexer.lex(input)
   }
 
-  abstract root(): Promise<Statement[]>
+  abstract root(): Statement[]
 
   peek(pos: number = 0) {
     return this.tokens[this.pos + pos]

@@ -25,9 +25,11 @@ export default class MysqlProcessor extends DdlSyncProcessor {
       database: this.config.database,
     })
 
-    const versions = await this.con.query("SELECT version() AS version") as any[]
+    const versions = await this.con.query("SELECT version() AS v") as any[]
     if (versions.length) {
-      options.version = versions[0].version
+      const vparts = (versions[0].v || "").split("-")
+      options.package = /mariadb/.test(vparts[1]) ? "mariadb" : "mysql"
+      options.version = vparts[0]
     }
 
     const sqlModes = await this.con.query("SELECT @@sql_mode AS sql_mode") as any[]
@@ -56,7 +58,7 @@ export default class MysqlProcessor extends DdlSyncProcessor {
 
   protected async parse(input: string, options: { [key: string]: any }) {
     const parser = new MySqlParser(input)
-    return await parser.root()
+    return parser.root()
   }
 
   protected async run(stmts: Statement[], options: { [key: string]: any }) {

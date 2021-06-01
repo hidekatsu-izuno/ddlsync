@@ -37,7 +37,6 @@ import {
   NotNullColumnConstraint,
   NullColumnConstraint,
   SelectStatement,
-  OtherStatement,
   PrimaryKeyColumnConstraint,
   PrimaryKeyTableConstraint,
   ReferencesKeyColumnConstraint,
@@ -330,7 +329,7 @@ export class Sqlite3Parser extends Parser {
     super(input, new Sqlite3Lexer(options), options)
   }
 
-  async root() {
+  root() {
     const root = []
     const errors = []
     for (let i = 0;
