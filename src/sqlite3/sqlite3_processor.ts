@@ -37,7 +37,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
   }
 
   protected async parse(input: string, options: { [key: string]: any }) {
-    const parser = new Sqlite3Parser(input)
+    const parser = new Sqlite3Parser(input, options)
     return parser.root()
   }
 
@@ -74,19 +74,19 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
           refs[i] = this.tryDropObjectStatement(i, stmt, vdb)
           break
         case model.VacuumStatement:
-          refs[i] = this.checkVacuumStatement(i, stmt as model.VacuumStatement, vdb)
+          refs[i] = this.tryVacuumStatement(i, stmt as model.VacuumStatement, vdb)
           break
         case model.InsertStatement:
         case model.UpdateStatement:
         case model.DeleteStatement:
         case model.AnalyzeStatement:
-          refs[i] = this.checkManipulateObjectStatement(i, stmt, vdb, "table")
+          refs[i] = this.tryManipulateObjectStatement(i, stmt, vdb, "table")
           break
         case model.ReindexStatement:
-          refs[i] = this.checkReindexStatement(i, stmt as model.ReindexStatement, vdb)
+          refs[i] = this.tryReindexStatement(i, stmt as model.ReindexStatement, vdb)
           break
         default:
-        // no handle
+          // no handle
       }
     }
 
@@ -254,7 +254,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     return object
   }
 
-  private checkVacuumStatement(seq: number, stmt: model.VacuumStatement, vdb: VDatabase) {
+  private tryVacuumStatement(seq: number, stmt: model.VacuumStatement, vdb: VDatabase) {
     if (stmt.schemaName) {
       const schema = vdb.schemas.get(lcase(stmt.schemaName))
       if (!schema) {
@@ -264,7 +264,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     }
   }
 
-  private checkReindexStatement(seq: number, stmt: model.ReindexStatement, vdb: VDatabase) {
+  private tryReindexStatement(seq: number, stmt: model.ReindexStatement, vdb: VDatabase) {
     let schemaName = stmt.schemaName
     if (!schemaName) {
       const tempObject = vdb.schemas.get("temp")?.get(stmt.name)
@@ -287,7 +287,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     return obj
   }
 
-  private checkManipulateObjectStatement(seq: number, stmt: any, vdb: VDatabase, type: string) {
+  private tryManipulateObjectStatement(seq: number, stmt: any, vdb: VDatabase, type: string) {
     let schemaName = stmt.schemaName
     if (!schemaName) {
       const tempObject = vdb.schemas.get("temp")?.get(stmt.name)

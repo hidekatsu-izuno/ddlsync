@@ -56,7 +56,7 @@ export default class MysqlProcessor extends DdlSyncProcessor {
   }
 
   protected async parse(input: string, options: { [key: string]: any }) {
-    const parser = new MysqlParser(input)
+    const parser = new MysqlParser(input, options)
     return parser.root()
   }
 
