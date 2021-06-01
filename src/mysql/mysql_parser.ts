@@ -1782,7 +1782,7 @@ export class MysqlParser extends Parser {
               }
               this.consume(TokenType.RightParen)
             } else {
-              throw this.createParseError()
+              break
             }
           }
           if (this.consumeIf(Keyword.PARTITION, Keyword.BY)) {

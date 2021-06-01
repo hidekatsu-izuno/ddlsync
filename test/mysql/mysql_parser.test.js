@@ -51,7 +51,6 @@ describe("parse", () => {
   test.each([
     ["", false],
     ["temporary", true],
-    ["temp", true]
   ])("create %s table", (modifier, temporary) => {
     const input = `CREATE ${modifier} TABLE x (x int)`
     const options = {}
@@ -66,13 +65,16 @@ describe("parse", () => {
     expect(result[0].columns[0]?.name).toBe("x")
   })
 
-  test("create table as select", () => {
-    const input = `CREATE TABLE x AS SELECT * FROM x`
+  test.each([
+    ["", false],
+    ["temporary", true],
+  ])("create table as select", (modifier, temporary) => {
+    const input = `CREATE ${modifier} TABLE x AS SELECT * FROM x`
     const options = {}
     const result = new MysqlParser(input, options).root()
     expect(result.length).toBe(1)
     expect(result[0]).toBeInstanceOf(model.CreateTableStatement)
-    expect(result[0].temporary).toBe(false)
+    expect(result[0].temporary).toBe(temporary)
     expect(result[0].asSelect).toBe(true)
     expect(result[0].obj.name).toBe("x")
     expect(result[0].columns).toBe(undefined)
