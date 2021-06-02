@@ -157,18 +157,18 @@ export class BeginTransactionStatement extends Statement {
 }
 
 export class SavepointStatement extends Statement {
-  name: string = ""
+  name = ""
 }
 
 export class ReleaseSavepointStatement extends Statement {
-  savePointName = ""
+  savepointName = ""
 }
 
 export class CommitTransactionStatement extends Statement {
 }
 
 export class RollbackTransactionStatement extends Statement {
-  savePointName?: string
+  savepointName?: string
 }
 
 export class PragmaStatement extends Statement {

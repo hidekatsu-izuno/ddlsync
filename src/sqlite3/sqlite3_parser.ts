@@ -642,7 +642,7 @@ export class Sqlite3Parser extends Parser {
     } else if (this.consumeIf(Keyword.RELEASE)) {
       stmt = new model.ReleaseSavepointStatement()
       this.consumeIf(Keyword.SAVEPOINT)
-      stmt.savePointName = this.identifier()
+      stmt.savepointName = this.identifier()
     } else if (this.consumeIf(Keyword.COMMIT) || this.consumeIf(Keyword.END)) {
       this.consumeIf(Keyword.TRANSACTION)
       stmt = new model.CommitTransactionStatement()
@@ -651,7 +651,7 @@ export class Sqlite3Parser extends Parser {
       stmt = new model.RollbackTransactionStatement()
       if (this.consumeIf(Keyword.TO)) {
         this.consumeIf(Keyword.SAVEPOINT)
-        stmt.savePointName = this.identifier()
+        stmt.savepointName = this.identifier()
       }
     } else {
       if (this.peekIf(Keyword.WITH)) {
