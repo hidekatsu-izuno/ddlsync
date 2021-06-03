@@ -170,6 +170,16 @@ export class DropSpatialReferenceSystemStatement extends Statement {
   ifExists = false
 }
 
+export class UserRole {
+  name = ""
+  host?: string
+  authPlugin?: string
+  randowmPassword = false
+  asPassword = false
+  password?: string
+  discardOldPassword = false
+}
+
 export class CreateRoleStatement extends Statement {
   roles = new Array<UserRole>()
   ifNotExists = false
@@ -186,15 +196,6 @@ export class DropRoleStatement extends Statement {
   ifExists = false
 }
 
-export class UserRole {
-  name = ""
-  host?: string
-  authPlugin?: string
-  randowmPassword = false
-  asPassword = false
-  password?: string
-  discardOldPassword = false
-}
 
 export class CreateUserStatement extends Statement {
   ifNotExists = false
@@ -209,8 +210,8 @@ export class CreateUserStatement extends Statement {
 }
 
 export class AlterUserStatement extends Statement {
-  ifExists = false
   users?: Array<UserRole>
+  ifExists = false
 }
 
 export class RenameUserPair {
@@ -326,7 +327,8 @@ export class ForeignKeyConstraint extends Constraint {
 }
 
 export class CreateTableStatement extends Statement {
-  obj = new SchemaObject()
+  schemaName?: string
+  name = ""
   temporary = false
   ifNotExists = false
   asSelect = false
@@ -367,32 +369,38 @@ export class CreateTableStatement extends Statement {
 }
 
 export class AlterTableStatement extends Statement {
-  obj = new SchemaObject()
+  table = new SchemaObject()
 }
 
-export class RenameObjPair {
-  obj = new SchemaObject()
-  newObj = new SchemaObject()
+export class RenameTablePair {
+  table = new SchemaObject()
+  newTable = new SchemaObject()
 }
 
 export class RenameTableStatement extends Statement {
-  pairs = new Array<RenameObjPair>()
+  pairs = new Array<RenameTablePair>()
+}
+
+export class TruncateTableStatement extends Statement {
+  table = new SchemaObject()
 }
 
 export class DropTableStatement extends Statement {
-  objs = new Array<SchemaObject>()
+  tables = new Array<SchemaObject>()
   temporary = false
   ifExists = false
   dropOption = DropOption.CASCADE
 }
 
 export class IndexColumn {
+  name?: string
   expression?: Token[]
   sortOrder = SortOrder.ASC
 }
 
 export class CreateIndexStatement extends Statement {
-  obj = new SchemaObject()
+  schemaName?: string
+  name = ""
   type?: IndexType
   algorithm?: IndexAlgorithm
   table = new SchemaObject()
@@ -408,12 +416,13 @@ export class CreateIndexStatement extends Statement {
 }
 
 export class DropIndexStatement extends Statement {
-  obj = new SchemaObject()
+  index = new SchemaObject()
   table = new SchemaObject()
 }
 
 export class CreateViewStatement extends Statement {
-  obj = new SchemaObject()
+  schemaName?: string
+  name = ""
   orReplace = false
   algorithm?: Algortihm
   definer?: UserRole
@@ -423,14 +432,14 @@ export class CreateViewStatement extends Statement {
 }
 
 export class AlterViewStatement extends Statement {
-  obj = new SchemaObject()
+  view = new SchemaObject()
   algorithm?: Algortihm
   definer?: UserRole
   sqlSecurity?: SqlSecurity
 }
 
 export class DropViewStatement extends Statement {
-  objs = new Array<SchemaObject>()
+  views = new Array<SchemaObject>()
   ifExists = false
   dropOption = DropOption.CASCADE
 }
@@ -442,7 +451,8 @@ export class ProcedureParam {
 }
 
 export class CreateProcedureStatement extends Statement {
-  obj = new SchemaObject()
+  schemaName?: string
+  name = ""
   definer?: UserRole
   params = new Array<ProcedureParam>()
   comment?: string
@@ -453,12 +463,12 @@ export class CreateProcedureStatement extends Statement {
 }
 
 export class AlterProcedureStatement extends Statement {
-  obj = new SchemaObject()
+  prcedure = new SchemaObject()
   definer?: UserRole
 }
 
 export class DropProcedureStatement extends Statement {
-  obj = new SchemaObject()
+  procedure = new SchemaObject()
   ifExists = false
 }
 
@@ -468,7 +478,8 @@ export class FunctionParam {
 }
 
 export class CreateFunctionStatement extends Statement {
-  obj = new SchemaObject()
+  schemaName?: string
+  name = ""
   definer?: UserRole
   aggregate = false
   params = new Array<FunctionParam>()
@@ -481,12 +492,12 @@ export class CreateFunctionStatement extends Statement {
 }
 
 export class AlterFunctionStatement extends Statement {
-  obj = new SchemaObject()
+  func = new SchemaObject()
   definer?: UserRole
 }
 
 export class DropFunctionStatement extends Statement {
-  obj = new SchemaObject()
+  func = new SchemaObject()
   ifExists = false
 }
 
@@ -496,21 +507,23 @@ export class TriggerOrder {
 }
 
 export class CreateTriggerStatement extends Statement {
-  obj = new SchemaObject()
+  schemaName?: string
+  name = ""
   definer?: UserRole
   triggerTime = TriggerTime.BEFORE
   triggerEvent = TriggerEvent.INSERT
-  tableName: string = ""
+  table = new SchemaObject()
   triggerOrder?: TriggerOrder
 }
 
 export class DropTriggerStatement extends Statement {
-  obj = new SchemaObject()
+  trigger = new SchemaObject()
   ifExists = false
 }
 
 export class CreateEventStatement extends Statement {
-  obj = new SchemaObject()
+  schemaName?: string
+  name = ""
   definer?: UserRole
   ifNotExists = false
   at?: Array<Token>
@@ -520,21 +533,17 @@ export class CreateEventStatement extends Statement {
 }
 
 export class AlterEventStatement extends Statement {
-  obj = new SchemaObject()
+  event = new SchemaObject()
   definer?: UserRole
 }
 
 export class DropEventStatement extends Statement {
-  obj = new SchemaObject()
+  event = new SchemaObject()
   ifExists = false
 }
 
 export class AlterInstanceStatement extends Statement {
 
-}
-
-export class TruncateTableStatement extends Statement {
-  obj = new SchemaObject()
 }
 
 export class StartTransactionStatement extends Statement {
@@ -619,12 +628,15 @@ export class CallStatement extends Statement {
 }
 
 export class PrepareStatement extends Statement {
+  name = ""
 }
+
 export class ExecuteStatement extends Statement {
+  prepareName = ""
 }
 
 export class DeallocatePrepareStatement extends Statement {
-  name = ""
+  prepareName = ""
 }
 
 export class AnalyzeTableStatement extends Statement {
@@ -645,7 +657,6 @@ export class RepairTableStatement extends Statement {
   noWriteToBinlog = false
 }
 
-
 export class InstallPluginStatement extends Statement {
 }
 
@@ -661,29 +672,29 @@ export class UninstallComponentStatement extends Statement {
 }
 
 export class UseStatement extends Statement {
-  name = ""
+  schemaName = ""
 }
 
 export class InsertStatement extends Statement {
-  obj = new SchemaObject()
+  table = new SchemaObject()
   concurrency?: Concurrency
   conflictAction?: ConflictAction
 }
 
 export class UpdateStatement extends Statement {
-  obj = new SchemaObject()
+  table = new SchemaObject()
   concurrency?: Concurrency
   conflictAction?: ConflictAction
 }
 
 export class ReplaceStatement extends Statement {
-  obj = new SchemaObject()
+  table = new SchemaObject()
   concurrency?: Concurrency
   conflictAction?: ConflictAction
 }
 
 export class DeleteStatement extends Statement {
-  obj = new SchemaObject()
+  table = new SchemaObject()
   concurrency?: Concurrency
   quick = false
   conflictAction?: ConflictAction

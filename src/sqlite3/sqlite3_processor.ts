@@ -182,9 +182,9 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
   }
 
   private tryAlterTableStatement(seq: number, stmt: model.AlterTableStatement, vdb: VDatabase) {
-    let schemaName = stmt.schemaName
+    let schemaName = stmt.table.schemaName
     if (!schemaName) {
-      const tempObject = vdb.schemas.get("temp")?.get(stmt.name)
+      const tempObject = vdb.schemas.get("temp")?.get(stmt.table.name)
       schemaName = tempObject && !tempObject.dropped ? "temp" : "main"
     }
 
@@ -193,11 +193,11 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
       throw new Error(`unknown database ${schemaName}`)
     }
 
-    let obj = schema.get(stmt.name)
+    let obj = schema.get(stmt.table.name)
     if (!obj || obj.dropped) {
-      throw new Error(`no such table: ${schemaName}.${stmt.name}`)
+      throw new Error(`no such table: ${schemaName}.${stmt.table.name}`)
     } else if (obj.type !== "table") {
-      throw new Error(`no such table: ${schemaName}.${stmt.name}`)
+      throw new Error(`no such table: ${schemaName}.${stmt.table.name}`)
     }
 
     if (stmt.alterTableAction == model.AlterTableAction.RENAME_TABLE && stmt.newTableName) {
@@ -216,9 +216,9 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
 
   private tryDropObjectStatement(seq: number, stmt: any, vdb: VDatabase) {
     const type = lcase(stmt.constructor.name.replace(/^Drop([a-zA-Z0-9]+)Statement$/, "$1"))
-    let schemaName = stmt.schemaName
+    let schemaName = stmt[type].schemaName
     if (!schemaName) {
-      const tempObject = vdb.schemas.get("temp")?.get(stmt.name)
+      const tempObject = vdb.schemas.get("temp")?.get(stmt[type].name)
       schemaName = tempObject && !tempObject.dropped ? "temp" : "main"
     }
 
@@ -227,21 +227,21 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
       throw new Error(`unknown database ${schemaName}`)
     }
 
-    let object = schema.get(stmt.name)
-    if (!object || object.dropped) {
+    let obj = schema.get(stmt.name)
+    if (!obj || obj.dropped) {
       if (stmt.ifExists) {
-        if (!object) {
-          object = schema.add(type, stmt.name)
-          object.dropped = true
+        if (!obj) {
+          obj = schema.add(type, stmt.name)
+          obj.dropped = true
         }
-        return object
+        return obj
       }
       throw new Error(`no such ${type}: ${schemaName}.${stmt.name}`)
-    } else if (object.type !== type) {
+    } else if (obj.type !== type) {
       throw new Error(`no such ${type}: ${schemaName}.${stmt.name}`)
     }
 
-    object.dropped = true
+    obj.dropped = true
 
     if (type === "table") {
       for (const object of schema) {
@@ -251,7 +251,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
       }
     }
 
-    return object
+    return obj
   }
 
   private tryVacuumStatement(seq: number, stmt: model.VacuumStatement, vdb: VDatabase) {

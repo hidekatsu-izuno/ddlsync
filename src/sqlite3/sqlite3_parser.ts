@@ -233,7 +233,7 @@ export class Sqlite3Lexer extends Lexer {
       { type: TokenType.Comma, re: /,/y },
       { type: TokenType.Number, re: /0[xX][0-9a-fA-F]+|((0|[1-9][0-9]*)(\.[0-9]+)?|(\.[0-9]+))([eE][+-]?[0-9]+)?/y },
       { type: TokenType.Dot, re: /\./y },
-      { type: TokenType.String, re: /[Xx]'([^']|'')*'/y },
+      { type: TokenType.String, re: /[Xx]?'([^']|'')*'/y },
       { type: TokenType.QuotedValue, re: /"([^"]|"")*"/y },
       { type: TokenType.QuotedIdentifier, re: /(`([^`]|``)*`|\[[^\]]*\])/y },
       { type: TokenType.BindVariable, re: /\?([1-9][0-9]*)?/y },
@@ -284,9 +284,11 @@ export class Sqlite3Parser extends Parser {
     const root = []
     const errors = []
     for (let i = 0;
-      i === 0 ||
-      this.consumeIf(TokenType.SemiColon) ||
-      root[root.length - 1] instanceof model.CommandStatement && this.consumeIf(TokenType.LineBreak);
+      this.peek() && (
+        i === 0 ||
+        this.consumeIf(TokenType.SemiColon) ||
+        root[root.length - 1] instanceof model.CommandStatement
+      );
       i++
     ) {
       try {
@@ -326,7 +328,9 @@ export class Sqlite3Parser extends Parser {
     }
 
     if (errors.length) {
-      throw new AggregateParseError(errors, `${errors.length} error found`)
+      throw new AggregateParseError(errors, `${errors.length} error found\n${errors.map(
+        e => e.message
+      ).join("\n")}`)
     }
 
     return root
@@ -381,7 +385,8 @@ export class Sqlite3Parser extends Parser {
       ) {
         stmt = new model.CreateTableStatement()
         stmt.temporary = true
-      } else if (this.consumeIf(Keyword.VIRTUAL, Keyword.TABLE)) {
+      } else if (this.consumeIf(Keyword.VIRTUAL)) {
+        this.consume(Keyword.TABLE)
         stmt = new model.CreateTableStatement()
         stmt.virtual = true
       } else if (this.consumeIf(Keyword.TABLE)) {
@@ -510,7 +515,7 @@ export class Sqlite3Parser extends Parser {
         }
       } else if (stmt instanceof model.CreateIndexStatement) {
         this.consume(Keyword.ON)
-        stmt.tableName = this.identifier()
+        stmt.table.name = this.identifier()
         this.consume(TokenType.LeftParen)
         for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
           stmt.columns.push(this.indexColumn(stmt.type === model.IndexType.UNIQUE))
@@ -526,10 +531,10 @@ export class Sqlite3Parser extends Parser {
       this.consume(Keyword.TABLE)
       stmt = new model.AlterTableStatement()
 
-      stmt.name = this.identifier()
+      stmt.table.name = this.identifier()
       if (this.consumeIf(TokenType.Dot)) {
-        stmt.schemaName = stmt.name
-        stmt.name = this.identifier()
+        stmt.table.schemaName = stmt.table.name
+        stmt.table.name = this.identifier()
       }
 
       if (this.consumeIf(Keyword.RENAME)) {
@@ -557,25 +562,54 @@ export class Sqlite3Parser extends Parser {
     } else if (this.consumeIf(Keyword.DROP)) {
       if (this.consumeIf(Keyword.TABLE)) {
         stmt = new model.DropTableStatement()
+        if (this.consumeIf(Keyword.IF)) {
+          this.consume(Keyword.EXISTS)
+          stmt.ifExists = true
+        }
+
+        stmt.table.name = this.identifier()
+        if (this.consumeIf(TokenType.Dot)) {
+          stmt.table.schemaName = stmt.table.name
+          stmt.table.name = this.identifier()
+        }
       } else if (this.consumeIf(Keyword.INDEX)) {
         stmt = new model.DropIndexStatement()
+        if (this.consumeIf(Keyword.IF)) {
+          this.consume(Keyword.EXISTS)
+          stmt.ifExists = true
+        }
+
+        stmt.index.name = this.identifier()
+        if (this.consumeIf(TokenType.Dot)) {
+          stmt.index.schemaName = stmt.index.name
+          stmt.index.name = this.identifier()
+        }
       } else if (this.consumeIf(Keyword.VIEW)) {
         stmt = new model.DropViewStatement()
+        if (this.consumeIf(Keyword.IF)) {
+          this.consume(Keyword.EXISTS)
+          stmt.ifExists = true
+        }
+
+        stmt.view.name = this.identifier()
+        if (this.consumeIf(TokenType.Dot)) {
+          stmt.view.schemaName = stmt.view.name
+          stmt.view.name = this.identifier()
+        }
       } else if (this.consumeIf(Keyword.TRIGGER)) {
         stmt = new model.DropTriggerStatement()
+        if (this.consumeIf(Keyword.IF)) {
+          this.consume(Keyword.EXISTS)
+          stmt.ifExists = true
+        }
+
+        stmt.trigger.name = this.identifier()
+        if (this.consumeIf(TokenType.Dot)) {
+          stmt.trigger.schemaName = stmt.trigger.name
+          stmt.trigger.name = this.identifier()
+        }
       } else {
         throw this.createParseError()
-      }
-
-      if (this.consumeIf(Keyword.IF)) {
-        this.consume(Keyword.EXISTS)
-        stmt.ifExists = true
-      }
-
-      stmt.name = this.identifier()
-      if (this.consumeIf(TokenType.Dot)) {
-        stmt.schemaName = stmt.name
-        stmt.name = this.identifier()
       }
     } else if (this.consumeIf(Keyword.ATTACH)) {
       this.consumeIf(Keyword.DATABASE)
@@ -635,7 +669,7 @@ export class Sqlite3Parser extends Parser {
       } else if (this.consumeIf(Keyword.EXCLUSIVE)) {
         stmt.transactionBehavior = model.TransactionBehavior.EXCLUSIVE
       }
-      this.consume(Keyword.TRANSACTION)
+      this.consumeIf(Keyword.TRANSACTION)
     } else if (this.consumeIf(Keyword.SAVEPOINT)) {
       stmt = new model.SavepointStatement()
       stmt.name = this.identifier()
@@ -668,10 +702,10 @@ export class Sqlite3Parser extends Parser {
           }
         }
         this.consume(Keyword.INTO)
-        stmt.name = this.identifier()
+        stmt.table.name = this.identifier()
         if (this.consumeIf(TokenType.Dot)) {
-          stmt.schemaName = stmt.name
-          stmt.name = this.identifier()
+          stmt.table.schemaName = stmt.table.name
+          stmt.table.name = this.identifier()
         }
         while (this.peek() && !this.peekIf(TokenType.SemiColon)) {
           this.consume()
@@ -681,10 +715,10 @@ export class Sqlite3Parser extends Parser {
         if (this.consumeIf(Keyword.OR)) {
           stmt.conflictAction = this.conflictAction()
         }
-        stmt.name = this.identifier()
+        stmt.table.name = this.identifier()
         if (this.consumeIf(TokenType.Dot)) {
-          stmt.schemaName = stmt.name
-          stmt.name = this.identifier()
+          stmt.table.schemaName = stmt.table.name
+          stmt.table.name = this.identifier()
         }
         while (this.peek() && !this.peekIf(TokenType.SemiColon)) {
           this.consume()
@@ -692,10 +726,10 @@ export class Sqlite3Parser extends Parser {
       } else if (this.consumeIf(Keyword.DELETE)) {
         this.consume(Keyword.FROM)
         stmt = new model.DeleteStatement()
-        stmt.name = this.identifier()
+        stmt.table.name = this.identifier()
         if (this.consumeIf(TokenType.Dot)) {
-          stmt.schemaName = stmt.name
-          stmt.name = this.identifier()
+          stmt.table.schemaName = stmt.table.name
+          stmt.table.name = this.identifier()
         }
         while (this.peek() && !this.peekIf(TokenType.SemiColon)) {
           this.consume()
@@ -749,6 +783,12 @@ export class Sqlite3Parser extends Parser {
     this.consumeIf(Keyword.RECURSIVE)
     for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
       this.identifier()
+      if (this.consumeIf(TokenType.LeftParen)) {
+        for (let j = 0; j === 0 || this.consumeIf(TokenType.Comma); j++) {
+          this.identifier()
+        }
+        this.consume(TokenType.RightParen)
+      }
       this.consume(Keyword.AS)
       if (this.consumeIf(Keyword.NOT)) {
         this.consume(Keyword.MATERIALIZED)
@@ -1007,10 +1047,13 @@ export class Sqlite3Parser extends Parser {
 
   indexColumn(unique = false) {
     const column = new model.IndexColumn()
-    if (unique) {
+    const start = this.pos
+    const tokens = this.expression()
+    if (tokens.length === 1) {
+      this.pos = start
       column.name = this.identifier()
     } else {
-      column.expr = this.expression()
+      column.expr = tokens
     }
     if (this.consumeIf(Keyword.ASC)) {
       column.sortOrder = model.SortOrder.ASC
@@ -1038,6 +1081,8 @@ export class Sqlite3Parser extends Parser {
     if (this.consumeIf(TokenType.QuotedIdentifier)) {
       text = dequote(this.peek(-1).text)
     } else if (this.consumeIf(TokenType.QuotedValue)) {
+      text = dequote(this.peek(-1).text)
+    } else if (this.consumeIf(TokenType.String)) {
       text = dequote(this.peek(-1).text)
     } else if (this.consumeIf(TokenType.Identifier)) {
       text = this.peek(-1).text

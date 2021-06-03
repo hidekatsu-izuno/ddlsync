@@ -167,7 +167,7 @@ import {
   PartitionDef,
   SchemaObject,
   DropOption,
-  RenameObjPair,
+  RenameTablePair,
   RenameUserPair,
   AlterInstanceStatement,
   InstallComponentStatement,
@@ -773,11 +773,11 @@ export class Keyword implements ITokenType {
   }
 }
 
-const COMMAND_PATTERN = "^(\\?|\\\\[!-~]|clear|connect|delimiter|edit|ego|exit|go|help|nopager|notee|pager|print|prompt|quit|rehash|source|status|system|tee|use|charset|warnings|nowarning)(?:[ \\t]*.*?)"
+const COMMAND_PATTERN = "^(\\?|\\\\[!-~]|clear|connect|delimiter|edit|ego|exit|go|help|nopager|notee|pager|print|prompt|quit|rehash|source|status|system|tee|use|charset|warnings|nowarning)(?:[ \\t]*.*)"
 
 export class MysqlLexer extends Lexer {
   private reserved = new Set<Keyword>()
-  private reCommand = new RegExp(COMMAND_PATTERN + "(;|$)", "iy")
+  private reCommand = new RegExp(COMMAND_PATTERN + "(;|$)", "imy")
   private reDelimiter = new RegExp(";", "y")
   private sqlMode = new Set<string>()
 
@@ -836,12 +836,6 @@ export class MysqlLexer extends Lexer {
     }
   }
 
-  setDelimiter(delimiter: string) {
-    const sep = escapeRegExp(delimiter)
-    this.reCommand = new RegExp(`${COMMAND_PATTERN}(?:[ \\t]+.*?)?(${sep}|$)`, "iy")
-    this.reDelimiter = new RegExp(sep, "y")
-  }
-
   setSqlMode(sqlMode: string) {
     this.sqlMode.clear()
     for (const mode of (sqlMode || "").split(/,/g)) {
@@ -874,6 +868,13 @@ export class MysqlLexer extends Lexer {
           token.subtype = keyword
         }
       }
+    } else if (token.type === TokenType.Command) {
+      const result = parseCommand(token.text)
+      if (result && result.name === "delimiter" && result.args.length > 0) {
+        const sep = escapeRegExp(result.args[0])
+        this.reCommand = new RegExp(`${COMMAND_PATTERN}(${sep}|$)`, "imy")
+        this.reDelimiter = new RegExp(sep, "y")
+      }
     }
     return token
   }
@@ -892,8 +893,11 @@ export class MysqlParser extends Parser {
     const errors = []
     for (
       let i = 0;
-      i === 0 || this.consumeIf(TokenType.Delimiter) ||
-      root[root.length - 1] instanceof CommandStatement && this.consumeIf(TokenType.LineBreak);
+      this.peek() && (
+        i === 0 ||
+        this.consumeIf(TokenType.Delimiter) ||
+        root[root.length - 1] instanceof CommandStatement
+      );
       i++
     ) {
       try {
@@ -933,7 +937,9 @@ export class MysqlParser extends Parser {
     }
 
     if (errors.length) {
-      throw new AggregateParseError(errors, `${errors.length} error found`)
+      throw new AggregateParseError(errors, `${errors.length} error found\n${errors.map(
+        e => e.message
+      ).join("\n")}`)
     }
 
     return root
@@ -943,116 +949,12 @@ export class MysqlParser extends Parser {
     const start = this.pos
     this.consume(TokenType.Command)
     const stmt = new CommandStatement()
-    const text = this.peek(-1).text || ""
-    const sep = Math.max(text.indexOf(" "), text.indexOf("\t"))
-    const name = sep != -1 ? text.substring(0, sep) : text
-    const args = sep != -1 ? text.substring(sep) : ""
-
-    if (name === "?" || name === "\\?" || name === "\\h" || /^help$/i.test(name)) {
-      stmt.name = "help"
-    } else if (name === "\\c" || /^clear$/i.test(name)) {
-      stmt.name = "clear"
-    } else if (name === "\\r" || /^connect$/i.test(name)) {
-      stmt.name = "connect"
-    } else if (name === "\\d" || /^delimiter$/i.test(name)) {
-      stmt.name = "delimiter"
-    } else if (name === "\\e" || /^edit$/i.test(name)) {
-      stmt.name = "edit"
-    } else if (name === "\\G" || /^ego$/i.test(name)) {
-      stmt.name = "ego"
-    } else if (name === "\\q" || /^exit$/i.test(name)) {
-      stmt.name = "exit"
-    } else if (name === "\\g" || /^go$/i.test(name)) {
-      stmt.name = "go"
-    } else if (name === "\\n" || /^nopager$/i.test(name)) {
-      stmt.name = "nopager"
-    } else if (name === "\\t" || /^notee$/i.test(name)) {
-      stmt.name = "notee"
-    } else if (name === "\\P" || /^pager$/i.test(name)) {
-      stmt.name = "pager"
-    } else if (name === "\\p" || /^print$/i.test(name)) {
-      stmt.name = "print"
-    } else if (name === "\\R" || /^prompt$/i.test(name)) {
-      stmt.name = "prompt"
-    } else if (name === "\\q" || /^quit$/i.test(name)) {
-      stmt.name = "quit"
-    } else if (name === "\\#" || /^rehash$/i.test(name)) {
-      stmt.name = "rehash"
-    } else if (name === "\\." || /^source$/i.test(name)) {
-      stmt.name = "source"
-    } else if (name === "\\s" || /^status$/i.test(name)) {
-      stmt.name = "status"
-    } else if (name === "\\!" || /^system$/i.test(name)) {
-      stmt.name = "system"
-    } else if (name === "\\T" || /^tee$/i.test(name)) {
-      stmt.name = "tee"
-    } else if (name === "\\u" || /^use$/i.test(name)) {
-      stmt.name = "use"
-    } else if (name === "\\C" || /^charset$/i.test(name)) {
-      stmt.name = "charset"
-    } else if (name === "\\W" || /^warnings$/i.test(name)) {
-      stmt.name = "warnings"
-    } else if (name === "\\w" || /^nowarning$/i.test(name)) {
-      stmt.name = "nowarning"
+    const command = parseCommand(this.peek(-1).text || "")
+    if (command) {
+      stmt.name = command.name
+      stmt.args = command.args
     } else {
       throw this.createParseError()
-    }
-
-    if (args) {
-      if (stmt.name === "prompt") {
-        stmt.args.push(args)
-      } else if (
-        stmt.name === "help" ||
-        stmt.name === "pager" ||
-        stmt.name === "prompt" ||
-        stmt.name === "source" ||
-        stmt.name === "system" ||
-        stmt.name === "tee"
-      ) {
-        const re = /[ \t]+|'((?:''|[^']+)*)'|([^ \t']+)/y
-        let pos = 0
-        while (pos < args.length) {
-          re.lastIndex = pos
-          const m = re.exec(args)
-          if (m) {
-            if (m[1]) {
-              stmt.args.push(m[1].replace(/''/g, "'").replace(/\\(.)/g, "$1"))
-            } else if (m[2]) {
-              stmt.args.push(m[2])
-            }
-            pos = re.lastIndex
-          }
-        }
-      } else if (
-        stmt.name === "connect" ||
-        stmt.name === "delimiter" ||
-        stmt.name === "use" ||
-        stmt.name === "charset"
-      ) {
-        const re = /[ \t]+|'((?:''|[^']+)*)'|`((?:``|[^`]+)*)`|([^ \t']+)/y
-        let pos = 0
-        while (pos < args.length) {
-          re.lastIndex = pos
-          const m = re.exec(args)
-          if (m) {
-            if (m[1]) {
-              stmt.args.push(m[1].replace(/''/g, "'").replace(/\\(.)/g, "$1"))
-            } else if (m[2]) {
-              stmt.args.push(m[2].replace(/``/g, "`"))
-            } else if (m[3]) {
-              stmt.args.push(m[3])
-            }
-            pos = re.lastIndex
-          }
-        }
-      } else {
-        throw this.createParseError()
-      }
-    }
-
-    if (stmt.name === "delimiter" && stmt.args.length > 0) {
-      const lexer = this.lexer as MysqlLexer
-      lexer.setDelimiter(stmt.args[0])
     }
 
     stmt.tokens = this.tokens.slice(start, this.pos)
@@ -1519,7 +1421,9 @@ export class MysqlParser extends Parser {
       }
 
       if (stmt instanceof CreateTableStatement) {
-        stmt.obj = this.schemaObject()
+        const obj = this.schemaObject()
+        stmt.schemaName = obj.schemaName
+        stmt.name = obj.name
 
         if (this.consumeIf(Keyword.LIKE)) {
           stmt.like = this.schemaObject()
@@ -1993,11 +1897,10 @@ export class MysqlParser extends Parser {
           }
         }
       } else if (stmt instanceof CreateIndexStatement) {
-        stmt.obj.name = this.identifier()
-        if (this.consumeIf(TokenType.Dot)) {
-          stmt.obj.schemaName = stmt.obj.name
-          stmt.obj.name = this.identifier()
-        }
+        const obj = this.schemaObject()
+        stmt.schemaName = obj.schemaName
+        stmt.name = obj.name
+
         if (this.consumeIf(Keyword.USING)) {
           if (this.consumeIf(Keyword.BTREE)) {
             stmt.algorithm = IndexAlgorithm.BTREE
@@ -2016,7 +1919,14 @@ export class MysqlParser extends Parser {
         this.consume(TokenType.LeftParen)
         for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
           const column = new IndexColumn()
-          column.expression = this.expression()
+          const start = this.pos
+          const tokens = this.expression()
+          if (tokens.length === 1) {
+            this.pos = start
+            column.name = this.identifier()
+          } else {
+            column.expression = tokens
+          }
           if (this.consumeIf(Keyword.ASC)) {
             column.sortOrder = SortOrder.ASC
           } else if (this.consumeIf(Keyword.DESC)) {
@@ -2085,7 +1995,9 @@ export class MysqlParser extends Parser {
           }
         }
       } else if (stmt instanceof CreateViewStatement) {
-        stmt.obj = this.schemaObject()
+        const obj = this.schemaObject()
+        stmt.schemaName = obj.schemaName
+        stmt.name = obj.name
         if (this.consumeIf(TokenType.LeftParen)) {
           stmt.columns = []
           for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
@@ -2110,7 +2022,9 @@ export class MysqlParser extends Parser {
         stmt instanceof CreateProcedureStatement ||
         stmt instanceof CreateFunctionStatement
       ) {
-        stmt.obj = this.schemaObject()
+        const obj = this.schemaObject()
+        stmt.schemaName = obj.schemaName
+        stmt.name = obj.name
         this.consume(TokenType.LeftParen)
         for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
           if (stmt instanceof CreateFunctionStatement) {
@@ -2171,7 +2085,9 @@ export class MysqlParser extends Parser {
           this.consume()
         }
       } else if (stmt instanceof CreateTriggerStatement) {
-        stmt.obj = this.schemaObject()
+        const obj = this.schemaObject()
+        stmt.schemaName = obj.schemaName
+        stmt.name = obj.name
         if (this.consumeIf(Keyword.BEFORE)) {
           stmt.triggerTime = TriggerTime.BEFORE
         } else if (this.consumeIf(Keyword.AFTER)) {
@@ -2189,7 +2105,7 @@ export class MysqlParser extends Parser {
           throw this.createParseError()
         }
         this.consume(Keyword.ON)
-        stmt.tableName = this.identifier()
+        stmt.table = this.schemaObject()
         this.consume(Keyword.FOR)
         this.consume(Keyword.EACH)
         this.consume(Keyword.ROW)
@@ -2208,7 +2124,9 @@ export class MysqlParser extends Parser {
           this.consume()
         }
       } else if (stmt instanceof CreateEventStatement) {
-        stmt.obj = this.schemaObject()
+        const obj = this.schemaObject()
+        stmt.schemaName = obj.schemaName
+        stmt.name = obj.name
         this.consume(Keyword.ON)
         this.consume(Keyword.SCHEDULE)
         if (this.consumeIf(Keyword.AT)) {
@@ -2285,7 +2203,7 @@ export class MysqlParser extends Parser {
         }
       } else if (this.consumeIf(Keyword.TABLE)) {
         stmt = new AlterTableStatement()
-        stmt.obj = this.schemaObject()
+        stmt.table = this.schemaObject()
         while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
@@ -2370,10 +2288,10 @@ export class MysqlParser extends Parser {
       if (this.consumeIf(Keyword.TABLE)) {
         stmt = new RenameTableStatement()
         for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-          const pair = new RenameObjPair()
-          pair.obj = this.schemaObject()
+          const pair = new RenameTablePair()
+          pair.table = this.schemaObject()
           this.consumeIf(Keyword.TO)
-          pair.newObj = this.schemaObject()
+          pair.newTable = this.schemaObject()
           stmt.pairs.push(pair)
         }
       } else if (this.consumeIf(Keyword.USER)) {
@@ -2465,7 +2383,7 @@ export class MysqlParser extends Parser {
           stmt.ifExists = true
         }
         for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-          stmt.objs.push(this.schemaObject())
+          stmt.tables.push(this.schemaObject())
         }
         if (this.consumeIf(Keyword.RESTRICT)) {
           stmt.dropOption = DropOption.RESTRICT
@@ -2479,38 +2397,44 @@ export class MysqlParser extends Parser {
           stmt.ifExists = true
         }
         for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-          stmt.objs.push(this.schemaObject())
+          stmt.views.push(this.schemaObject())
         }
         if (this.consumeIf(Keyword.RESTRICT)) {
           stmt.dropOption = DropOption.RESTRICT
         } else if (this.consumeIf(Keyword.CASCADE)) {
           stmt.dropOption = DropOption.CASCADE
         }
-      } else if (
-        this.peekIf(Keyword.PROCEDURE) ||
-        this.peekIf(Keyword.FUNCTION) ||
-        this.peekIf(Keyword.TRIGGER) ||
-        this.peekIf(Keyword.EVENT)
-      ) {
-        if (this.consumeIf(Keyword.PROCEDURE)) {
-          stmt = new DropProcedureStatement()
-        } else if (this.consumeIf(Keyword.FUNCTION)) {
-          stmt = new DropFunctionStatement()
-        } else if (this.consumeIf(Keyword.TRIGGER)) {
-          stmt = new DropTriggerStatement()
-        } else if (this.consumeIf(Keyword.EVENT)) {
-          stmt = new DropEventStatement()
-        } else {
-          throw this.createParseError()
-        }
+      } else if (this.consumeIf(Keyword.PROCEDURE)) {
+        stmt = new DropProcedureStatement()
         if (this.consumeIf(Keyword.IF)) {
           this.consume(Keyword.EXISTS)
           stmt.ifExists = true
         }
-        stmt.obj = this.schemaObject()
+        stmt.procedure = this.schemaObject()
+      } else if (this.consumeIf(Keyword.FUNCTION)) {
+        stmt = new DropFunctionStatement()
+        if (this.consumeIf(Keyword.IF)) {
+          this.consume(Keyword.EXISTS)
+          stmt.ifExists = true
+        }
+        stmt.func = this.schemaObject()
+      } else if (this.consumeIf(Keyword.TRIGGER)) {
+        stmt = new DropTriggerStatement()
+        if (this.consumeIf(Keyword.IF)) {
+          this.consume(Keyword.EXISTS)
+          stmt.ifExists = true
+        }
+        stmt.trigger = this.schemaObject()
+      } else if (this.consumeIf(Keyword.EVENT)) {
+        stmt = new DropEventStatement()
+        if (this.consumeIf(Keyword.IF)) {
+          this.consume(Keyword.EXISTS)
+          stmt.ifExists = true
+        }
+        stmt.event = this.schemaObject()
       } else if (this.consumeIf(Keyword.INDEX)) {
         stmt = new DropIndexStatement()
-        stmt.obj = this.schemaObject()
+        stmt.index = this.schemaObject()
         this.consumeIf(Keyword.ON)
         stmt.table = this.schemaObject()
         while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
@@ -2518,18 +2442,31 @@ export class MysqlParser extends Parser {
         }
       } else if (this.consumeIf(Keyword.PREPARE)) {
         stmt = new DeallocatePrepareStatement()
-        stmt.name = this.identifier()
+        stmt.prepareName = this.identifier()
       } else {
         throw this.createParseError()
       }
     } else if (this.consumeIf(Keyword.TRUNCATE)) {
       this.consumeIf(Keyword.TABLE)
       stmt = new TruncateTableStatement()
-      stmt.obj = this.schemaObject()
+      stmt.table = this.schemaObject()
+    } else if (this.consumeIf(Keyword.PREPARE)) {
+      stmt = new PrepareStatement()
+      stmt.name = this.identifier()
+      this.consume(Keyword.FROM)
+      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        this.consume()
+      }
+    } else if (this.consumeIf(Keyword.EXECUTE)) {
+      stmt = new ExecuteStatement()
+      stmt.prepareName = this.identifier()
+      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        this.consume()
+      }
     } else if (this.consumeIf(Keyword.DEALLOCATE)) {
       this.consume(Keyword.PREPARE)
       stmt = new DeallocatePrepareStatement()
-      stmt.name = this.identifier()
+      stmt.prepareName = this.identifier()
     } else if (this.consumeIf(Keyword.START)) {
       if (this.consumeIf(Keyword.TRANSACTION)) {
         stmt = new StartTransactionStatement()
@@ -2733,19 +2670,9 @@ export class MysqlParser extends Parser {
       while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
-    } else if (this.consumeIf(Keyword.PREPARE)) {
-      stmt = new PrepareStatement()
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
-    } else if (this.consumeIf(Keyword.EXECUTE)) {
-      stmt = new ExecuteStatement()
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
     } else if (this.consumeIf(Keyword.USE)) {
       stmt = new UseStatement()
-      stmt.name = this.identifier()
+      stmt.schemaName = this.identifier()
       while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
@@ -2762,7 +2689,7 @@ export class MysqlParser extends Parser {
         stmt.conflictAction = ConflictAction.IGNORE
       }
       this.consumeIf(Keyword.INTO)
-      stmt.obj = this.schemaObject()
+      stmt.table = this.schemaObject()
       while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
@@ -2774,7 +2701,7 @@ export class MysqlParser extends Parser {
       if (this.consumeIf(Keyword.IGNORE)) {
         stmt.conflictAction = ConflictAction.IGNORE
       }
-      stmt.obj = this.schemaObject()
+      stmt.table = this.schemaObject()
       while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
@@ -2789,7 +2716,7 @@ export class MysqlParser extends Parser {
         stmt.conflictAction = ConflictAction.IGNORE
       }
       this.consumeIf(Keyword.INTO)
-      stmt.obj = this.schemaObject()
+      stmt.table = this.schemaObject()
       while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
@@ -2809,7 +2736,7 @@ export class MysqlParser extends Parser {
         stmt.conflictAction = ConflictAction.IGNORE
       }
       this.consumeIf(Keyword.FROM)
-      stmt.obj = this.schemaObject()
+      stmt.table = this.schemaObject()
       while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
@@ -3696,4 +3623,118 @@ function dequote(text: string) {
     }
   }
   return text
+}
+
+function parseCommand(text: string) {
+  const sep = Math.max(text.indexOf(" "), text.indexOf("\t"))
+  const name = sep != -1 ? text.substring(0, sep) : text
+  const args = sep != -1 ? text.substring(sep) : ""
+
+  const result = { name: "", args: new Array<string>() }
+
+  if (name === "?" || name === "\\?" || name === "\\h" || /^help$/i.test(name)) {
+    result.name = "help"
+  } else if (name === "\\c" || /^clear$/i.test(name)) {
+    result.name = "clear"
+  } else if (name === "\\r" || /^connect$/i.test(name)) {
+    result.name = "connect"
+  } else if (name === "\\d" || /^delimiter$/i.test(name)) {
+    result.name = "delimiter"
+  } else if (name === "\\e" || /^edit$/i.test(name)) {
+    result.name = "edit"
+  } else if (name === "\\G" || /^ego$/i.test(name)) {
+    result.name = "ego"
+  } else if (name === "\\q" || /^exit$/i.test(name)) {
+    result.name = "exit"
+  } else if (name === "\\g" || /^go$/i.test(name)) {
+    result.name = "go"
+  } else if (name === "\\n" || /^nopager$/i.test(name)) {
+    result.name = "nopager"
+  } else if (name === "\\t" || /^notee$/i.test(name)) {
+    result.name = "notee"
+  } else if (name === "\\P" || /^pager$/i.test(name)) {
+    result.name = "pager"
+  } else if (name === "\\p" || /^print$/i.test(name)) {
+    result.name = "print"
+  } else if (name === "\\R" || /^prompt$/i.test(name)) {
+    result.name = "prompt"
+  } else if (name === "\\q" || /^quit$/i.test(name)) {
+    result.name = "quit"
+  } else if (name === "\\#" || /^rehash$/i.test(name)) {
+    result.name = "rehash"
+  } else if (name === "\\." || /^source$/i.test(name)) {
+    result.name = "source"
+  } else if (name === "\\s" || /^status$/i.test(name)) {
+    result.name = "status"
+  } else if (name === "\\!" || /^system$/i.test(name)) {
+    result.name = "system"
+  } else if (name === "\\T" || /^tee$/i.test(name)) {
+    result.name = "tee"
+  } else if (name === "\\u" || /^use$/i.test(name)) {
+    result.name = "use"
+  } else if (name === "\\C" || /^charset$/i.test(name)) {
+    result.name = "charset"
+  } else if (name === "\\W" || /^warnings$/i.test(name)) {
+    result.name = "warnings"
+  } else if (name === "\\w" || /^nowarning$/i.test(name)) {
+    result.name = "nowarning"
+  } else {
+    return null
+  }
+
+  if (!args) {
+    return result
+  }
+
+  if (result.name === "prompt") {
+    result.args.push(args)
+  } else if (
+    result.name === "help" ||
+    result.name === "pager" ||
+    result.name === "prompt" ||
+    result.name === "source" ||
+    result.name === "system" ||
+    result.name === "tee"
+  ) {
+    const re = /[ \t]+|'((?:''|[^']+)*)'|([^ \t']+)/y
+    let pos = 0
+    while (pos < args.length) {
+      re.lastIndex = pos
+      const m = re.exec(args)
+      if (m) {
+        if (m[1]) {
+          result.args.push(m[1].replace(/''/g, "'").replace(/\\(.)/g, "$1"))
+        } else if (m[2]) {
+          result.args.push(m[2])
+        }
+        pos = re.lastIndex
+      }
+    }
+  } else if (
+    result.name === "connect" ||
+    result.name === "delimiter" ||
+    result.name === "use" ||
+    result.name === "charset"
+  ) {
+    const re = /[ \t]+|'((?:''|[^']+)*)'|`((?:``|[^`]+)*)`|([^ \t']+)/y
+    let pos = 0
+    while (pos < args.length) {
+      re.lastIndex = pos
+      const m = re.exec(args)
+      if (m) {
+        if (m[1]) {
+          result.args.push(m[1].replace(/''/g, "'").replace(/\\(.)/g, "$1"))
+        } else if (m[2]) {
+          result.args.push(m[2].replace(/``/g, "`"))
+        } else if (m[3]) {
+          result.args.push(m[3])
+        }
+        pos = re.lastIndex
+      }
+    }
+  } else {
+    return null
+  }
+
+  return result
 }

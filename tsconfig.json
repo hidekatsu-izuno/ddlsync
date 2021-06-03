@@ -3,7 +3,7 @@
     "declaration": true,
     "importHelpers": true,
     "module": "commonjs",
-    "rootDir": ".",
+    "rootDir": "./src",
     "outDir": "lib",
     "strict": true,
     "target": "es2018",
@@ -11,9 +11,5 @@
     "esModuleInterop": true,
     "composite": true,
     "sourceMap": true
-  },
-  "include": [
-    "src/**/*",
-    "package.json"
-  ]
+  }
 }

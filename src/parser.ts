@@ -201,7 +201,7 @@ export abstract class Parser {
       last = `${last2}\u21B5 ${last}`
     }
     const fileName = this.options.fileName || ""
-    const text = message || `Unexpected token: ${last}"${token?.text}"`
+    const text = message || `Unexpected token: ${last}"${token ? token.text : "<EOF>"}"`
     return new ParseError(
       `${fileName}[${rows},${cols}] ${text}`,
       fileName,

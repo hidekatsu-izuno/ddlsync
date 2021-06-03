@@ -1,20 +1,17 @@
 import { Command } from "commander"
 import colorette from "colorette"
-import pkg from "../package.json"
 import planCommand from "./commands/plan"
 import applyCommand from "./commands/apply"
-import testCommand from "./commands/test"
 import { exit } from "process"
 import { AggregateParseError } from "./parser"
 
 (async () => {
   const program = new Command() as Command;
   program.name("ddlsync")
-    .version(`v${pkg.version}`)
+    .version(`v0.0.1`)
 
   planCommand(program)
   applyCommand(program)
-  testCommand(program)
 
   try {
     await program.parseAsync(process.argv)

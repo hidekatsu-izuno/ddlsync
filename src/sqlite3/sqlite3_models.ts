@@ -19,6 +19,11 @@ export class DetachDatabaseStatement extends Statement {
   name = ""
 }
 
+export class SchemaObject {
+  schemaName?: string
+  name = ""
+}
+
 export class CreateTableStatement extends Statement {
   schemaName?: string
   name = ""
@@ -58,8 +63,9 @@ export class CreateTableStatement extends Statement {
 }
 
 export class AlterTableStatement extends Statement {
-  schemaName?: string
-  name = ""
+  //tableSchemaName?: string
+  //tableName = ""
+  table = new SchemaObject()
   alterTableAction = AlterTableAction.RENAME_TABLE
   newTableName?: string
   columnName?: string
@@ -68,8 +74,7 @@ export class AlterTableStatement extends Statement {
 }
 
 export class DropTableStatement extends Statement {
-  schemaName?: string
-  name = ""
+  table = new SchemaObject()
   ifExists = false
 }
 
@@ -88,8 +93,7 @@ export class CreateViewStatement extends Statement {
 }
 
 export class DropViewStatement extends Statement {
-  schemaName?: string
-  name = ""
+  view = new SchemaObject()
   ifExists = false
 }
 
@@ -107,23 +111,21 @@ export class CreateTriggerStatement extends Statement {
 }
 
 export class DropTriggerStatement extends Statement {
-  schemaName?: string
-  name = ""
+  trigger = new SchemaObject()
   ifExists = false
 }
 
 export class CreateIndexStatement extends Statement {
   schemaName?: string
   name = ""
-  tableName = ""
+  table = new SchemaObject()
   type?: IndexType
   ifNotExists = false
   columns = new Array<IndexColumn>()
 }
 
 export class DropIndexStatement extends Statement {
-  schemaName?: string
-  name = ""
+  index = new SchemaObject()
   ifExists = false
 }
 
@@ -178,20 +180,17 @@ export class PragmaStatement extends Statement {
 }
 
 export class InsertStatement extends Statement {
-  schemaName?: string
-  name = ""
+  table = new SchemaObject()
   conflictAction = ConflictAction.ABORT
 }
 
 export class UpdateStatement extends Statement {
-  schemaName?: string
-  name = ""
+  table = new SchemaObject()
   conflictAction = ConflictAction.ABORT
 }
 
 export class DeleteStatement extends Statement {
-  schemaName?: string
-  name = ""
+  table = new SchemaObject()
 }
 
 export class SelectStatement extends Statement {

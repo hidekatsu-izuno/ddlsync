@@ -5,17 +5,35 @@
     "version": "0.2.0",
     "configurations": [
       {
-          "type": "pwa-node",
-          "request": "launch",
-          "name": "Run",
-          "skipFiles": [
-              "<node_internals>/**"
-          ],
-          "preLaunchTask": "npm: build",
-          "outFiles": ["${workspaceFolder}/lib/**/*.js"],
-          "program": "${workspaceFolder}/lib/src/cli.js",
-          "args": ["setup"],
-          "console": "integratedTerminal"
+        "type": "pwa-node",
+        "request": "launch",
+        "name": "Run",
+        "skipFiles": [
+          "<node_internals>/**"
+        ],
+        "preLaunchTask": "npm: build",
+        "outFiles": [
+          "${workspaceFolder}/lib/**/*.js"
+        ],
+        "program": "${workspaceFolder}/lib/src/cli.js",
+        "args": [
+          "setup"
+        ],
+        "console": "integratedTerminal"
+      },
+      {
+        "type": "node",
+        "name": "vscode-jest-tests",
+        "request": "launch",
+        "console": "integratedTerminal",
+        "internalConsoleOptions": "neverOpen",
+        "disableOptimisticBPs": true,
+        "program": "${workspaceFolder}/node_modules/.bin/jest",
+        "cwd": "${workspaceFolder}",
+        "args": [
+          "--runInBand",
+          "--watchAll=false"
+        ]
       }
     ]
 }
