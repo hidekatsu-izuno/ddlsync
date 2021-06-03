@@ -1,4 +1,5 @@
 import { Statement } from "../models"
+import { CreateDatabaseStatement } from "../mysql/mysql_models"
 import {
   ITokenType,
   Token,
@@ -7,9 +8,10 @@ import {
   ParseError,
   AggregateParseError,
 } from "../parser"
+import { ucase } from "../util/functions"
+import * as model from "./postgres_models"
 
-
-class TokenType implements ITokenType {
+export class TokenType implements ITokenType {
   static Command = new TokenType("Command")
   static WhiteSpace = new TokenType("WhiteSpace", { skip: true })
   static LineBreak = new TokenType("LineBreak", { skip: true })
@@ -72,6 +74,7 @@ export class Keyword implements ITokenType {
   static CURRENT_TIME = new Keyword("CURRENT_TIME", { reserved: true })
   static CURRENT_TIMESTAMP = new Keyword("CURRENT_TIMESTAMP", { reserved: true })
   static CURRENT_USER = new Keyword("CURRENT_USER", { reserved: true })
+  static DATABASE = new Keyword("DATABASE")
   static DEFAULT = new Keyword("DEFAULT", { reserved: true })
   static DEFERRABLE = new Keyword("DEFERRABLE", { reserved: true })
   static DESC = new Keyword("DESC", { reserved: true })
@@ -157,11 +160,14 @@ export class Keyword implements ITokenType {
 }
 
 export class PostgresLexer extends Lexer {
+  private reserved = new Set<Keyword>()
+
   constructor(
     private options: { [key: string]: any } = {}
   ) {
     super("postgres", [
       { type: TokenType.WhiteSpace, re: /[ \t]+/y },
+      { type: TokenType.Command, re: /^\\[^ \t]+([ \t]+('([^\\']|\\')*'|"([^\\"]|\\")*"|`([^\\`]|\\`)*`|[^ \t'"`]+))*(\\|$)/my },
       { type: TokenType.LineBreak, re: /(?:\r\n?|\n)/y },
       { type: TokenType.BlockComment, re: /\/\*(?:(?!\/\*|\*\/).)*\*\//sy },
       { type: TokenType.LineComment, re: /--.*/y },
@@ -183,6 +189,42 @@ export class PostgresLexer extends Lexer {
       { type: TokenType.Operator, re: /::|[*/<>=~!@#%^&|`?+-]+/y },
       { type: TokenType.Error, re: /./y },
     ])
+
+    if (Array.isArray(options.reservedWords)) {
+      const reserved = new Set<string>()
+      for (const keyword of options.reservedWords) {
+        reserved.add(ucase(keyword))
+      }
+      for (const keyword of KeywordMap.values()) {
+        if (reserved.has(keyword.name)) {
+          this.reserved.add(keyword)
+        }
+      }
+    } else {
+      for (const keyword of KeywordMap.values()) {
+        if (typeof keyword.options.reserved === "function") {
+          if (keyword.options.reserved(options)) {
+            this.reserved.add(keyword)
+          }
+        } else if (keyword.options.reserved === true) {
+          this.reserved.add(keyword)
+        }
+      }
+    }
+  }
+
+  protected process(token: Token) {
+    if (token.type === TokenType.Identifier) {
+      const keyword = KeywordMap.get(token.text.toUpperCase())
+      if (keyword) {
+        if (this.reserved.has(keyword)) {
+          token.type = keyword
+        } else {
+          token.subtype = keyword
+        }
+      }
+    }
+    return token
   }
 }
 
@@ -195,7 +237,108 @@ export class PostgresParser extends Parser {
   }
 
   root() {
-    const root: Statement[] = []
+    const root = []
+    const errors = []
+    for (let i = 0;
+      this.peek() && (
+        i === 0 ||
+        this.consumeIf(TokenType.SemiColon) ||
+        root[root.length - 1] instanceof model.CommandStatement
+      );
+      i++
+    ) {
+      try {
+        if (this.peekIf(TokenType.Command)) {
+          const stmt = this.command()
+          stmt.validate()
+          root.push(stmt)
+        } else if (this.peek() && !this.peekIf(TokenType.SemiColon)) {
+          const stmt = this.statement()
+          stmt.validate()
+          root.push(stmt)
+        }
+      } catch (e) {
+        if (e instanceof ParseError) {
+          errors.push(e)
+
+          // skip tokens
+          while (this.peek() && !this.peekIf(TokenType.SemiColon)) {
+            this.consume()
+          }
+        } else {
+          throw e
+        }
+      }
+    }
+
+    if (this.peek() != null) {
+      try {
+        throw this.createParseError()
+      } catch (e) {
+        if (e instanceof ParseError) {
+          errors.push(e)
+        } else {
+          throw e
+        }
+      }
+    }
+
+    if (errors.length) {
+      throw new AggregateParseError(errors, `${errors.length} error found\n${errors.map(
+        e => e.message
+      ).join("\n")}`)
+    }
+
     return root
+  }
+
+  command() {
+    const start = this.pos
+    const stmt = new model.CommandStatement()
+    const token = this.consume(TokenType.Command)
+    const sep = token.text.indexOf(" ")
+    if (sep === -1) {
+      stmt.name = token.text
+    } else {
+      stmt.name = token.text.substring(0, sep)
+      const input = token.text.substring(sep)
+      const re = /([ \t]+)|"([^"]*)"|'([^']*)'|`([^`]*)`|([^ \t"']+)/y
+      let pos = 0
+      while (pos < input.length) {
+        re.lastIndex = pos
+        const m = re.exec(input)
+        if (m) {
+          if (!m[1]) {
+            stmt.args.push(m[2] || m[3] || m[4])
+          }
+          pos = re.lastIndex
+        }
+      }
+    }
+    stmt.tokens = this.tokens.slice(start, this.pos)
+    return stmt
+  }
+
+  statement() {
+    const start = this.pos
+
+    let stmt
+    if (this.consumeIf(Keyword.CREATE)) {
+      if (this.consumeIf(Keyword.DATABASE)) {
+        stmt = new CreateDatabaseStatement()
+      }
+    }
+
+
+    if (!stmt) {
+      throw this.createParseError()
+    }
+
+    if (typeof this.options.filename === "string") {
+      stmt.filename = this.options.filename
+    }
+    stmt.tokens = this.tokens.slice(start, this.pos)
+
+    return stmt
   }
 }

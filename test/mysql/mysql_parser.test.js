@@ -139,14 +139,66 @@ describe("test mysql_parser", () => {
     expect(result[0].ifExists).toBe(expected.ifExists || false)
   })
 
-
   test.each([
     ["DELIMITER //\nCREATE TRIGGER x BEFORE DELETE ON y FOR EACH ROW BEGIN SET x = 4; END",
       { name: "x" }],
-  ])("create trigger", (input, expected) => {
+  ])("create trigger %#", (input, expected) => {
     const result = new MysqlParser(input, {}).root()
     expect(result.length).toBe(2)
     expect(result[1]).toBeInstanceOf(model.CreateTriggerStatement)
     expect(result[1].name).toBe(expected.name)
+  })
+
+  test.each([
+    ["DROP TRIGGER x",
+      { triggers: [{ name: "x" }] }],
+    ["DROP TRIGGER IF EXISTS x",
+      { triggers: [{ name: "x" }], ifExists: true }],
+    ["DROP TRIGGER main.x",
+      { triggers: [{ schemaName: "main", name: "x" }] }],
+    ["DROP TRIGGER IF EXISTS temp.x, main.x",
+      { triggers: [{ schemaName: "temp", name: "x" }, { schemaName: "main", name: "x" }], ifExists: true }],
+  ])("drop trigger %#", (input, expected) => {
+    const result = new MysqlParser(input, {}).root()
+    expect(result.length).toBe(1)
+    expect(result[0]).toBeInstanceOf(model.DropTriggerStatement)
+    for (let i = 0; i < 3; i++) {
+      expect(result[0].views?.[i]?.schemaName).toBe(expected.views?.[i]?.schemaName)
+      expect(result[0].views?.[i]?.name).toBe(expected.views?.[i]?.name)
+    }
+    expect(result[0].ifExists).toBe(expected.ifExists || false)
+  })
+
+  test.each([
+    ["CREATE EVENT x ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 HOUR DO UPDATE x SET x = x + 1",
+      { name: "x" }],
+    ["CREATE EVENT main.x ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 HOUR DO UPDATE x SET x = x + 1",
+      { schemaName: "main", name: "x" }],
+  ])("create trigger %#", (input, expected) => {
+    const result = new MysqlParser(input, {}).root()
+    expect(result.length).toBe(1)
+    expect(result[0]).toBeInstanceOf(model.CreateEventStatement)
+    expect(result[0].schemaName).toBe(expected.schemaName)
+    expect(result[0].name).toBe(expected.name)
+  })
+
+  test.each([
+    ["DROP EVENT x",
+      { triggers: [{ name: "x" }] }],
+    ["DROP EVENT IF EXISTS x",
+      { triggers: [{ name: "x" }], ifExists: true }],
+    ["DROP EVENT main.x",
+      { triggers: [{ schemaName: "main", name: "x" }] }],
+    ["DROP EVENT IF EXISTS temp.x, main.x",
+      { triggers: [{ schemaName: "temp", name: "x" }, { schemaName: "main", name: "x" }], ifExists: true }],
+  ])("drop trigger %#", (input, expected) => {
+    const result = new MysqlParser(input, {}).root()
+    expect(result.length).toBe(1)
+    expect(result[0]).toBeInstanceOf(model.DropEventStatement)
+    for (let i = 0; i < 3; i++) {
+      expect(result[0].views?.[i]?.schemaName).toBe(expected.views?.[i]?.schemaName)
+      expect(result[0].views?.[i]?.name).toBe(expected.views?.[i]?.name)
+    }
+    expect(result[0].ifExists).toBe(expected.ifExists || false)
   })
 })

@@ -1,4 +1,3 @@
-import Decimal from "decimal.js"
 import { Statement } from "../models"
 import { Token } from "../parser"
 
@@ -492,12 +491,12 @@ export class CreateFunctionStatement extends Statement {
 }
 
 export class AlterFunctionStatement extends Statement {
-  func = new SchemaObject()
+  function = new SchemaObject()
   definer?: UserRole
 }
 
 export class DropFunctionStatement extends Statement {
-  func = new SchemaObject()
+  function = new SchemaObject()
   ifExists = false
 }
 
