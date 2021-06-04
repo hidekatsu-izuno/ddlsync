@@ -539,23 +539,27 @@ export class Sqlite3Parser extends Parser {
 
       if (this.consumeIf(Keyword.RENAME)) {
         if (this.consumeIf(Keyword.TO)) {
-          stmt.alterTableAction = model.AlterTableAction.RENAME_TABLE
-          stmt.newTableName = this.identifier()
+          const alterTableAction = new model.RenameTableAction()
+          alterTableAction.newName = this.identifier()
+          stmt.action = alterTableAction
         } else {
           this.consumeIf(Keyword.COLUMN)
-          stmt.alterTableAction = model.AlterTableAction.RENAME_COLUMN
-          stmt.columnName = this.identifier()
+          const alterTableAction = new model.RenameColumnAction()
+          alterTableAction.name = this.identifier()
           this.consume(Keyword.TO)
-          stmt.newColumnName = this.identifier()
+          alterTableAction.newName = this.identifier()
+          stmt.action = alterTableAction
         }
       } else if (this.consumeIf(Keyword.ADD)) {
         this.consumeIf(Keyword.COLUMN)
-        stmt.alterTableAction = model.AlterTableAction.ADD_COLUMN
-        stmt.newColumn = this.tableColumn()
+        const alterTableAction = new model.AddColumnAction()
+        alterTableAction.newColumn = this.tableColumn()
+        stmt.action = alterTableAction
       } else if (this.consumeIf(Keyword.DROP)) {
         this.consumeIf(Keyword.COLUMN)
-        stmt.alterTableAction = model.AlterTableAction.DROP_COLUMN
-        stmt.columnName = this.identifier()
+        const alterTableAction = new model.DropColumnAction()
+        alterTableAction.name = this.identifier()
+        stmt.action = alterTableAction
       } else {
         throw this.createParseError()
       }

@@ -34,6 +34,7 @@ export class TokenType implements ITokenType {
   static BindVariable = new TokenType("BindVariable")
   static SessionVariable = new TokenType("SessionVariable")
   static UserDefinedVariable = new TokenType("UserVariable")
+  static QuotedValue = new TokenType("QuotedValue")
   static QuotedIdentifier = new TokenType("QuotedIdentifier")
   static Identifier = new TokenType("Identifier")
   static Error = new TokenType("Error")
@@ -617,7 +618,6 @@ export class MysqlLexer extends Lexer {
   private reserved = new Set<Keyword>()
   private reCommand = new RegExp(COMMAND_PATTERN + "(;|$)", "imy")
   private reDelimiter = new RegExp(";", "y")
-  private sqlMode = new Set<string>()
 
   constructor(
     private options: { [key: string]: any } = {}
@@ -636,8 +636,9 @@ export class MysqlLexer extends Lexer {
       { type: TokenType.Number, re: /0[xX][0-9a-fA-F]+|((0|[1-9][0-9]*)(\.[0-9]+)?|(\.[0-9]+))([eE][+-]?[0-9]+)?/y },
       { type: TokenType.Size, re: /(0|[1-9][0-9]*)[KMG]/iy },
       { type: TokenType.Dot, re: /\./y },
-      { type: TokenType.String, re: () => this.sqlMode.has("ANSI_QUOTES") ? /([bBnN]|_[a-zA-Z]+)?'([^']|'')*'/y :  /([bBnN]|_[a-zA-Z]+)?('([^']|'')*'|"([^"]|"")*")/y },
-      { type: TokenType.QuotedIdentifier, re: () => this.sqlMode.has("ANSI_QUOTES") ? /"([^"]|"")*"|`([^`]|``)*`/y : /`([^`]|``)*`/y },
+      { type: TokenType.String, re: /([bBnN]|_[a-zA-Z]+)?'([^']|'')*'/y },
+      { type: TokenType.QuotedValue, re: /([bBnN]|_[a-zA-Z]+)?"([^"]|"")*"/y },
+      { type: TokenType.QuotedIdentifier, re: /`([^`]|``)*`/y },
       { type: TokenType.BindVariable, re: /\?/y },
       { type: TokenType.SessionVariable, re: /@@[a-zA-Z0-9._$\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*|`([^`]|``)*`|'([^']|'')*'|"([^"]|"")*"/y },
       { type: TokenType.UserDefinedVariable, re: /@[a-zA-Z0-9._$\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*|`([^`]|``)*`|'([^']|'')*'|"([^"]|"")*"/y },
@@ -646,10 +647,6 @@ export class MysqlLexer extends Lexer {
       { type: TokenType.At, re: /@/y },
       { type: TokenType.Error, re: /./y },
     ])
-
-    if (options.sqlMode) {
-      this.setSqlMode(options.sqlMode)
-    }
 
     if (Array.isArray(options.reservedWords)) {
       const reserved = new Set<string>()
@@ -671,13 +668,6 @@ export class MysqlLexer extends Lexer {
           this.reserved.add(keyword)
         }
       }
-    }
-  }
-
-  setSqlMode(sqlMode: string) {
-    this.sqlMode.clear()
-    for (const mode of (sqlMode || "").split(/,/g)) {
-      this.sqlMode.add(mode)
     }
   }
 
@@ -719,11 +709,47 @@ export class MysqlLexer extends Lexer {
 }
 
 export class MysqlParser extends Parser {
+  private sqlMode = new Set<string>()
+
   constructor(
     input: string,
     options: { [key: string]: any } = {},
   ) {
     super(input, new MysqlLexer(options), options)
+
+    if (options.sqlMode) {
+      this.setSqlMode(options.sqlMode)
+    } else {
+      this.sqlMode.add("ONLY_FULL_GROUP_BY")
+      this.sqlMode.add("STRICT_TRANS_TABLES")
+      this.sqlMode.add("NO_ZERO_IN_DATE")
+      this.sqlMode.add("NO_ZERO_DATE")
+      this.sqlMode.add("ERROR_FOR_DIVISION_BY_ZERO")
+      this.sqlMode.add("NO_ENGINE_SUBSTITUTION")
+    }
+  }
+
+  private setSqlMode(text: string) {
+    this.sqlMode.clear()
+    for (let mode of text.split(/,/g)) {
+      mode = ucase(mode)
+      if (mode === "ANSI") {
+        this.sqlMode.add("REAL_AS_FLOAT")
+        this.sqlMode.add("PIPES_AS_CONCAT")
+        this.sqlMode.add("ANSI_QUOTES")
+        this.sqlMode.add("IGNORE_SPACE")
+        this.sqlMode.add("ONLY_FULL_GROUP_BY")
+      } else if (mode === "TRADITIONAL") {
+        this.sqlMode.add("STRICT_TRANS_TABLES")
+        this.sqlMode.add("STRICT_ALL_TABLES")
+        this.sqlMode.add("NO_ZERO_IN_DATE")
+        this.sqlMode.add("NO_ZERO_DATE")
+        this.sqlMode.add("ERROR_FOR_DIVISION_BY_ZERO")
+        this.sqlMode.add("NO_ENGINE_SUBSTITUTION")
+      } else {
+        this.sqlMode.add(mode)
+      }
+    }
   }
 
   root() {
@@ -1272,108 +1298,127 @@ export class MysqlParser extends Parser {
             stmt.columns = []
             stmt.constraints = []
             for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-              if (
-                this.peekIf(Keyword.CONSTRAINT) ||
-                this.peekIf(Keyword.INDEX) ||
-                this.peekIf(Keyword.KEY) ||
-                this.peekIf(Keyword.PRIMARY) ||
-                this.peekIf(Keyword.UNIQUE) ||
-                this.peekIf(Keyword.FOREIGN) ||
-                this.peekIf(Keyword.FULLTEXT) ||
-                this.peekIf(Keyword.SPATIAL) ||
-                this.peekIf(Keyword.CHECK)
-              ) {
-                let constraint
+              let constraintName
+              let constraint
+              if (this.consumeIf(Keyword.CONSTRAINT)) {
+                if (
+                  !this.peekIf(Keyword.PRIMARY) &&
+                  !this.peekIf(Keyword.UNIQUE) &&
+                  !this.peekIf(Keyword.FOREIGN) &&
+                  !this.peekIf(Keyword.CHECK)
+                ) {
+                  constraintName = this.identifier()
+                }
+                if (this.consumeIf(Keyword.PRIMARY)) {
+                  this.consume(Keyword.KEY)
+                  constraint = new model.IndexConstraint()
+                  constraint.type = model.IndexType.PRIMARY_KEY
+                } else if (this.consumeIf(Keyword.UNIQUE)) {
+                  if (this.consumeIf(Keyword.INDEX) || this.consumeIf(Keyword.KEY)) {
+                    constraint = new model.IndexConstraint()
+                    constraint.type = model.IndexType.UNIQUE
+                  } else {
+                    throw this.createParseError()
+                  }
+                } else if (this.consumeIf(Keyword.FOREIGN)) {
+                  this.consume(Keyword.KEY)
+                  constraint = new model.ForeignKeyConstraint()
+                } else if (this.consumeIf(Keyword.CHECK)) {
+                  constraint = new model.CheckConstraint()
+                } else {
+                  throw this.createParseError()
+                }
+              } else if (this.consumeIf(Keyword.PRIMARY)) {
+                this.consume(Keyword.KEY)
+                constraint = new model.IndexConstraint()
+                constraint.type = model.IndexType.PRIMARY_KEY
+              } else if (this.consumeIf(Keyword.UNIQUE)) {
                 if (this.consumeIf(Keyword.INDEX) || this.consumeIf(Keyword.KEY)) {
                   constraint = new model.IndexConstraint()
-                } else if (this.consumeIf(Keyword.FULLTEXT)) {
-                  this.consumeIf(Keyword.INDEX) || this.consumeIf(Keyword.KEY)
+                  constraint.type = model.IndexType.UNIQUE
+                } else {
+                  throw this.createParseError()
+                }
+              } else if (this.consumeIf(Keyword.FOREIGN)) {
+                this.consume(Keyword.KEY)
+                constraint = new model.ForeignKeyConstraint()
+              } else if (this.consumeIf(Keyword.CHECK)) {
+                constraint = new model.CheckConstraint()
+              } else if (this.consumeIf(Keyword.FULLTEXT)) {
+                if (this.consumeIf(Keyword.INDEX) || this.consumeIf(Keyword.KEY)) {
                   constraint = new model.IndexConstraint()
                   constraint.type = model.IndexType.FULLTEXT
-                } else if (this.consumeIf(Keyword.SPATIAL)) {
-                  this.consumeIf(Keyword.INDEX) || this.consumeIf(Keyword.KEY)
+                } else {
+                  throw this.createParseError()
+                }
+              } else if (this.consumeIf(Keyword.SPATIAL)) {
+                if (this.consumeIf(Keyword.INDEX) || this.consumeIf(Keyword.KEY)) {
                   constraint = new model.IndexConstraint()
                   constraint.type = model.IndexType.SPATIAL
                 } else {
-                  let constraintName
-                  if (this.consumeIf(Keyword.CONSTRAINT)) {
-                    if (this.peekIf(TokenType.Identifier) || this.peekIf(TokenType.QuotedIdentifier)) {
-                      constraintName = this.identifier()
-                    }
-                  }
-                  if (this.consumeIf(Keyword.FOREIGN)) {
-                    this.consume(Keyword.KEY)
-                    constraint = new model.ForeignKeyConstraint()
-                    if (this.consumeIf(TokenType.QuotedIdentifier) || this.consumeIf(TokenType.Identifier)) {
-                      constraint.name = this.identifier()
-                    }
-                    this.consume(TokenType.LeftParen)
-                    for (let j = 0; j === 0 || this.consumeIf(TokenType.Comma); j++) {
-                      constraint.columns.push(this.identifier())
-                    }
-                    this.consume(TokenType.RightParen)
-                    constraint.references = this.references()
-                  } else if (this.consumeIf(Keyword.CHECK)) {
-                    constraint = new model.CheckConstraint()
-                    this.consume(TokenType.LeftParen)
-                    constraint.expression = this.expression()
-                    this.consume(TokenType.RightParen)
-
-                    if (this.consumeIf(Keyword.NOT)) {
-                      this.consume(Keyword.ENFORCED)
-                      constraint.enforced = false
-                    } else if (this.consumeIf(Keyword.ENFORCED)) {
-                      constraint.enforced = true
-                    }
-                  } else {
-                    constraint = new model.IndexConstraint()
-                    if (this.consumeIf(Keyword.PRIMARY)) {
-                      this.consume(Keyword.KEY)
-                      constraint.type = model.IndexType.PRIMARY_KEY
-                    } else if (this.consumeIf(Keyword.UNIQUE)) {
-                      this.consumeIf(Keyword.INDEX) || this.consumeIf(Keyword.KEY)
-                      constraint = new model.IndexConstraint()
-                      constraint.type = model.IndexType.UNIQUE
-                    } else {
-                      throw this.createParseError()
-                    }
-
-                    if (this.consumeIf(Keyword.USING)) {
-                      if (this.consumeIf(Keyword.BTREE)) {
-                        constraint.algorithm = model.IndexAlgorithm.BTREE
-                      } else if (this.consumeIf(Keyword.HASH)) {
-                        constraint.algorithm = model.IndexAlgorithm.HASH
-                      } else {
-                        throw this.createParseError()
-                      }
-                    }
-                    this.consume(TokenType.LeftParen)
-                    for (let j = 0; j === 0 || this.consumeIf(TokenType.Comma); j++) {
-                      const keyPart = new model.KeyPart()
-                      if (this.consumeIf(TokenType.LeftParen)) {
-                        keyPart.expression = this.expression()
-                        this.consumeIf(TokenType.RightParen)
-                      } else {
-                        keyPart.column = this.identifier()
-                      }
-                      if (this.consumeIf(Keyword.ASC)) {
-                        keyPart.sortOrder = model.SortOrder.ASC
-                      } else if (this.consumeIf(Keyword.DESC)) {
-                        keyPart.sortOrder = model.SortOrder.DESC
-                      }
-                      constraint.keyParts.push(keyPart)
-                    }
-                    this.consume(TokenType.RightParen)
-                  }
-
-                  if (constraintName) {
-                    constraint.name = constraintName
-                  }
+                  throw this.createParseError()
                 }
-
-                stmt.constraints.push(constraint)
+              } else if (this.consumeIf(Keyword.INDEX) || this.consumeIf(Keyword.KEY)) {
+                constraint = new model.IndexConstraint()
               } else {
                 stmt.columns.push(this.tableColumn())
+              }
+
+              if (constraint instanceof model.IndexConstraint) {
+                constraint.name = constraintName
+                if (!this.peekIf(Keyword.USING) && !this.peekIf(TokenType.LeftParen)) {
+                  constraint.indexName = this.identifier()
+                }
+
+                if (this.consumeIf(Keyword.USING)) {
+                  if (this.consumeIf(Keyword.BTREE)) {
+                    constraint.algorithm = model.IndexAlgorithm.BTREE
+                  } else if (this.consumeIf(Keyword.HASH)) {
+                    constraint.algorithm = model.IndexAlgorithm.HASH
+                  } else {
+                    throw this.createParseError()
+                  }
+                }
+                this.consume(TokenType.LeftParen)
+                for (let j = 0; j === 0 || this.consumeIf(TokenType.Comma); j++) {
+                  const keyPart = new model.KeyPart()
+                  if (this.consumeIf(TokenType.LeftParen)) {
+                    keyPart.expression = this.expression()
+                    this.consumeIf(TokenType.RightParen)
+                  } else {
+                    keyPart.column = this.identifier()
+                  }
+                  if (this.consumeIf(Keyword.ASC)) {
+                    keyPart.sortOrder = model.SortOrder.ASC
+                  } else if (this.consumeIf(Keyword.DESC)) {
+                    keyPart.sortOrder = model.SortOrder.DESC
+                  }
+                  constraint.keyParts.push(keyPart)
+                }
+                this.consume(TokenType.RightParen)
+              } else if (constraint instanceof model.ForeignKeyConstraint) {
+                constraint.name = constraintName
+                if (!this.peekIf(TokenType.LeftParen)) {
+                  constraint.indexName = this.identifier()
+                }
+                this.consume(TokenType.LeftParen)
+                for (let j = 0; j === 0 || this.consumeIf(TokenType.Comma); j++) {
+                  constraint.columns.push(this.identifier())
+                }
+                this.consume(TokenType.RightParen)
+                constraint.references = this.references()
+              } else if (constraint instanceof model.CheckConstraint) {
+                constraint.name = constraintName
+                this.consume(TokenType.LeftParen)
+                constraint.expression = this.expression()
+                this.consume(TokenType.RightParen)
+
+                if (this.consumeIf(Keyword.NOT)) {
+                  this.consume(Keyword.ENFORCED)
+                  constraint.enforced = false
+                } else if (this.consumeIf(Keyword.ENFORCED)) {
+                  constraint.enforced = true
+                }
               }
             }
           }
@@ -2678,100 +2723,56 @@ export class MysqlParser extends Parser {
         while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
+      } else if (
+        this.peekIf(Keyword.TRANSACTION) ||
+        this.peekIf(Keyword.GLOBAL, Keyword.TRANSACTION) ||
+        this.peekIf(Keyword.SESSION, Keyword.TRANSACTION) ||
+        this.peekIf(Keyword.LOCAL, Keyword.TRANSACTION)
+      ) {
+        stmt = new model.SetTransactionStatement()
+        if (this.consumeIf(Keyword.GLOBAL)) {
+          stmt.type = model.VariableType.GLOBAL
+        } else if (this.consumeIf(Keyword.SESSION) || this.consumeIf(Keyword.LOCAL)) {
+          stmt.type = model.VariableType.SESSION
+        }
+        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+          this.consume()
+        }
       } else {
-        if (this.consumeIf(Keyword.TRANSACTION)) {
-          stmt = new model.SetTransactionStatement()
-          while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
-            this.consume()
-          }
-        } else if (this.consumeIf(Keyword.GLOBAL)) {
-          if (this.consumeIf(Keyword.TRANSACTION)) {
-            stmt = new model.SetTransactionStatement()
-            stmt.type = model.VariableType.GLOBAL
-            while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
-              this.consume()
-            }
-          } else {
-            stmt = new model.SetStatement()
-            const va = new model.VariableAssignment()
+        stmt = new model.SetStatement()
+        for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+          const va = new model.VariableAssignment()
+          if (this.consumeIf(Keyword.GLOBAL)) {
             va.type = model.VariableType.GLOBAL
             va.name = this.identifier()
-            stmt.variableAssignments.push(va)
-          }
-        } else if (this.consumeIf(Keyword.SESSION) || this.consumeIf(Keyword.LOCAL)) {
-          if (this.consumeIf(Keyword.TRANSACTION)) {
-            stmt = new model.SetTransactionStatement()
-            stmt.type = model.VariableType.SESSION
-          } else {
-            stmt = new model.SetStatement()
-            const va = new model.VariableAssignment()
+          } else if (this.consumeIf(Keyword.SESSION) || this.consumeIf(Keyword.LOCAL)) {
             va.type = model.VariableType.SESSION
             va.name = this.identifier()
-            stmt.variableAssignments.push(va)
+          } else if (this.consumeIf(Keyword.VAR_GLOBAL)) {
+            va.type = model.VariableType.GLOBAL
+            this.consume(TokenType.Dot)
+            va.name = this.identifier()
+          } else if (this.consumeIf(Keyword.VAR_SESSION) || this.consumeIf(Keyword.VAR_LOCAL)) {
+            va.type = model.VariableType.SESSION
+            this.consume(TokenType.Dot)
+            va.name = this.identifier()
+          } else if (this.consumeIf(TokenType.SessionVariable)) {
+            const name = this.peek(-1).text
+            va.type = model.VariableType.SESSION
+            va.name = name.substring(2)
+          } else if (this.consumeIf(TokenType.UserDefinedVariable)) {
+            const name = this.peek(-1).text
+            va.type = model.VariableType.USER_DEFINED
+            va.name = name.substring(1)
+          } else {
+            throw this.createParseError()
           }
-        } else if (this.consumeIf(Keyword.VAR_GLOBAL)) {
-          stmt = new model.SetStatement()
-          const va = new model.VariableAssignment()
-          va.type = model.VariableType.GLOBAL
-          this.consume(TokenType.Dot)
-          va.name = this.identifier()
-        } else if (this.consumeIf(Keyword.VAR_SESSION) || this.consumeIf(Keyword.VAR_LOCAL)) {
-          stmt = new model.SetStatement()
-          const va = new model.VariableAssignment()
-          va.type = model.VariableType.SESSION
-          this.consume(TokenType.Dot)
-          va.name = this.identifier()
-        } else if (this.peekIf(TokenType.SessionVariable)) {
-          stmt = new model.SetStatement()
-          const va = new model.VariableAssignment()
-          const name = this.consume().text
-          va.type = model.VariableType.SESSION
-          va.name = name.substring(2)
-        } else if (this.peekIf(TokenType.UserDefinedVariable)) {
-          stmt = new model.SetStatement()
-          const va = new model.VariableAssignment()
-          const name = this.consume().text
-          va.type = model.VariableType.USER_DEFINED
-          va.name = name.substring(1)
-        } else {
-          throw this.createParseError()
-        }
-
-        if (stmt instanceof model.SetStatement) {
-          while (this.consumeIf(TokenType.Comma)) {
-            const va = new model.VariableAssignment()
-            if (this.consumeIf(Keyword.GLOBAL)) {
-              va.type = model.VariableType.GLOBAL
-              va.name = this.identifier()
-            } else if (this.consumeIf(Keyword.SESSION) || this.consumeIf(Keyword.LOCAL)) {
-              va.type = model.VariableType.SESSION
-              va.name = this.identifier()
-            } else if (this.consumeIf(Keyword.VAR_GLOBAL)) {
-              va.type = model.VariableType.GLOBAL
-              this.consume(TokenType.Dot)
-              va.name = this.identifier()
-            } else if (this.consumeIf(Keyword.VAR_SESSION) || this.consumeIf(Keyword.VAR_LOCAL)) {
-              va.type = model.VariableType.SESSION
-              this.consume(TokenType.Dot)
-              va.name = this.identifier()
-            } else if (this.consumeIf(TokenType.SessionVariable)) {
-              const name = this.peek(-1).text
-              va.type = model.VariableType.SESSION
-              va.name = name.substring(2)
-            } else if (this.consumeIf(TokenType.UserDefinedVariable)) {
-              const name = this.peek(-1).text
-              va.type = model.VariableType.USER_DEFINED
-              va.name = name.substring(1)
-            } else {
-              throw this.createParseError()
-            }
-            if (this.consumeIf(Keyword.OPE_EQ) || this.consumeIf(Keyword.OPE_COLON_EQ)) {
-            } else {
-              throw this.createParseError()
-            }
+          if (this.consumeIf(Keyword.OPE_EQ) || this.consumeIf(Keyword.OPE_COLON_EQ)) {
             va.value = this.expression()
-            stmt.variableAssignments.push(va)
+          } else {
+            throw this.createParseError()
           }
+          stmt.variableAssignments.push(va)
         }
       }
     } else if (this.consumeIf(Keyword.WITH) || this.consumeIf(Keyword.SELECT)) {
@@ -2910,9 +2911,11 @@ export class MysqlParser extends Parser {
 
   userRole() {
     const userRole = new model.UserRole()
-    if (this.consumeIf(TokenType.QuotedIdentifier)) {
-      userRole.name = unescape(dequote(this.peek(-1).text))
-    } else if (this.consumeIf(TokenType.String)) {
+    if (
+      this.consumeIf(TokenType.QuotedIdentifier) ||
+      this.consumeIf(TokenType.QuotedValue) ||
+      this.consumeIf(TokenType.String)
+    ) {
       userRole.name = unescape(dequote(this.peek(-1).text))
     } else if (this.consumeIf(TokenType.Identifier)) {
       userRole.name = lcase(this.peek(-1).text)
@@ -2927,15 +2930,15 @@ export class MysqlParser extends Parser {
   }
 
   identifier() {
-    let text
-    if (this.consumeIf(TokenType.QuotedIdentifier)) {
-      text = unescape(dequote(this.peek(-1).text))
-    } else if (this.consumeIf(TokenType.Identifier)) {
-      text = lcase(this.peek(-1).text)
+    if (this.consumeIf(TokenType.Identifier)) {
+      return lcase(this.peek(-1).text)
+    } else if (this.consumeIf(TokenType.QuotedIdentifier)) {
+      return unescape(dequote(this.peek(-1).text))
+    } else if (!this.sqlMode.has("ANSI_QUOTES") && this.consumeIf(TokenType.QuotedValue)) {
+      return unescape(dequote(this.peek(-1).text))
     } else {
       throw this.createParseError()
     }
-    return text
   }
 
   tableColumn() {
@@ -3081,23 +3084,14 @@ export class MysqlParser extends Parser {
       column.references = this.references()
     }
 
-    let hasConstraint = false
-    let constraintName
-    if (this.consumeIf(Keyword.CONSTRAINT)) {
-      hasConstraint = true
-      if (this.consumeIf(TokenType.QuotedIdentifier) || this.consumeIf(TokenType.Identifier)) {
-        constraintName = this.identifier()
-      }
-    }
-
-    if (
-      (hasConstraint && this.consume(Keyword.CHECK)) ||
-      this.consumeIf(Keyword.CHECK)
-    ) {
+    if (this.peekIf(Keyword.CONSTRAINT) || this.peekIf(Keyword.CHECK)) {
       const constraint = new model.CheckConstraint()
-      if (constraintName) {
-        constraint.name = constraintName
+      if (this.consumeIf(Keyword.CONSTRAINT)) {
+        if (!this.peekIf(Keyword.CHECK)) {
+          constraint.name = this.identifier()
+        }
       }
+      this.consume(Keyword.CHECK)
       this.consume(TokenType.LeftParen)
       constraint.expression = this.expression()
       this.consume(TokenType.RightParen)
@@ -3349,20 +3343,35 @@ export class MysqlParser extends Parser {
       this.consumeIf(Keyword.TIME) ||
       this.consumeIf(Keyword.TIMESTAMP)
     ) {
-      this.consume(TokenType.String)
+      if (
+        this.consumeIf(TokenType.String) ||
+        (!this.sqlMode.has("ANSI_QUOTE") && this.consumeIf(TokenType.QuotedValue))
+      ) {
+        // no handle
+      } else {
+        throw this.createParseError()
+      }
     } else if (this.consumeIf(TokenType.LeftBrace)) {
       if (
         this.consumeIf(Keyword.D) ||
         this.consumeIf(Keyword.T) ||
         this.consumeIf(Keyword.TS)
       ) {
-        this.consume(TokenType.String)
+        if (
+          this.consumeIf(TokenType.String) ||
+          (!this.sqlMode.has("ANSI_QUOTE") && this.consumeIf(TokenType.QuotedValue))
+        ) {
+          // no handle
+        } else {
+          throw this.createParseError()
+        }
       } else {
         throw this.createParseError()
       }
       this.consume(TokenType.RightBrace)
     } else if (
       this.consumeIf(TokenType.String) ||
+      (!this.sqlMode.has("ANSI_QUOTE") && this.consumeIf(TokenType.QuotedValue)) ||
       this.consumeIf(TokenType.Number) ||
       this.consumeIf(Keyword.TRUE) ||
       this.consumeIf(Keyword.FALSE) ||
@@ -3416,6 +3425,8 @@ export class MysqlParser extends Parser {
   stringValue() {
     let text
     if (this.consumeIf(TokenType.String)) {
+      text = unescape(dequote(this.peek(-1).text))
+    } else if (!this.sqlMode.has("ANSI_QUOTE") && this.consumeIf(TokenType.QuotedValue)) {
       text = unescape(dequote(this.peek(-1).text))
     } else if (this.consumeIf(Keyword.VAR_GLOBAL)) {
       this.consume(TokenType.Dot)

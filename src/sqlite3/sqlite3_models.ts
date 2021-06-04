@@ -62,15 +62,29 @@ export class CreateTableStatement extends Statement {
   }
 }
 
+export abstract class AlterTableAction {
+
+}
+
+export class RenameTableAction extends AlterTableAction {
+  newName = ""
+}
+
+export class AddColumnAction extends AlterTableAction {
+  newColumn = new TableColumn()
+}
+
+export class RenameColumnAction extends AlterTableAction {
+  name = ""
+  newName = ""
+}
+export class DropColumnAction extends AlterTableAction {
+  name = ""
+}
+
 export class AlterTableStatement extends Statement {
-  //tableSchemaName?: string
-  //tableName = ""
   table = new SchemaObject()
-  alterTableAction = AlterTableAction.RENAME_TABLE
-  newTableName?: string
-  columnName?: string
-  newColumnName?: string
-  newColumn?: TableColumn
+  action: AlterTableAction = new RenameTableAction()
 }
 
 export class DropTableStatement extends Statement {
@@ -274,13 +288,6 @@ export class GeneratedColumnConstraint extends Constraint {
 
 export enum IndexType {
   UNIQUE = "UNIQUE"
-}
-
-export enum AlterTableAction {
-  RENAME_TABLE = "RENAME TABLE",
-  RENAME_COLUMN = "RENAME COLUMN",
-  ADD_COLUMN = "ADD COLUMN",
-  DROP_COLUMN = "DROP COLUMN",
 }
 
 export enum SortOrder {

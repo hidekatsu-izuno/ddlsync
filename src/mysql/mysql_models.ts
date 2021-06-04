@@ -310,6 +310,7 @@ export class DataType {
 
 export class IndexConstraint extends Constraint {
   type?: IndexType
+  indexName?: string
   algorithm?: IndexAlgorithm
   keyParts = new Array<KeyPart>()
 }
@@ -321,6 +322,7 @@ export class CheckConstraint extends Constraint {
 
 export class ForeignKeyConstraint extends Constraint {
   name?: string
+  indexName?: string
   columns = new Array<string>()
   references = new References()
 }

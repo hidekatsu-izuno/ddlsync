@@ -195,13 +195,13 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
       throw new Error(`no such table: ${schemaName}.${stmt.table.name}`)
     }
 
-    if (stmt.alterTableAction == model.AlterTableAction.RENAME_TABLE && stmt.newTableName) {
+    if (stmt.action instanceof model.RenameTableAction) {
       obj.dropped = true
-      schema.add(lcase(stmt.newTableName), new VObject("table", schema.name, stmt.newTableName))
+      schema.add(lcase(stmt.action.newName), new VObject("table", schema.name, stmt.action.newName))
       for (const aObj of schema) {
         if (aObj.type === "index" && aObj.tableName && lcase(aObj.tableName) === lcase(aObj.name)) {
           aObj.dropped = true
-          schema.add(lcase(aObj.name), new VObject("index", schema.name, aObj.name, stmt.newTableName))
+          schema.add(lcase(aObj.name), new VObject("index", schema.name, aObj.name, stmt.action.newName))
         }
       }
     }
