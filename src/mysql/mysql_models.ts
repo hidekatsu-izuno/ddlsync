@@ -369,6 +369,7 @@ export class CreateTableStatement extends Statement {
 
 export class AlterTableStatement extends Statement {
   table = new SchemaObject()
+  newTable?: SchemaObject
 }
 
 export class RenameTablePair {
@@ -639,20 +640,29 @@ export class DeallocatePrepareStatement extends Statement {
 }
 
 export class AnalyzeTableStatement extends Statement {
+  tables = new Array<SchemaObject>()
   noWriteToBinlog = false
 }
 
 export class CheckTableStatement extends Statement {
+  tables = new Array<SchemaObject>()
+}
+
+export class CheckIndexStatement extends Statement {
+  indexes = new Array<SchemaObject>()
 }
 
 export class ChecksumTableStatement extends Statement {
+  tables = new Array<SchemaObject>()
 }
 
 export class OptimizeTableStatement extends Statement {
+  tables = new Array<SchemaObject>()
   noWriteToBinlog = false
 }
 
 export class RepairTableStatement extends Statement {
+  tables = new Array<SchemaObject>()
   noWriteToBinlog = false
 }
 
@@ -765,7 +775,6 @@ export class RestartStatement extends Statement {
 export class ShutdownStatement extends Statement {
 
 }
-
 
 export class CloneStatement extends Statement {
 

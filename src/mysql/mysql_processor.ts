@@ -3,7 +3,7 @@ import { Statement } from "../models"
 import { DdlSyncProcessor } from "../processor"
 import { MysqlParser } from "./mysql_parser"
 import * as model from "./mysql_models"
-import { lcase } from "../util/functions"
+import { lcase, ucamel } from "../util/functions"
 
 export default class MysqlProcessor extends DdlSyncProcessor {
   private con?: mariadb.Connection
@@ -80,26 +80,72 @@ export default class MysqlProcessor extends DdlSyncProcessor {
           refs[i] = this.tryDropDatabaseStatement(i, stmt as model.DropDatabaseStatement, vdb)
           break
         case model.CreateTableStatement:
+          refs[i] = this.tryCreateObjectStatement(i, stmt, vdb, "table")
+          break
         case model.CreateViewStatement:
+          refs[i] = this.tryCreateObjectStatement(i, stmt, vdb, "view")
+          break
         case model.CreateProcedureStatement:
+          refs[i] = this.tryCreateObjectStatement(i, stmt, vdb, "procedure")
+          break
         case model.CreateFunctionStatement:
+          refs[i] = this.tryCreateObjectStatement(i, stmt, vdb, "function")
+          break
         case model.CreateTriggerStatement:
+          refs[i] = this.tryCreateObjectStatement(i, stmt, vdb, "trigger")
+          break
         case model.CreateIndexStatement:
-          refs[i] = this.tryCreateObjectStatement(i, stmt, vdb)
+          refs[i] = this.tryCreateObjectStatement(i, stmt, vdb, "index")
           break
         case model.AlterTableStatement:
+          refs[i] = this.tryAlterObjectStatement(i, stmt, vdb, "table")
+          break
         case model.AlterViewStatement:
+          refs[i] = this.tryAlterObjectStatement(i, stmt, vdb, "view")
+          break
         case model.AlterProcedureStatement:
+          refs[i] = this.tryAlterObjectStatement(i, stmt, vdb, "procedure")
+          break
         case model.AlterFunctionStatement:
-          refs[i] = this.tryAlterObjectStatement(i, stmt, vdb)
+          refs[i] = this.tryAlterObjectStatement(i, stmt, vdb, "function")
+          break
+        case model.RenameTableStatement:
+          refs[i] = this.tryRenameTableStatement(i, stmt as model.RenameTableStatement, vdb)
           break
         case model.DropTableStatement:
+          refs[i] = this.tryDropObjectStatement(i, stmt, vdb, "table", "tables")
+          break
         case model.DropViewStatement:
+          refs[i] = this.tryDropObjectStatement(i, stmt, vdb, "view", "views")
+          break
         case model.DropProcedureStatement:
+          refs[i] = this.tryDropObjectStatement(i, stmt, vdb, "procedure")
+          break
         case model.DropFunctionStatement:
+          refs[i] = this.tryDropObjectStatement(i, stmt, vdb, "function")
+          break
         case model.DropTriggerStatement:
+          refs[i] = this.tryDropObjectStatement(i, stmt, vdb, "trigger")
+          break
         case model.DropIndexStatement:
-          refs[i] = this.tryDropObjectStatement(i, stmt, vdb)
+          refs[i] = this.tryDropObjectStatement(i, stmt, vdb, "index", "indexes")
+          break
+        case model.AnalyzeTableStatement:
+        case model.CheckTableStatement:
+        case model.ChecksumTableStatement:
+        case model.OptimizeTableStatement:
+        case model.RepairTableStatement:
+          refs[i] = this.tryManipulateObjectStatement(i, stmt, vdb, "table", "tables")
+          break
+        case model.TruncateTableStatement:
+        case model.InsertStatement:
+        case model.UpdateStatement:
+        case model.ReplaceStatement:
+        case model.DeleteStatement:
+          refs[i] = this.tryManipulateObjectStatement(i, stmt, vdb, "table")
+          break
+        case model.CheckIndexStatement:
+          refs[i] = this.tryManipulateObjectStatement(i, stmt, vdb, "index", "indexes")
           break
         default:
           // no handle
@@ -123,7 +169,7 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     return result[0]?.schemaName
   }
 
-  private tryCreateDatabaseStatement(seq: number, stmt: model.CreateDatabaseStatement, vdb: VDatabase) {
+  private tryCreateDatabaseStatement(seq: number, stmt: any, vdb: VDatabase) {
     let schema = vdb.schemas.get(stmt.name)
     if (schema && !schema.dropped) {
       throw new Error(`database ${stmt.name} is already in use`)
@@ -134,7 +180,7 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     return vschema
   }
 
-  private tryDropDatabaseStatement(seq: number, stmt: model.DropDatabaseStatement, vdb: VDatabase) {
+  private tryDropDatabaseStatement(seq: number, stmt: any, vdb: VDatabase) {
     const schema = vdb.schemas.get(stmt.name)
     if (!schema || schema.dropped) {
       throw new Error(`no such database: ${stmt.name}`)
@@ -147,14 +193,11 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     return schema
   }
 
-  private tryCreateObjectStatement(seq: number, stmt: any, vdb: VDatabase) {
-    const type = lcase(stmt.constructor.name.replace(/^Create([a-zA-Z0-9]+)Statement$/, "$1"))
-
-    let schemaName = stmt.schemaName || vdb.schemaName
+  private tryCreateObjectStatement(seq: number, stmt: any, vdb: VDatabase, type: string) {
+    const schemaName = stmt.schemaName || vdb.schemaName
     if (!schemaName) {
       throw new Error(`No database selected`)
     }
-
     const schema = vdb.schemas.get(schemaName)
     if (!schema) {
       throw new Error(`unknown database ${schemaName}`)
@@ -165,19 +208,25 @@ export default class MysqlProcessor extends DdlSyncProcessor {
       throw new Error(`${object.type} ${stmt.name} already exists`)
     }
 
-    if (type === "index") {
-      const table = schema.get(stmt.tableName)
+    if (stmt instanceof model.CreateIndexStatement) {
+      const tableSchemaName = stmt.table.schemaName || vdb.schemaName
+      if (!tableSchemaName) {
+        throw new Error(`No database selected`)
+      }
+      const tableSchema = vdb.schemas.get(tableSchemaName)
+      if (!tableSchema) {
+        throw new Error(`unknown database ${tableSchemaName}`)
+      }
+      const table = tableSchema.get(stmt.table.name)
       if (!table || table.dropped || table.type !== "table") {
-        throw new Error(`no such table: ${schemaName}.${stmt.tableName}`)
+        throw new Error(`no such table: ${tableSchemaName}.${stmt.table.name}`)
       }
     }
 
     return schema.add(stmt.name, new VObject(type, schema.name, stmt.name, stmt.tableName))
   }
 
-  private tryAlterObjectStatement(seq: number, stmt: Statement, vdb: VDatabase) {
-    const type = lcase(stmt.constructor.name.replace(/^Alter([a-zA-Z0-9]+)Statement$/, "$1"))
-
+  private tryAlterObjectStatement(seq: number, stmt: Statement, vdb: VDatabase, type: string) {
     let schemaName = (stmt as any)[type].schemaName || vdb.schemaName
     if (!schemaName) {
       throw new Error(`No database selected`)
@@ -194,80 +243,118 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     } else if (obj.type !== "table") {
       throw new Error(`no such table: ${schemaName}.${(stmt as any)[type].name}`)
     }
-/*
-    if (stmt.alterTableAction == model.AlterTableAction.RENAME_TABLE && stmt.newTableName) {
+
+    const newObject = (stmt as any)[`new${ucamel(type)}`]
+    if (newObject) {
       obj.dropped = true
-      schema.add(lcase(stmt.newTableName), new VObject("table", schema.name, stmt.newTableName))
+      const newSchema = newObject.schemaName ? vdb.schemas.get(newObject.schemaName) : schema
+      if (!newSchema) {
+        throw new Error(`unknown database ${newSchema}`)
+      }
+      newSchema.add(newObject.name, new VObject(type, newSchema.name, newObject.name))
       for (const aObj of schema) {
-        if (aObj.type === "index" && aObj.tableName && lcase(aObj.tableName) === lcase(aObj.name)) {
+        if (aObj.type === "index" && aObj.tableName === aObj.name) {
           aObj.dropped = true
-          schema.add(lcase(aObj.name), new VObject("index", schema.name, aObj.name, stmt.newTableName))
+          schema.add(aObj.name, new VObject("index", newSchema.name, aObj.name, newObject.name))
         }
       }
     }
-*/
     return obj
   }
 
-  private tryDropObjectStatement(seq: number, stmt: any, vdb: VDatabase) {
-    const type = lcase(stmt.constructor.name.replace(/^Drop([a-zA-Z0-9]+)Statement$/, "$1"))
-    if (type === "table" || type === "view") {
-      const objs = []
-      for (const target of stmt[type + "s"]) {
-        const schemaName = target.schemaName || vdb.schemaName
-        if (!schemaName) {
-          throw new Error(`No database selected`)
-        }
+  private tryRenameTableStatement(seq: number, stmt: model.RenameTableStatement, vdb: VDatabase) {
+    const results = []
+    for (const pair of stmt.pairs) {
+      let schemaName = pair.table.schemaName || vdb.schemaName
+      if (!schemaName) {
+        throw new Error(`No database selected`)
+      }
 
-        const schema = vdb.schemas.get(schemaName)
-        if (!schema) {
-          throw new Error(`unknown database ${schemaName}`)
-        }
+      const schema = vdb.schemas.get(schemaName)
+      if (!schema) {
+        throw new Error(`unknown database ${schemaName}`)
+      }
 
-        let obj = schema.get(target.name)
-        if (!obj || obj.dropped) {
-          if (!stmt.ifExists) {
-            throw new Error(`no such ${type}: ${schemaName}.${stmt.name}`)
-          }
-        } else if (obj.type !== type) {
+      let obj = schema.get(pair.table.name)
+      if (!obj || obj.dropped) {
+        throw new Error(`no such table: ${schemaName}.${pair.table.name}`)
+      } else if (obj.type !== "table" && obj.type !== "view") {
+        throw new Error(`no such table: ${schemaName}.${pair.table.name}`)
+      }
+
+      obj.dropped = true
+      const newSchema = pair.newTable.schemaName ? vdb.schemas.get(pair.newTable.schemaName) : schema
+      if (!newSchema) {
+        throw new Error(`unknown database ${newSchema}`)
+      }
+
+      obj = newSchema.add(pair.newTable.name, new VObject(obj.type, newSchema.name, pair.newTable.name))
+      for (const aObj of schema) {
+        if (aObj.type === "index" && aObj.tableName === aObj.name) {
+          aObj.dropped = true
+          schema.add(aObj.name, new VObject("index", newSchema.name, aObj.name, pair.newTable.name))
+        }
+      }
+      results.push(obj)
+    }
+    return results
+  }
+
+  private tryDropObjectStatement(seq: number, stmt: any, vdb: VDatabase, type: string, key?: string) {
+    const targets = stmt[key || type]
+    const results = []
+    for (const target of (Array.isArray(targets) ? targets : [ targets ])) {
+      const schemaName = target.schemaName || vdb.schemaName
+      if (!schemaName) {
+        throw new Error(`No database selected`)
+      }
+
+      const schema = vdb.schemas.get(schemaName)
+      if (!schema) {
+        throw new Error(`unknown database ${schemaName}`)
+      }
+
+      let obj = schema.get(target.name)
+      if (!obj || obj.dropped) {
+        if (!stmt.ifExists) {
           throw new Error(`no such ${type}: ${schemaName}.${stmt.name}`)
         }
-
-        if (!obj) {
-          obj = schema.add(type, new VObject(type, schema.name, stmt.name))
-        }
-        obj.dropped = true
-        objs.push(obj)
-      }
-
-      return objs
-    }
-
-    const schemaName = stmt[type].schemaName || vdb.schemaName
-    if (!schemaName) {
-      throw new Error(`No database selected`)
-    }
-
-    const schema = vdb.schemas.get(schemaName)
-    if (!schema) {
-      throw new Error(`unknown database ${schemaName}`)
-    }
-
-    let obj = schema.get(stmt[type].name)
-    if (!obj || obj.dropped) {
-      if (!stmt.ifExists) {
+      } else if (obj.type !== type) {
         throw new Error(`no such ${type}: ${schemaName}.${stmt.name}`)
       }
-    } else if (obj.type !== type) {
-      throw new Error(`no such ${type}: ${schemaName}.${stmt.name}`)
-    }
 
-    if (!obj) {
-      obj = schema.add(type, new VObject(type, schema.name, stmt.name))
+      if (!obj) {
+        obj = schema.add(type, new VObject(type, schema.name, stmt.name))
+      }
+      obj.dropped = true
+      results.push(obj)
     }
-    obj.dropped = true
+    return Array.isArray(targets) ? results : results[0]
+  }
 
-    return obj
+  private tryManipulateObjectStatement(seq: number, stmt: any, vdb: VDatabase, type: string, key?: string) {
+    const targets = stmt[key || type]
+    const results = []
+    for (const target of (Array.isArray(targets) ? targets : [ targets ])) {
+      const schemaName = target.schemaName || vdb.schemaName
+      if (!schemaName) {
+        throw new Error(`No database selected`)
+      }
+
+      const schema = vdb.schemas.get(schemaName)
+      if (!schema) {
+        throw new Error(`unknown database ${schemaName}`)
+      }
+
+      const obj = schema.get(target.name)
+      if (!obj || obj.dropped) {
+        throw new Error(`no such ${type}: ${schemaName}.${target.name}`)
+      } else if (obj.type !== type) {
+        throw new Error(`no such ${type}: ${schemaName}.${target.name}`)
+      }
+      results.push(obj)
+    }
+    return Array.isArray(targets) ? results : results[0]
   }
 }
 

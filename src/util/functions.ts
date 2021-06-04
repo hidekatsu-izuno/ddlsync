@@ -8,6 +8,30 @@ export function ucase(text: string) {
   return text.toUpperCase()
 }
 
+export function lcamel(text: string) {
+  return text.replace(/(^|[_ \t-]+)([a-zA-Z])|(.)/g, (m, g1, g2, g3) => {
+    if (g2) {
+      if (g1) {
+        return g2.toUpperCase()
+      } else {
+        return g2.toLowerCase()
+      }
+    } else {
+      return g3.toLowerCase()
+    }
+  })
+}
+
+export function ucamel(text: string) {
+  return text.replace(/(^|[_ \t-]+)([a-zA-Z])|(.)/g, (m, g1, g2, g3) => {
+    if (g2) {
+      return g2.toUpperCase()
+    } else {
+      return g3.toLowerCase()
+    }
+  })
+}
+
 export function escapeRegExp(text: string) {
   return text.replace(/[.*+?^=!:${}()|[\]\/\\]/g, '\\$&')
 }

@@ -345,6 +345,7 @@ export class Keyword implements ITokenType {
   static MINUTE_SECOND = new Keyword("MINUTE_SECOND", { reserved: true })
   static MOD = new Keyword("MOD", { reserved: true })
   static MODIFIES = new Keyword("MODIFIES", { reserved: true })
+  static MODIFY = new Keyword("MODIFY")
   static MONTH = new Keyword("MONTH")
   static NAMES = new Keyword("NAMES")
   static NATIONAL = new Keyword("NATIONAL")
@@ -567,6 +568,7 @@ export class Keyword implements ITokenType {
   static VIEW = new Keyword("VIEW")
   static VIRTUAL = new Keyword("VIRTUAL", { reserved: true })
   static VISIBLE = new Keyword("VISIBLE")
+  static WITHOUT = new Keyword("WITHOUT")
   static INVISIBLE = new Keyword("INVISIBLE")
   static WAIT = new Keyword("WAIT")
   static WEEK = new Keyword("WEEK")
@@ -1381,7 +1383,8 @@ export class MysqlParser extends Parser {
         }
 
         if (!stmt.like) {
-          for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+          for (let i = 0; i === 0 || !this.consumeIf(TokenType.Delimiter); i++) {
+            this.consumeIf(TokenType.Comma)
             if (this.consumeIf(Keyword.AUTOEXTEND_SIZE)) {
               this.consumeIf(Keyword.OPE_EQ)
               stmt.autoextendSize = this.sizeValue()
@@ -2041,7 +2044,18 @@ export class MysqlParser extends Parser {
         stmt = new model.AlterTableStatement()
         stmt.table = this.schemaObject()
         while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
+          if (this.consumeIf(Keyword.RENAME)) {
+            if (this.consumeIf(Keyword.COLUMN)) {
+              // no handle
+            } else if (this.consumeIf(Keyword.INDEX) || this.consumeIf(Keyword.KEY)) {
+              // no handle
+            } else {
+              this.consumeIf(Keyword.TO) || this.consumeIf(Keyword.AS)
+              stmt.newTable = this.schemaObject()
+            }
+          } else {
+            this.consume()
+          }
         }
       } else if (this.consumeIf(Keyword.INSTANCE)) {
         stmt = new model.AlterInstanceStatement()
@@ -2435,18 +2449,36 @@ export class MysqlParser extends Parser {
         stmt.noWriteToBinlog = true
       }
       this.consume(Keyword.TABLE)
+      for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+        stmt.tables.push(this.schemaObject())
+      }
       while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.CHECK)) {
-      stmt = new model.CheckTableStatement()
-      this.consume(Keyword.TABLE)
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
+      if (this.consumeIf(Keyword.TABLE)) {
+        stmt = new model.CheckTableStatement()
+        for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+          stmt.tables.push(this.schemaObject())
+        }
+        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+          this.consume()
+        }
+      } else if (this.consumeIf(Keyword.INDEX)) {
+        stmt = new model.CheckIndexStatement()
+        for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+          stmt.indexes.push(this.schemaObject())
+        }
+        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+          this.consume()
+        }
       }
     } else if (this.consumeIf(Keyword.CHECKSUM)) {
       stmt = new model.ChecksumTableStatement()
       this.consume(Keyword.TABLE)
+      for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+        stmt.tables.push(this.schemaObject())
+      }
       while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
@@ -2456,6 +2488,9 @@ export class MysqlParser extends Parser {
         stmt.noWriteToBinlog = true
       }
       this.consume(Keyword.TABLE)
+      for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+        stmt.tables.push(this.schemaObject())
+      }
       while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
@@ -2465,6 +2500,9 @@ export class MysqlParser extends Parser {
         stmt.noWriteToBinlog = true
       }
       this.consume(Keyword.TABLE)
+      for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+        stmt.tables.push(this.schemaObject())
+      }
       while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
