@@ -1327,10 +1327,6 @@ export class MysqlParser extends Parser {
           stmt = new model.CreateEventStatement()
           stmt.orReplace = orReplace
           stmt.definer = definer
-          if (this.consumeIf(Keyword.IF)) {
-            this.consume(Keyword.NOT, Keyword.EXISTS)
-            stmt.ifNotExists = true
-          }
         } else {
           throw this.createParseError()
         }
@@ -1975,6 +1971,11 @@ export class MysqlParser extends Parser {
           this.consume()
         }
       } else if (stmt instanceof model.CreateEventStatement) {
+        if (this.consumeIf(Keyword.IF)) {
+          this.consume(Keyword.NOT, Keyword.EXISTS)
+          stmt.ifNotExists = true
+        }
+
         const obj = this.schemaObject()
         stmt.schemaName = obj.schemaName
         stmt.name = obj.name
@@ -3588,6 +3589,7 @@ export class MysqlParser extends Parser {
     while (this.token() &&
       (depth == 0 && !this.peekIf(TokenType.Comma)) &&
       (depth == 0 && !this.peekIf(TokenType.RightParen)) &&
+      (depth == 0 && !this.peekIf(Keyword.DO)) &&
       (depth == 0 && !this.peekIf(Keyword.AS)) &&
       (depth == 0 && !this.peekIf(Keyword.ASC)) &&
       (depth == 0 && !this.peekIf(Keyword.DESC)) &&
