@@ -84,6 +84,7 @@ export class Keyword implements ITokenType {
   static BINLOG = new Keyword("BINLOG")
   static BIT = new Keyword("BIT")
   static BLOB = new Keyword("BLOB", { reserved: true })
+  static BODY = new Keyword("BODY")
   static BOOL = new Keyword("BOOL")
   static BOOLEAN = new Keyword("BOOLEAN")
   static BOTH = new Keyword("BOTH", { reserved: true })
@@ -104,6 +105,7 @@ export class Keyword implements ITokenType {
   static CIPHER = new Keyword("CIPHER")
   static COLLATE = new Keyword("COLLATE", { reserved: true })
   static CLONE = new Keyword("CLONE")
+  static CLUSTERING = new Keyword("CLUSTERING")
   static COLUMN = new Keyword("COLUMN", { reserved: true })
   static COLUMN_FORMAT = new Keyword("COLUMN_FORMAT")
   static COLUMNS = new Keyword("COLUMNS")
@@ -136,7 +138,9 @@ export class Keyword implements ITokenType {
   static CURRENT_TIME = new Keyword("CURRENT_TIME", { reserved: true })
   static CURRENT_TIMESTAMP = new Keyword("CURRENT_TIMESTAMP", { reserved: true })
   static CURRENT_USER = new Keyword("CURRENT_USER", { reserved: true })
+  static CURRENT_ROLE = new Keyword("CURRENT_ROLE")
   static CURSOR = new Keyword("CURSOR", { reserved: true })
+  static CYCLE = new Keyword("CYCLE")
   static D = new Keyword("D")
   static DATA = new Keyword("DATA")
   static DATABASE = new Keyword("DATABASE", { reserved: true })
@@ -188,7 +192,9 @@ export class Keyword implements ITokenType {
   static ENABLE = new Keyword("ENABLE")
   static ENUM = new Keyword("ENUM")
   static ENCLOSED = new Keyword("ENCLOSED", { reserved: true })
+  static ENCRYPTED  = new Keyword("ENCRYPTED")
   static ENCRYPTION = new Keyword("ENCRYPTION")
+  static ENCRYPTION_KEY_ID = new Keyword("ENCRYPTION_KEY_ID")
   static END = new Keyword("END")
   static ENDS = new Keyword("ENDS")
   static ENFORCED = new Keyword("ENFORCED")
@@ -249,8 +255,10 @@ export class Keyword implements ITokenType {
   static HOUR_SECOND = new Keyword("HOUR_SECOND", { reserved: true })
   static HOST = new Keyword("HOST")
   static IDENTIFIED = new Keyword("IDENTIFIED")
+  static IETF_QUOTES = new Keyword("IETF_QUOTES")
   static IF = new Keyword("IF", { reserved: true })
   static IGNORE = new Keyword("IGNORE", { reserved: true })
+  static INCREMENT = new Keyword("INCREMENT")
   static INPLACE = new Keyword("INPLACE")
   static IMPORT = new Keyword("IMPORT")
   static IN = new Keyword("IN", { reserved: true })
@@ -341,6 +349,7 @@ export class Keyword implements ITokenType {
   static MERGE = new Keyword("MERGE")
   static MIDDLEINT = new Keyword("MIDDLEINT", { reserved: true })
   static MIN_ROWS = new Keyword("MIN_ROWS")
+  static MINVALUE = new Keyword("MINVALUE")
   static MINUTE = new Keyword("MINUTE")
   static MINUTE_MICROSECOND = new Keyword("MINUTE_MICROSECOND", { reserved: true })
   static MINUTE_SECOND = new Keyword("MINUTE_SECOND", { reserved: true })
@@ -357,7 +366,11 @@ export class Keyword implements ITokenType {
   static NO = new Keyword("NO")
   static NOT = new Keyword("NOT", { reserved: true })
   static NO_WRITE_TO_BINLOG = new Keyword("NO_WRITE_TO_BINLOG", { reserved: true })
+  static NOCACHE = new Keyword("NOCACHE")
+  static NOCYCLE = new Keyword("NOCYCLE")
   static NODEGROUP = new Keyword("NODEGROUP")
+  static NOMINVALUE = new Keyword("NOMINVALUE")
+  static NOMAXVALUE = new Keyword("NOMAXVALUE")
   static NTH_VALUE = new Keyword("NTH_VALUE", { reserved: function(options: { [ key:string]:any}) {
     return options.package === "mysql" && semver.satisfies(">=8.0.2", options.version || "0")
   } })
@@ -389,6 +402,10 @@ export class Keyword implements ITokenType {
   } })
   static OWNER = new Keyword("OWNER")
   static PACK_KEYS = new Keyword("PACK_KEYS")
+  static PACKAGE = new Keyword("PACKAGE")
+  static PAGE_CHECKSUM = new Keyword("PAGE_CHECKSUM")
+  static PAGE_COMPRESSED = new Keyword("PAGE_COMPRESSED")
+  static PAGE_COMPRESSION_LEVEL = new Keyword("PAGE_COMPRESSION_LEVEL")
   static PARSE_GCOL_EXPR = new Keyword("PARSE_GCOL_EXPR", { reserved: function(options: { [ key:string]:any}) {
     return options.package === "mysql" && semver.satisfies("<8.0.0", options.version || "0")
   } })
@@ -474,6 +491,7 @@ export class Keyword implements ITokenType {
   static SELECT = new Keyword("SELECT", { reserved: true })
   static SENSITIVE = new Keyword("SENSITIVE", { reserved: true })
   static SEPARATOR = new Keyword("SEPARATOR", { reserved: true })
+  static SEQUENCE = new Keyword("SEQUENCE")
   static SERIALIZABLE = new Keyword("SERIALIZABLE")
   static SERVER = new Keyword("SERVER")
   static SESSION = new Keyword("SESSION")
@@ -535,6 +553,7 @@ export class Keyword implements ITokenType {
   static TO = new Keyword("TO", { reserved: true })
   static TRAILING = new Keyword("TRAILING", { reserved: true })
   static TRANSACTION = new Keyword("TRANSACTION")
+  static TRANSACTIONAL = new Keyword("TRANSACTIONAL")
   static TRIGGER = new Keyword("TRIGGER", { reserved: true })
   static TRUE = new Keyword("TRUE", { reserved: true })
   static TRUNCATE = new Keyword("TRUNCATE")
@@ -566,6 +585,7 @@ export class Keyword implements ITokenType {
   static VARCHARACTER = new Keyword("VARCHARACTER", { reserved: true })
   static VARYING = new Keyword("VARYING", { reserved: true })
   static VCPU = new Keyword("VCPU")
+  static VERSIONING = new Keyword("VERSIONING")
   static VIEW = new Keyword("VIEW")
   static VIRTUAL = new Keyword("VIRTUAL", { reserved: true })
   static VISIBLE = new Keyword("VISIBLE")
@@ -587,6 +607,7 @@ export class Keyword implements ITokenType {
   static XA = new Keyword("XA")
   static XML = new Keyword("XML")
   static XOR = new Keyword("XOR", { reserved: true })
+  static YES = new Keyword("YES")
   static YEAR = new Keyword("YEAR")
   static YEAR_MONTH = new Keyword("YEAR_MONTH", { reserved: true })
   static ZEROFILL = new Keyword("ZEROFILL", { reserved: true })
@@ -830,8 +851,15 @@ export class MysqlParser extends Parser {
 
     let stmt
     if (this.consumeIf(Keyword.CREATE)) {
+      let orReplace = false
+      if (this.consumeIf(Keyword.OR)) {
+        this.consume(Keyword.REPLACE)
+        orReplace = true
+      }
+
       if (this.consumeIf(Keyword.DATABASE) || this.consumeIf(Keyword.SCHEMA)) {
         stmt = new model.CreateDatabaseStatement()
+        stmt.orReplace = orReplace
         if (this.consumeIf(Keyword.IF)) {
           this.consume(Keyword.NOT, Keyword.EXISTS)
           stmt.ifNotExists = true
@@ -855,6 +883,7 @@ export class MysqlParser extends Parser {
         }
       } else if (this.consumeIf(Keyword.SERVER)) {
         stmt = new model.CreateServerStatement()
+        stmt.orReplace = orReplace
         stmt.name = this.identifier()
         this.consume(Keyword.FOREIGN, Keyword.DATA, Keyword.WRAPPER)
         stmt.wrapperName = this.identifier()
@@ -883,6 +912,7 @@ export class MysqlParser extends Parser {
       } else if (this.consumeIf(Keyword.RESOURCE)) {
         this.consume(Keyword.GROUP)
         stmt = new model.CreateResourceGroupStatement()
+        stmt.orReplace = orReplace
         stmt.name = this.identifier()
         this.consume(Keyword.TYPE, Keyword.OPE_EQ)
         if (this.consumeIf(Keyword.SYSTEM)) {
@@ -914,7 +944,7 @@ export class MysqlParser extends Parser {
         } else if (this.consumeIf(Keyword.DISABLE)) {
           stmt.disable = true
         }
-      } else if (this.consumeIf(Keyword.LOGFILE)) {
+      } else if (!orReplace && this.consumeIf(Keyword.LOGFILE)) {
         this.consume(Keyword.GROUP)
         stmt = new model.CreateLogfileGroupStatement()
         stmt.name = this.identifier()
@@ -947,7 +977,7 @@ export class MysqlParser extends Parser {
           this.consumeIf(Keyword.OPE_EQ)
           stmt.engine = this.identifier()
         }
-      } else if (this.peekIf(Keyword.UNDO) || this.peekIf(Keyword.TABLESPACE)) {
+      } else if (!orReplace && (this.peekIf(Keyword.UNDO) || this.peekIf(Keyword.TABLESPACE))) {
         stmt = new model.CreateTablespaceStatement()
         if (this.consumeIf(Keyword.UNDO)) {
           stmt.undo = true
@@ -1007,6 +1037,7 @@ export class MysqlParser extends Parser {
         }
       } else if (this.consumeIf(Keyword.ROLE)) {
         stmt = new model.CreateRoleStatement()
+        stmt.orReplace = orReplace
         if (this.consumeIf(Keyword.IF)) {
           this.consume(Keyword.NOT, Keyword.EXISTS)
           stmt.ifNotExists = true
@@ -1016,6 +1047,7 @@ export class MysqlParser extends Parser {
         }
       } else if (this.consumeIf(Keyword.USER)) {
         stmt = new model.CreateUserStatement()
+        stmt.orReplace = orReplace
         if (this.consumeIf(Keyword.IF)) {
           this.consume(Keyword.NOT, Keyword.EXISTS)
           stmt.ifNotExists = true
@@ -1156,37 +1188,50 @@ export class MysqlParser extends Parser {
         } else if (this.consumeIf(Keyword.ATTRIBUTE)) {
           stmt.attribute = this.stringValue()
         }
-      } else if (this.peekIf(Keyword.TEMPORARY) || this.peekIf(Keyword.TABLE)) {
-        stmt = new model.CreateTableStatement()
-        if (this.consumeIf(Keyword.TEMPORARY)) {
+      } else if (this.consumeIf(Keyword.TEMPORARY)) {
+        if (this.consumeIf(Keyword.TABLE)) {
+          stmt = new model.CreateTableStatement()
+          stmt.orReplace = orReplace
           stmt.temporary = true
+        } else if (this.consumeIf(Keyword.SEQUENCE)) {
+          stmt = new model.CreateSequenceStatement()
+          stmt.orReplace = orReplace
+          stmt.temporary = true
+        } else {
+          throw this.createParseError()
         }
-        this.consume(Keyword.TABLE)
-        if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.NOT, Keyword.EXISTS)
-          stmt.ifNotExists = true
-        }
+      } else if (this.consumeIf(Keyword.TABLE)) {
+        stmt = new model.CreateTableStatement()
+        stmt.orReplace = orReplace
+      } else if (this.consumeIf(Keyword.SEQUENCE)) {
+        stmt = new model.CreateSequenceStatement()
       } else if (this.consumeIf(Keyword.UNIQUE)) {
         this.consume(Keyword.INDEX)
         stmt = new model.CreateIndexStatement()
+        stmt.orReplace = orReplace
         stmt.type = model.IndexType.UNIQUE
       } else if (this.consumeIf(Keyword.FULLTEXT)) {
         this.consume(Keyword.INDEX)
         stmt = new model.CreateIndexStatement()
+        stmt.orReplace = orReplace
         stmt.type = model.IndexType.FULLTEXT
-      } else if (this.consumeIf(Keyword.SPATIAL, Keyword.INDEX)) {
-        this.consume(Keyword.INDEX)
-        stmt = new model.CreateIndexStatement()
-        stmt.type = model.IndexType.SPATIAL
+      } else if (this.consumeIf(Keyword.SPATIAL)) {
+        if (this.consumeIf(Keyword.REFERENCE)) {
+          this.consume(Keyword.SYSTEM)
+          stmt = new model.CreateSpatialReferenceSystemStatement()
+          stmt.orReplace = true
+          stmt.srid = this.numberValue()
+        } else if (this.consumeIf(Keyword.INDEX)) {
+          stmt = new model.CreateIndexStatement()
+          stmt.orReplace = orReplace
+          stmt.type = model.IndexType.SPATIAL
+        } else {
+          throw this.createParseError()
+        }
       } else if (this.consumeIf(Keyword.INDEX)) {
         stmt = new model.CreateIndexStatement()
+        stmt.orReplace = orReplace
       } else {
-        let orReplace = false
-        if (this.consumeIf(Keyword.OR)) {
-          this.consume(Keyword.REPLACE)
-          orReplace = true
-        }
-
         let algorithm
         if (this.consumeIf(Keyword.ALGORITHM)) {
           this.consume(Keyword.OPE_EQ)
@@ -1223,14 +1268,6 @@ export class MysqlParser extends Parser {
         }
 
         if (
-          !algorithm && !aggregate && !sqlSecurity &&
-          this.consumeIf(Keyword.SPATIAL)
-        ) {
-          this.consume(Keyword.REFERENCE, Keyword.SYSTEM)
-          stmt = new model.CreateSpatialReferenceSystemStatement()
-          stmt.orReplace = true
-          stmt.srid = this.numberValue()
-        } else if (
           !aggregate &&
           this.consumeIf(Keyword.VIEW)
         ) {
@@ -1240,29 +1277,52 @@ export class MysqlParser extends Parser {
           stmt.definer = definer
           stmt.sqlSecurity = sqlSecurity
         } else if (
-          !orReplace && !algorithm && !aggregate && !sqlSecurity &&
+          !algorithm && !aggregate && !sqlSecurity &&
+          this.consumeIf(Keyword.PACKAGE)
+        ) {
+          if (this.consumeIf(Keyword.BODY)) {
+            stmt = new model.CreatePackageBodyStatement()
+          } else {
+            stmt = new model.CreatePackageStatement()
+          }
+          stmt.orReplace = orReplace
+          stmt.definer = definer
+        } else if (
+          !algorithm && !aggregate && !sqlSecurity &&
           this.consumeIf(Keyword.PROCEDURE)
         ) {
           stmt = new model.CreateProcedureStatement()
+          stmt.orReplace = orReplace
           stmt.definer = definer
         } else if (
           !orReplace && !algorithm && !sqlSecurity &&
           this.consumeIf(Keyword.FUNCTION)
         ) {
           stmt = new model.CreateFunctionStatement()
+          stmt.orReplace = orReplace
           stmt.definer = definer
           stmt.aggregate = aggregate
+          if (this.consumeIf(Keyword.IF)) {
+            this.consume(Keyword.NOT, Keyword.EXISTS)
+            stmt.ifNotExists = true
+          }
         } else if (
-          !orReplace && !algorithm && !aggregate && !sqlSecurity &&
+          !algorithm && !aggregate && !sqlSecurity &&
           this.consumeIf(Keyword.TRIGGER)
         ) {
           stmt = new model.CreateTriggerStatement()
+          stmt.orReplace = orReplace
           stmt.definer = definer
+          if (this.consumeIf(Keyword.IF)) {
+            this.consume(Keyword.NOT, Keyword.EXISTS)
+            stmt.ifNotExists = true
+          }
         } else if (
-          !orReplace && !algorithm && !aggregate && !sqlSecurity &&
+          !algorithm && !aggregate && !sqlSecurity &&
           this.consumeIf(Keyword.EVENT)
         ) {
           stmt = new model.CreateEventStatement()
+          stmt.orReplace = orReplace
           stmt.definer = definer
           if (this.consumeIf(Keyword.IF)) {
             this.consume(Keyword.NOT, Keyword.EXISTS)
@@ -1274,6 +1334,11 @@ export class MysqlParser extends Parser {
       }
 
       if (stmt instanceof model.CreateTableStatement) {
+        if (this.consumeIf(Keyword.IF)) {
+          this.consume(Keyword.NOT, Keyword.EXISTS)
+          stmt.ifNotExists = true
+        }
+
         const obj = this.schemaObject()
         stmt.schemaName = obj.schemaName
         stmt.name = obj.name
@@ -1417,151 +1482,7 @@ export class MysqlParser extends Parser {
         }
 
         if (!stmt.like) {
-          for (let i = 0; i === 0 || !this.consumeIf(TokenType.Delimiter); i++) {
-            this.consumeIf(TokenType.Comma)
-            if (this.consumeIf(Keyword.AUTOEXTEND_SIZE)) {
-              this.consumeIf(Keyword.OPE_EQ)
-              stmt.autoextendSize = this.sizeValue()
-            } else if (this.consumeIf(Keyword.AUTO_INCREMENT)) {
-              this.consumeIf(Keyword.OPE_EQ)
-              stmt.autoIncrement = this.numberValue()
-            } else if (this.consumeIf(Keyword.AVG_ROW_LENGTH)) {
-              this.consumeIf(Keyword.OPE_EQ)
-              stmt.avgRowLength = this.numberValue()
-            } else if (
-              this.consumeIf(Keyword.CHARACTER, Keyword.SET) ||
-              this.consumeIf(Keyword.DEFAULT, Keyword.CHARACTER, Keyword.SET) ||
-              this.consumeIf(Keyword.CHARSET) ||
-              this.consumeIf(Keyword.DEFAULT, Keyword.CHARSET)
-            ) {
-              this.consumeIf(Keyword.OPE_EQ)
-              stmt.characterSet = this.identifier()
-            } else if (this.consumeIf(Keyword.CHECKSUM)) {
-              this.consumeIf(Keyword.OPE_EQ)
-              stmt.checksum = this.numberValue()
-            } else if (
-              this.consumeIf(Keyword.COLLATE) ||
-              this.consumeIf(Keyword.DEFAULT, Keyword.COLLATE)
-            ) {
-              this.consumeIf(Keyword.OPE_EQ)
-              stmt.collate = this.identifier()
-            } else if (this.consumeIf(Keyword.COMMENT)) {
-              this.consumeIf(Keyword.OPE_EQ)
-              stmt.comment = this.stringValue()
-            } else if (this.consumeIf(Keyword.COMPRESSION)) {
-              this.consumeIf(Keyword.OPE_EQ)
-              stmt.compression = this.stringValue()
-            } else if (this.consumeIf(Keyword.CONNECTION)) {
-              this.consumeIf(Keyword.OPE_EQ)
-              stmt.connection = this.stringValue()
-            } else if (this.consumeIf(Keyword.DATA, Keyword.DIRECTORY)) {
-              this.consumeIf(Keyword.OPE_EQ)
-              stmt.dataDirectory = this.stringValue()
-            } else if (this.consumeIf(Keyword.INDEX, Keyword.DIRECTORY)) {
-              this.consumeIf(Keyword.OPE_EQ)
-              stmt.indexDirectory = this.stringValue()
-            } else if (this.consumeIf(Keyword.DELAY_KEY_WRITE)) {
-              this.consumeIf(Keyword.OPE_EQ)
-              stmt.delayKeyWrite = this.numberValue()
-            } else if (this.consumeIf(Keyword.ENCRYPTION)) {
-              this.consumeIf(Keyword.OPE_EQ)
-              stmt.encryption = this.stringValue()
-            } else if (this.consumeIf(Keyword.ENGINE)) {
-              this.consumeIf(Keyword.OPE_EQ)
-              stmt.engine = this.identifier()
-            } else if (this.consumeIf(Keyword.ENGINE_ATTRIBUTE)) {
-              this.consumeIf(Keyword.OPE_EQ)
-              stmt.engineAttribute = this.stringValue()
-            } else if (this.consumeIf(Keyword.INSERT_METHOD)) {
-              this.consumeIf(Keyword.OPE_EQ)
-              if (this.consumeIf(Keyword.NO)) {
-                stmt.insetMethod = model.InsertMethod.NO
-              } else if (this.consumeIf(Keyword.FIRST)) {
-                stmt.insetMethod = model.InsertMethod.FIRST
-              } else if (this.consumeIf(Keyword.LAST)) {
-                stmt.insetMethod = model.InsertMethod.LAST
-              } else {
-                throw this.createParseError()
-              }
-            } else if (this.consumeIf(Keyword.KEY_BLOCK_SIZE)) {
-              this.consumeIf(Keyword.OPE_EQ)
-              stmt.keyBlockSize = this.sizeValue()
-            } else if (this.consumeIf(Keyword.MAX_ROWS)) {
-              this.consumeIf(Keyword.OPE_EQ)
-              stmt.maxRows = this.numberValue()
-            } else if (this.consumeIf(Keyword.MIN_ROWS)) {
-              this.consumeIf(Keyword.OPE_EQ)
-              stmt.minRows = this.numberValue()
-            } else if (this.consumeIf(Keyword.PACK_KEYS)) {
-              this.consumeIf(Keyword.OPE_EQ)
-              if (this.consumeIf(Keyword.DEFAULT)) {
-                stmt.packKeys = "DEFAULT"
-              } else {
-                stmt.packKeys = this.numberValue()
-              }
-            } else if (this.consumeIf(Keyword.PASSWORD)) {
-              this.consumeIf(Keyword.OPE_EQ)
-              stmt.password = this.stringValue()
-            } else if (this.consumeIf(Keyword.ROW_FORMAT)) {
-              this.consumeIf(Keyword.OPE_EQ)
-              if (this.consumeIf(Keyword.DEFAULT)) {
-                stmt.rowFormat = model.RowFormat.DEFAULT
-              } else if (this.consumeIf(Keyword.DYNAMIC)) {
-                stmt.rowFormat = model.RowFormat.DYNAMIC
-              } else if (this.consumeIf(Keyword.FIXED)) {
-                stmt.rowFormat = model.RowFormat.FIXED
-              } else if (this.consumeIf(Keyword.COMPRESSED)) {
-                stmt.rowFormat = model.RowFormat.COMPRESSED
-              } else if (this.consumeIf(Keyword.REDUNDANT)) {
-                stmt.rowFormat = model.RowFormat.REDUNDANT
-              } else if (this.consumeIf(Keyword.COMPACT)) {
-                stmt.rowFormat = model.RowFormat.COMPACT
-              } else {
-                throw this.createParseError()
-              }
-            } else if (this.consumeIf(Keyword.SECONDARY_ENGINE_ATTRIBUTE)) {
-              this.consumeIf(Keyword.OPE_EQ)
-              stmt.secondaryEngineAttribute = this.stringValue()
-            } else if (this.consumeIf(Keyword.STATS_AUTO_RECALC)) {
-              this.consumeIf(Keyword.OPE_EQ)
-              if (this.consumeIf(Keyword.DEFAULT)) {
-                stmt.statsAutoRecalc = "DEFAULT"
-              } else {
-                stmt.statsAutoRecalc = this.numberValue()
-              }
-            } else if (this.consumeIf(Keyword.STATS_PERSISTENT)) {
-              this.consumeIf(Keyword.OPE_EQ)
-              if (this.consumeIf(Keyword.DEFAULT)) {
-                stmt.statsPersistent = "DEFAULT"
-              } else {
-                stmt.statsPersistent = this.numberValue()
-              }
-            } else if (this.consumeIf(Keyword.STATS_SAMPLE_PAGES)) {
-              this.consumeIf(Keyword.OPE_EQ)
-              stmt.statSamplePages = this.numberValue()
-            } else if (this.consumeIf(Keyword.TABLESPACE)) {
-              stmt.tablespace = this.identifier()
-              if (this.consumeIf(Keyword.STORAGE)) {
-                if (this.consumeIf(Keyword.DISK)) {
-                  stmt.storageType = model.StorageType.DISK
-                } else if (this.consumeIf(Keyword.MEMORY)) {
-                  stmt.storageType = model.StorageType.MEMORY
-                } else {
-                  throw this.createParseError()
-                }
-              }
-            } else if (this.consumeIf(Keyword.UNION)) {
-              this.consumeIf(Keyword.OPE_EQ)
-              this.consume(TokenType.LeftParen)
-              stmt.union = []
-              for (let j = 0; j === 0 || this.consumeIf(TokenType.Comma); j++) {
-                stmt.union.push(this.identifier())
-              }
-              this.consume(TokenType.RightParen)
-            } else {
-              break
-            }
-          }
+          stmt.tableOptions = this.tableOptions()
           if (this.consumeIf(Keyword.PARTITION, Keyword.BY)) {
             if (
               this.consumeIf(Keyword.LINEAR, Keyword.HASH) ||
@@ -1769,6 +1690,60 @@ export class MysqlParser extends Parser {
             this.selectClause()
           }
         }
+      } else if (stmt instanceof model.CreateSequenceStatement) {
+        if (this.consumeIf(Keyword.IF)) {
+          this.consume(Keyword.NOT, Keyword.EXISTS)
+          stmt.ifNotExists = true
+        }
+
+        const obj = this.schemaObject()
+        stmt.schemaName = obj.schemaName
+        stmt.name = obj.name
+
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+          if (this.consumeIf(Keyword.INCREMENT)) {
+            this.consumeIf(Keyword.BY) || this.consumeIf(Keyword.OPE_EQ)
+            stmt.increment = this.numberValue()
+          } else if (this.consumeIf(Keyword.MINVALUE)) {
+            this.consumeIf(Keyword.OPE_EQ)
+            if (
+              this.consumeIf(Keyword.NOMINVALUE) ||
+              (this.consumeIf(Keyword.NO) && this.consumeIf(Keyword.MINVALUE))
+            ) {
+              stmt.minvalue = "NOMINVALUE"
+            } else {
+              stmt.minvalue = this.numberValue()
+            }
+          } else if (this.consumeIf(Keyword.MAXVALUE)) {
+            this.consumeIf(Keyword.OPE_EQ)
+            if (
+              this.consumeIf(Keyword.NOMAXVALUE) ||
+              (this.consumeIf(Keyword.NO) && this.consumeIf(Keyword.MAXVALUE))
+            ) {
+              stmt.maxvalue = "NOMINVALUE"
+            } else {
+              stmt.maxvalue = this.numberValue()
+            }
+          } else if (this.consumeIf(Keyword.START)) {
+            this.consumeIf(Keyword.WITH) || this.consumeIf(Keyword.OPE_EQ)
+            stmt.start = this.numberValue()
+          } else if (this.consumeIf(Keyword.CACHE)) {
+            if (this.consumeIf(Keyword.NOCACHE)) {
+              stmt.cache = "NOCACHE"
+            } else {
+              stmt.cache = this.numberValue()
+            }
+            if (this.consumeIf(Keyword.CYCLE)) {
+              stmt.cacheCycle = model.CacheCycle.CYCLE
+            } else if (this.consumeIf(Keyword.NOCYCLE)) {
+              stmt.cacheCycle = model.CacheCycle.NOCYCLE
+            }
+          } else {
+            break
+          }
+        }
+
+        stmt.tableOptions = this.tableOptions()
       } else if (stmt instanceof model.CreateIndexStatement) {
         const obj = this.schemaObject()
         stmt.schemaName = obj.schemaName
@@ -1808,36 +1783,7 @@ export class MysqlParser extends Parser {
           stmt.columns.push(column)
         }
         this.consume(TokenType.RightParen)
-        while (this.token()) {
-          if (this.consumeIf(Keyword.KEY_BLOCK_SIZE)) {
-            this.consumeIf(Keyword.OPE_EQ)
-            stmt.keyBlockSize = this.sizeValue()
-          } else if (this.consumeIf(Keyword.USING)) {
-            if (this.consumeIf(Keyword.BTREE)) {
-              stmt.algorithm = model.IndexAlgorithm.BTREE
-            } else if (this.consumeIf(Keyword.HASH)) {
-              stmt.algorithm = model.IndexAlgorithm.HASH
-            } else {
-              throw this.createParseError()
-            }
-          } else if (this.consumeIf(Keyword.WITH, Keyword.PARSER)) {
-            stmt.withParser = this.identifier()
-          } else if (this.consumeIf(Keyword.COMMENT)) {
-            stmt.comment = this.stringValue()
-          } else if (this.consumeIf(Keyword.VISIBLE)) {
-            stmt.visible = true
-          } else if (this.consumeIf(Keyword.INVISIBLE)) {
-            stmt.visible = false
-          } else if (this.consumeIf(Keyword.ENGINE_ATTRIBUTE)) {
-            this.consumeIf(Keyword.OPE_EQ)
-            stmt.engineAttribute = this.stringValue()
-          } else if (this.consumeIf(Keyword.SECONDARY_ENGINE_ATTRIBUTE)) {
-            this.consumeIf(Keyword.OPE_EQ)
-            stmt.secondaryEngineAttribute = this.stringValue()
-          } else {
-            break
-          }
-        }
+        stmt.indexOptions = this.indexOptions()
         while (this.token()) {
           if (this.consumeIf(Keyword.ALGORITHM)) {
             this.consumeIf(Keyword.OPE_EQ)
@@ -1890,6 +1836,35 @@ export class MysqlParser extends Parser {
           }
           this.consume(Keyword.CHECK)
           this.consume(Keyword.OPTION)
+        }
+      } else if (
+        stmt instanceof model.CreatePackageStatement ||
+        stmt instanceof model.CreatePackageBodyStatement
+      ) {
+        const obj = this.schemaObject()
+        stmt.schemaName = obj.schemaName
+        stmt.name = obj.name
+        while (this.token()) {
+          if (this.consumeIf(Keyword.COMMENT)) {
+            stmt.comment = this.stringValue()
+          } else if (this.consumeIf(Keyword.SQL, Keyword.SECURITY)) {
+            if (this.consumeIf(Keyword.DEFINER)) {
+              stmt.sqlSecurity = model.SqlSecurity.DEFINER
+            } else if (this.consumeIf(Keyword.INVOKER)) {
+              stmt.sqlSecurity = model.SqlSecurity.INVOKER
+            } else {
+              throw this.createParseError()
+            }
+          } else {
+            break
+          }
+        }
+        if (this.consumeIf(Keyword.AS) || this.consumeIf(Keyword.IS)) {
+          while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+            this.consume()
+          }
+        } else {
+          throw this.createParseError()
         }
       } else if (
         stmt instanceof model.CreateProcedureStatement ||
@@ -2288,6 +2263,29 @@ export class MysqlParser extends Parser {
         } else if (this.consumeIf(Keyword.CASCADE)) {
           stmt.dropOption = model.DropOption.CASCADE
         }
+      } else if (this.consumeIf(Keyword.PACKAGE)) {
+        if (this.consumeIf(Keyword.BODY)) {
+          stmt = new model.DropPackageBodyStatement()
+          if (this.consumeIf(Keyword.IF)) {
+            this.consume(Keyword.EXISTS)
+            stmt.ifExists = true
+          }
+          stmt.packageBody = this.schemaObject()
+        } else {
+          stmt = new model.DropPackageStatement()
+          if (this.consumeIf(Keyword.IF)) {
+            this.consume(Keyword.EXISTS)
+            stmt.ifExists = true
+          }
+          stmt.package = this.schemaObject()
+        }
+      } else if (this.consumeIf(Keyword.FUNCTION)) {
+        stmt = new model.DropFunctionStatement()
+        if (this.consumeIf(Keyword.IF)) {
+          this.consume(Keyword.EXISTS)
+          stmt.ifExists = true
+        }
+        stmt.function = this.schemaObject()
       } else if (this.consumeIf(Keyword.PROCEDURE)) {
         stmt = new model.DropProcedureStatement()
         if (this.consumeIf(Keyword.IF)) {
@@ -2856,6 +2854,244 @@ export class MysqlParser extends Parser {
     return stmt
   }
 
+  tableOptions() {
+    const options = new Array<{ key: string, value: any }>()
+    for (let i = 0; i === 0 || !this.consumeIf(TokenType.Delimiter); i++) {
+      this.consumeIf(TokenType.Comma)
+      if (this.consumeIf(Keyword.AUTOEXTEND_SIZE)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        options.push({ key: "AUTOEXTEND_SIZE", value: this.sizeValue() })
+      } else if (this.consumeIf(Keyword.AUTO_INCREMENT)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        options.push({ key: "AUTO_INCREMENT", value: this.numberValue() })
+      } else if (this.consumeIf(Keyword.AVG_ROW_LENGTH)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        options.push({ key: "AVG_ROW_LENGTH", value: this.numberValue() })
+      } else if (
+        this.consumeIf(Keyword.CHARACTER, Keyword.SET) ||
+        this.consumeIf(Keyword.DEFAULT, Keyword.CHARACTER, Keyword.SET) ||
+        this.consumeIf(Keyword.CHARSET) ||
+        this.consumeIf(Keyword.DEFAULT, Keyword.CHARSET)
+      ) {
+        this.consumeIf(Keyword.OPE_EQ)
+        options.push({ key: "CHARACTER SET", value: this.identifier() })
+      } else if (this.consumeIf(Keyword.CHECKSUM)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        options.push({ key: "CHECKSUM", value: this.numberValue() })
+      } else if (
+        this.consumeIf(Keyword.COLLATE) ||
+        this.consumeIf(Keyword.DEFAULT, Keyword.COLLATE)
+      ) {
+        this.consumeIf(Keyword.OPE_EQ)
+        options.push({ key: "COLLATE", value: this.identifier() })
+      } else if (this.consumeIf(Keyword.COMMENT)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        options.push({ key: "COMMENT", value: this.stringValue() })
+      } else if (this.consumeIf(Keyword.COMPRESSION)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        options.push({ key: "COMPRESSION", value: this.stringValue() })
+      } else if (this.consumeIf(Keyword.CONNECTION)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        options.push({ key: "CONNECTION", value: this.stringValue() })
+      } else if (this.consumeIf(Keyword.DATA, Keyword.DIRECTORY)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        options.push({ key: "DIRECTORY", value: this.stringValue() })
+      } else if (this.consumeIf(Keyword.INDEX, Keyword.DIRECTORY)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        options.push({ key: "INDEX DIRECTORY", value: this.stringValue() })
+      } else if (this.consumeIf(Keyword.DELAY_KEY_WRITE)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        options.push({ key: "DELAY_KEY_WRITE", value: this.numberValue() })
+      } else if (this.consumeIf(Keyword.ENCRYPTED)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        if (this.consumeIf(Keyword.YES)) {
+          options.push({ key: "ENCRYPTED", value: "YES" })
+        } else if (this.consumeIf(Keyword.NO)) {
+          options.push({ key: "ENCRYPTED", value: "NO" })
+        } else {
+          throw this.createParseError()
+        }
+      } else if (this.consumeIf(Keyword.ENCRYPTION_KEY_ID)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        options.push({ key: "ENCRYPTION_KEY_ID", value: this.stringValue() })
+      } else if (this.consumeIf(Keyword.ENCRYPTION)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        options.push({ key: "ENCRYPTION", value: this.stringValue() })
+      } else if (this.consumeIf(Keyword.IETF_QUOTES)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        if (this.consumeIf(Keyword.YES)) {
+          options.push({ key: "IETF_QUOTES", value: "YES" })
+        } else if (this.consumeIf(Keyword.NO)) {
+          options.push({ key: "IETF_QUOTES", value: "NO" })
+        } else {
+          throw this.createParseError()
+        }
+      } else if (
+        this.consumeIf(Keyword.STORAGE, Keyword.ENGINE) ||
+        this.consumeIf(Keyword.ENGINE)
+      ) {
+        this.consumeIf(Keyword.OPE_EQ)
+        options.push({ key: "ENGINE", value: this.identifier() })
+      } else if (this.consumeIf(Keyword.ENGINE_ATTRIBUTE)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        options.push({ key: "ENGINE_ATTRIBUTE", value: this.stringValue() })
+      } else if (this.consumeIf(Keyword.INSERT_METHOD)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        if (this.consumeIf(Keyword.NO)) {
+          options.push({ key: "INSERT_METHOD", value: model.InsertMethod.NO })
+        } else if (this.consumeIf(Keyword.FIRST)) {
+          options.push({ key: "INSERT_METHOD", value: model.InsertMethod.FIRST })
+        } else if (this.consumeIf(Keyword.LAST)) {
+          options.push({ key: "INSERT_METHOD", value: model.InsertMethod.LAST })
+        } else {
+          throw this.createParseError()
+        }
+      } else if (this.consumeIf(Keyword.KEY_BLOCK_SIZE)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        options.push({ key: "KEY_BLOCK_SIZE", value: this.sizeValue() })
+      } else if (this.consumeIf(Keyword.MAX_ROWS)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        options.push({ key: "MAX_ROWS", value: this.numberValue() })
+      } else if (this.consumeIf(Keyword.MIN_ROWS)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        options.push({ key: "MIN_ROWS", value: this.numberValue() })
+      } else if (this.consumeIf(Keyword.PACK_KEYS)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        if (this.consumeIf(Keyword.DEFAULT)) {
+          options.push({ key: "PACK_KEYS", value: "DEFAULT" })
+        } else {
+          options.push({ key: "PACK_KEYS", value: this.numberValue() })
+        }
+      } else if (this.consumeIf(Keyword.PAGE_CHECKSUM)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        options.push({ key: "PAGE_CHECKSUM", value: this.numberValue() })
+      } else if (this.consumeIf(Keyword.PAGE_COMPRESSED)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        options.push({ key: "PAGE_COMPRESSED", value: this.numberValue() })
+      } else if (this.consumeIf(Keyword.PAGE_COMPRESSION_LEVEL)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        options.push({ key: "PAGE_COMPRESSION_LEVEL", value: this.numberValue() })
+      } else if (this.consumeIf(Keyword.PASSWORD)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        options.push({ key: "PASSWORD", value: this.stringValue() })
+      } else if (this.consumeIf(Keyword.ROW_FORMAT)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        if (this.consumeIf(Keyword.DEFAULT)) {
+          options.push({ key: "ROW_FORMAT", value: model.RowFormat.DEFAULT })
+        } else if (this.consumeIf(Keyword.DYNAMIC)) {
+          options.push({ key: "ROW_FORMAT", value: model.RowFormat.DYNAMIC })
+        } else if (this.consumeIf(Keyword.FIXED)) {
+          options.push({ key: "ROW_FORMAT", value: model.RowFormat.FIXED })
+        } else if (this.consumeIf(Keyword.COMPRESSED)) {
+          options.push({ key: "ROW_FORMAT", value: model.RowFormat.COMPRESSED })
+        } else if (this.consumeIf(Keyword.REDUNDANT)) {
+          options.push({ key: "ROW_FORMAT", value: model.RowFormat.REDUNDANT })
+        } else if (this.consumeIf(Keyword.COMPACT)) {
+          options.push({ key: "ROW_FORMAT", value: model.RowFormat.COMPACT })
+        } else {
+          throw this.createParseError()
+        }
+      } else if (this.consumeIf(Keyword.SECONDARY_ENGINE_ATTRIBUTE)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        options.push({ key: "SECONDARY_ENGINE_ATTRIBUTE", value: this.stringValue() })
+      } else if (this.consumeIf(Keyword.STATS_AUTO_RECALC)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        if (this.consumeIf(Keyword.DEFAULT)) {
+          options.push({ key: "STATS_AUTO_RECALC", value: "DEFAULT" })
+        } else {
+          options.push({ key: "STATS_AUTO_RECALC", value: this.numberValue() })
+        }
+      } else if (this.consumeIf(Keyword.STATS_PERSISTENT)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        if (this.consumeIf(Keyword.DEFAULT)) {
+          options.push({ key: "STATS_PERSISTENT", value: "DEFAULT" })
+        } else {
+          options.push({ key: "STATS_PERSISTENT", value: this.numberValue() })
+        }
+      } else if (this.consumeIf(Keyword.STATS_SAMPLE_PAGES)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        options.push({ key: "STATS_SAMPLE_PAGES", value: this.numberValue() })
+      } else if (this.consumeIf(Keyword.SEQUENCE)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        options.push({ key: "SEQUENCE", value: this.numberValue() })
+      } else if (this.consumeIf(Keyword.TABLESPACE)) {
+        options.push({ key: "TABLESPACE", value: this.identifier() })
+        if (this.consumeIf(Keyword.STORAGE)) {
+          if (this.consumeIf(Keyword.DISK)) {
+            options.push({ key: "TABLESPACE STORAGE DISK", value: model.StorageType.DISK })
+          } else if (this.consumeIf(Keyword.MEMORY)) {
+            options.push({ key: "TABLESPACE STORAGE DISK", value: model.StorageType.MEMORY })
+          } else {
+            throw this.createParseError()
+          }
+        }
+      } else if (this.consumeIf(Keyword.TRANSACTIONAL)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        options.push({ key: "TRANSACTIONAL", value: this.numberValue() })
+      } else if (this.consumeIf(Keyword.UNION)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        this.consume(TokenType.LeftParen)
+        const union = []
+        for (let j = 0; j === 0 || this.consumeIf(TokenType.Comma); j++) {
+          union.push(this.identifier())
+        }
+        options.push({ key: "UNION", value: union })
+        this.consume(TokenType.RightParen)
+      } else if (this.consumeIf(Keyword.WITH, Keyword.SYSTEM, Keyword.VERSIONING)) {
+        options.push({ key: "WITH SYSTEM VERSIONING", value: true })
+      } else {
+        break
+      }
+    }
+    return options
+  }
+
+  indexOptions() {
+    const options = new Array<{ key: string, value: any }>()
+    while (this.token()) {
+      if (this.consumeIf(Keyword.KEY_BLOCK_SIZE)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        options.push({ key: "KEY_BLOCK_SIZE", value: this.sizeValue() })
+      } else if (this.consumeIf(Keyword.USING)) {
+        if (this.consumeIf(Keyword.BTREE)) {
+          options.push({ key: "USING", value: model.IndexAlgorithm.BTREE })
+        } else if (this.consumeIf(Keyword.HASH)) {
+          options.push({ key: "USING", value: model.IndexAlgorithm.HASH })
+        } else if (this.consumeIf(Keyword.HASH)) {
+          options.push({ key: "USING", value: model.IndexAlgorithm.RTREE })
+        } else {
+          throw this.createParseError()
+        }
+      } else if (this.consumeIf(Keyword.WITH, Keyword.PARSER)) {
+        options.push({ key: "WITH PARSER", value: this.identifier() })
+      } else if (this.consumeIf(Keyword.COMMENT)) {
+        options.push({ key: "COMMENT", value: this.stringValue() })
+      } else if (this.consumeIf(Keyword.VISIBLE)) {
+        options.push({ key: "INVISIBLE", value: false })
+      } else if (this.consumeIf(Keyword.INVISIBLE)) {
+        options.push({ key: "INVISIBLE", value: true })
+      } else if (this.consumeIf(Keyword.ENGINE_ATTRIBUTE)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        options.push({ key: "ENGINE_ATTRIBUTE", value: this.stringValue() })
+      } else if (this.consumeIf(Keyword.SECONDARY_ENGINE_ATTRIBUTE)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        options.push({ key: "SECONDARY_ENGINE_ATTRIBUTE", value: this.stringValue() })
+      } else if (this.consumeIf(Keyword.CLUSTERING)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        if (this.consumeIf(Keyword.YES)) {
+          options.push({ key: "CLUSTERING", value: "YES" })
+        } else if (this.consumeIf(Keyword.NO)) {
+          options.push({ key: "CLUSTERING", value: "NO" })
+        } else {
+          throw this.createParseError()
+        }
+      } else {
+        break
+      }
+    }
+    return options
+  }
+
   selectClause() {
     if (this.peekIf(Keyword.WITH)) {
       this.withClause()
@@ -2917,6 +3153,8 @@ export class MysqlParser extends Parser {
       userRole.name = unescape(dequote(this.token(-1).text))
     } else if (this.consumeIf(TokenType.Identifier)) {
       userRole.name = lcase(this.token(-1).text)
+    } else if (this.consumeIf(Keyword.CURRENT_USER) || this.consumeIf(Keyword.CURRENT_ROLE)) {
+      userRole.expr = [ this.token(-1) ]
     } else {
       throw this.createParseError()
     }

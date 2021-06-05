@@ -40,6 +40,7 @@ export class CommandStatement extends Statement {
 
 export class CreateDatabaseStatement extends Statement {
   name = ""
+  orReplace = false
   ifNotExists = false
   characterSet?: string
   collate?: string
@@ -57,6 +58,7 @@ export class DropDatabaseStatement extends Statement {
 
 export class CreateServerStatement extends Statement {
   name = ""
+  orReplace = false
   wrapperName = ""
   host?: string
   database?: string
@@ -84,6 +86,7 @@ export class DropServerStatement extends Statement {
 
 export class CreateResourceGroupStatement extends Statement {
   name = ""
+  orReplace = false
   type: ResourceGroupType = ResourceGroupType.SYSTEM
   vcpu = new Array<{ min: string, max: string}>()
   threadPriority = "0"
@@ -170,7 +173,8 @@ export class DropSpatialReferenceSystemStatement extends Statement {
 }
 
 export class UserRole {
-  name = ""
+  name?: string
+  expr?: Array<Token>
   host?: string
   authPlugin?: string
   randowmPassword = false
@@ -181,6 +185,7 @@ export class UserRole {
 
 export class CreateRoleStatement extends Statement {
   roles = new Array<UserRole>()
+  orReplace = false
   ifNotExists = false
 }
 
@@ -197,13 +202,14 @@ export class DropRoleStatement extends Statement {
 
 
 export class CreateUserStatement extends Statement {
-  ifNotExists = false
   users = new Array<UserRole>()
+  orReplace = false
+  ifNotExists = false
   defaultRoles = new Array<UserRole>()
-  tlsOptions = new Array<{ key: string, value: string | boolean }>()
-  resourceOptions = new Array<{ key: string, value: string }>()
-  passwordOptions = new Array<{ key: string, value: string | boolean }>()
-  lockOptions = new Array<{ key: string, value: boolean }>()
+  tlsOptions = new Array<{ key: string, value: any }>()
+  resourceOptions = new Array<{ key: string, value: any }>()
+  passwordOptions = new Array<{ key: string, value: any }>()
+  lockOptions = new Array<{ key: string, value: any }>()
   comment?: string
   attribute?: string
 }
@@ -330,41 +336,14 @@ export class ForeignKeyConstraint extends Constraint {
 export class CreateTableStatement extends Statement {
   schemaName?: string
   name = ""
+  orReplace = false
   temporary = false
   ifNotExists = false
   asSelect = false
   like?: SchemaObject
   columns?: Array<TableColumn>
   constraints?: Array<Constraint>
-  autoextendSize?: string
-  autoIncrement?: string
-  avgRowLength?: string
-  characterSet?: string
-  checksum?: string
-  collate?: string
-  comment?: string
-  compression?: string
-  connection?: string
-  dataDirectory?: string
-  indexDirectory?: string
-  delayKeyWrite?: string
-  encryption?: string
-  engine?: string
-  engineAttribute?: string
-  insetMethod?: InsertMethod
-  keyBlockSize?: string
-  maxRows?: string
-  minRows?: string
-  packKeys?: string
-  password?: string
-  rowFormat?: RowFormat
-  secondaryEngineAttribute?: string
-  statsAutoRecalc?: string
-  statsPersistent?: string
-  statSamplePages?: string
-  tablespace?: string
-  storageType?: StorageType
-  union?: string[]
+  tableOptions = new Array<{ key: string, value: any }>()
   partition?: Partition
   conflictAction?: ConflictAction
 }
@@ -394,6 +373,25 @@ export class DropTableStatement extends Statement {
   dropOption = DropOption.CASCADE
 }
 
+export class CreateSequenceStatement extends Statement {
+  schemaName?: string
+  name = ""
+  orReplace = false
+  temporary = false
+  ifNotExists = false
+  increment?: string
+  minvalue?: string
+  maxvalue?: string
+  start?: string
+  cache?: string
+  cacheCycle = CacheCycle.NOCYCLE
+  tableOptions = new Array<{ key: string, value: any }>()
+}
+
+export class DropSequenceStatement extends Statement {
+  sequences = Array<SchemaObject>()
+}
+
 export class IndexColumn {
   name?: string
   expression?: Token[]
@@ -403,16 +401,12 @@ export class IndexColumn {
 export class CreateIndexStatement extends Statement {
   schemaName?: string
   name = ""
+  orReplace = false
   type?: IndexType
   algorithm?: IndexAlgorithm
   table = new SchemaObject()
   columns = new Array<IndexColumn>()
-  visible = true
-  keyBlockSize?: string
-  withParser?: string
-  comment?: string
-  engineAttribute?: string
-  secondaryEngineAttribute?: string
+  indexOptions = new Array<{ key: string, value: any }>()
   algorithmOption = IndexAlgorithmOption.DEFAULT
   lockOption = IndexLockOption.DEFAULT
 }
@@ -452,9 +446,38 @@ export class ProcedureParam {
   dataType = new DataType()
 }
 
+export class CreatePackageStatement extends Statement {
+  schemaName?: string
+  name = ""
+  orReplace = false
+  definer?: UserRole
+  comment?: string
+  sqlSecurity = SqlSecurity.DEFINER
+}
+
+export class DropPackageStatement extends Statement {
+  package = new SchemaObject()
+  ifExists = false
+}
+
+export class CreatePackageBodyStatement extends Statement {
+  schemaName?: string
+  name = ""
+  orReplace = false
+  definer?: UserRole
+  comment?: string
+  sqlSecurity = SqlSecurity.DEFINER
+}
+
+export class DropPackageBodyStatement extends Statement {
+  packageBody = new SchemaObject()
+  ifExists = false
+}
+
 export class CreateProcedureStatement extends Statement {
   schemaName?: string
   name = ""
+  orReplace = false
   definer?: UserRole
   params = new Array<ProcedureParam>()
   comment?: string
@@ -482,8 +505,10 @@ export class FunctionParam {
 export class CreateFunctionStatement extends Statement {
   schemaName?: string
   name = ""
+  orReplace = false
   definer?: UserRole
   aggregate = false
+  ifNotExists = false
   params = new Array<FunctionParam>()
   returnDataType = new DataType()
   comment?: string
@@ -511,7 +536,9 @@ export class TriggerOrder {
 export class CreateTriggerStatement extends Statement {
   schemaName?: string
   name = ""
+  orReplace = false
   definer?: UserRole
+  ifNotExists = false
   triggerTime = TriggerTime.BEFORE
   triggerEvent = TriggerEvent.INSERT
   table = new SchemaObject()
@@ -526,6 +553,7 @@ export class DropTriggerStatement extends Statement {
 export class CreateEventStatement extends Statement {
   schemaName?: string
   name = ""
+  orReplace = false
   definer?: UserRole
   ifNotExists = false
   at?: Array<Token>
@@ -824,7 +852,8 @@ export enum IndexType {
 
 export enum IndexAlgorithm {
   BTREE = "BTREE",
-  HASH = "HASH"
+  HASH = "HASH",
+  RTREE = "RTREE",
 }
 
 export enum ResourceGroupType {
@@ -963,4 +992,9 @@ export enum ReferenceOption {
 export enum DropOption {
   RESTRICT = "RESTRICT",
   CASCADE = "CASCADE",
+}
+
+export enum CacheCycle {
+  CYCLE = "CYCLE",
+  NOCYCLE = "NOCYCLE",
 }
