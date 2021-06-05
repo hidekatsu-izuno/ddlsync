@@ -142,56 +142,53 @@ export abstract class Parser {
 
   abstract root(): Statement[]
 
-  peek(pos: number = 0) {
+  token(pos: number = 0) {
     return this.tokens[this.pos + pos]
   }
 
   peekIf(...types: ITokenType[]) {
-    let token
     for (let i = 0; i < types.length; i++) {
       const type = types[i]
       if (!type) {
         continue
       }
 
-      token = this.peek(i)
+      const token = this.token(i)
       if (!token) {
-        return null
+        return false
       }
       if (type !== token.type && type !== token.subtype) {
-        return null
+        return false
       }
     }
-    return token
+    return true
   }
 
   consumeIf(...types: ITokenType[]) {
-    const token = this.peekIf(...types)
-    if (token) {
-      this.pos += types.length
+    if (!this.peekIf(...types)) {
+      return false
     }
-    return token
+    this.pos += types.length
+    return true
   }
 
-  consume(type?: ITokenType) {
-    let token
-    if (type) {
-      token = this.consumeIf(type)
-      if (token == null) {
+  consume(...types: ITokenType[]) {
+    if (types.length > 0) {
+      if (!this.consumeIf(...types)) {
         throw this.createParseError()
       }
     } else {
-      token = this.peek()
+      const token = this.token()
       if (token == null) {
         throw this.createParseError()
       }
       this.pos++
     }
-    return token
+    return true
   }
 
   createParseError(message?: string) {
-    const token = this.peek()
+    const token = this.token()
     const lines = this.input.substring(0, token?.start || 0).split(/\r\n?|\n/g)
     let last = lines[lines.length-1]
     const rows = lines.length + 1

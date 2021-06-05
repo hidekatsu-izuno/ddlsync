@@ -284,7 +284,7 @@ export class Sqlite3Parser extends Parser {
     const root = []
     const errors = []
     for (let i = 0;
-      this.peek() && (
+      this.token() && (
         i === 0 ||
         this.consumeIf(TokenType.SemiColon) ||
         root[root.length - 1] instanceof model.CommandStatement
@@ -296,7 +296,7 @@ export class Sqlite3Parser extends Parser {
           const stmt = this.command()
           stmt.validate()
           root.push(stmt)
-        } else if (this.peek() && !this.peekIf(TokenType.SemiColon)) {
+        } else if (this.token() && !this.peekIf(TokenType.SemiColon)) {
           const stmt = this.statement()
           stmt.validate()
           root.push(stmt)
@@ -306,7 +306,7 @@ export class Sqlite3Parser extends Parser {
           errors.push(e)
 
           // skip tokens
-          while (this.peek() && !this.peekIf(TokenType.SemiColon)) {
+          while (this.token() && !this.peekIf(TokenType.SemiColon)) {
             this.consume()
           }
         } else {
@@ -315,7 +315,7 @@ export class Sqlite3Parser extends Parser {
       }
     }
 
-    if (this.peek() != null) {
+    if (this.token() != null) {
       try {
         throw this.createParseError()
       } catch (e) {
@@ -339,7 +339,8 @@ export class Sqlite3Parser extends Parser {
   command() {
     const start = this.pos
     const stmt = new model.CommandStatement()
-    const token = this.consume(TokenType.Command)
+    this.consume(TokenType.Command)
+    const token = this.token(-1)
     const sep = token.text.indexOf(" ")
     if (sep === -1) {
       stmt.name = token.text
@@ -474,7 +475,7 @@ export class Sqlite3Parser extends Parser {
           }
 
           this.consume(TokenType.RightParen)
-          while (this.peek() && !this.peekIf(TokenType.SemiColon)) {
+          while (this.token() && !this.peekIf(TokenType.SemiColon)) {
             if (this.consumeIf(Keyword.WITHOUT)) {
               if (this.consume(Keyword.ROWID)) {
                 stmt.withoutRowid = true
@@ -504,9 +505,9 @@ export class Sqlite3Parser extends Parser {
         this.selectClause()
         stmt.markers.set("selectEnd", this.pos - start)
       } else if (stmt instanceof model.CreateTriggerStatement) {
-        while (this.peek() && !this.peekIf(TokenType.SemiColon)) {
+        while (this.token() && !this.peekIf(TokenType.SemiColon)) {
           if (this.consumeIf(Keyword.BEGIN)) {
-            while (this.peek() && !this.peekIf(Keyword.END)) {
+            while (this.token() && !this.peekIf(Keyword.END)) {
               this.consume()
             }
           } else {
@@ -522,7 +523,7 @@ export class Sqlite3Parser extends Parser {
         }
         this.consume(TokenType.RightParen)
         if (this.consumeIf(Keyword.WHERE)) {
-          while (this.peek() && !this.peekIf(TokenType.SemiColon)) {
+          while (this.token() && !this.peekIf(TokenType.SemiColon)) {
             this.consume()
           }
         }
@@ -711,7 +712,7 @@ export class Sqlite3Parser extends Parser {
           stmt.table.schemaName = stmt.table.name
           stmt.table.name = this.identifier()
         }
-        while (this.peek() && !this.peekIf(TokenType.SemiColon)) {
+        while (this.token() && !this.peekIf(TokenType.SemiColon)) {
           this.consume()
         }
       } else if (this.consumeIf(Keyword.UPDATE)) {
@@ -724,7 +725,7 @@ export class Sqlite3Parser extends Parser {
           stmt.table.schemaName = stmt.table.name
           stmt.table.name = this.identifier()
         }
-        while (this.peek() && !this.peekIf(TokenType.SemiColon)) {
+        while (this.token() && !this.peekIf(TokenType.SemiColon)) {
           this.consume()
         }
       } else if (this.consumeIf(Keyword.DELETE)) {
@@ -735,7 +736,7 @@ export class Sqlite3Parser extends Parser {
           stmt.table.schemaName = stmt.table.name
           stmt.table.name = this.identifier()
         }
-        while (this.peek() && !this.peekIf(TokenType.SemiColon)) {
+        while (this.token() && !this.peekIf(TokenType.SemiColon)) {
           this.consume()
         }
       } else if (this.peekIf(Keyword.SELECT)) {
@@ -767,7 +768,7 @@ export class Sqlite3Parser extends Parser {
     }
     this.consume(Keyword.SELECT)
     let depth = 0
-    while (this.peek() &&
+    while (this.token() &&
       !this.peekIf(TokenType.SemiColon) &&
       (depth == 0 && !this.peekIf(TokenType.RightParen))
     ) {
@@ -818,7 +819,7 @@ export class Sqlite3Parser extends Parser {
     }
 
     while (
-      this.peek() &&
+      this.token() &&
       !this.peekIf(TokenType.SemiColon) &&
       !this.peekIf(TokenType.RightParen) &&
       !this.peekIf(TokenType.Comma)
@@ -873,8 +874,9 @@ export class Sqlite3Parser extends Parser {
       constraint = new model.CheckColumnConstraint()
       constraint.name = name
       this.consume(TokenType.LeftParen)
-      while (this.peek() && !this.peekIf(TokenType.RightParen)) {
-        constraint.conditions.push(this.consume())
+      while (this.token() && !this.peekIf(TokenType.RightParen)) {
+        this.consume()
+        constraint.conditions.push(this.token(-1))
       }
       this.consume(TokenType.RightParen)
     } else if (this.consumeIf(Keyword.DEFAULT)) {
@@ -893,7 +895,8 @@ export class Sqlite3Parser extends Parser {
         this.peekIf(Keyword.CURRENT_TIMESTAMP) ||
         this.peekIf(TokenType.String)
       ) {
-        constraint.expr = [this.consume()]
+        this.consume()
+        constraint.expr = [this.token(-1)]
       } else if (
           this.peekIf(Keyword.OPE_PLUS) ||
           this.peekIf(Keyword.OPE_MINUS) ||
@@ -973,8 +976,9 @@ export class Sqlite3Parser extends Parser {
       constraint = new model.CheckTableConstraint()
       constraint.name = name
       this.consume(TokenType.LeftParen)
-      while (this.peek() && !this.peekIf(TokenType.RightParen)) {
-        constraint.conditions.push(this.consume())
+      while (this.token() && !this.peekIf(TokenType.RightParen)) {
+        this.consume()
+        constraint.conditions.push(this.token(-1))
       }
       this.consume(TokenType.RightParen)
     } else if (this.consumeIf(Keyword.FOREIGN)) {
@@ -1035,7 +1039,7 @@ export class Sqlite3Parser extends Parser {
 
   moduleArg() {
     let tokens: Token[] = []
-    while (this.peek() &&
+    while (this.token() &&
       !this.peekIf(TokenType.Comma) &&
       !this.peekIf(TokenType.RightParen)
     ) {
@@ -1044,7 +1048,8 @@ export class Sqlite3Parser extends Parser {
           tokens.push(token)
         }
       }
-      tokens.push(this.consume())
+      this.consume()
+      tokens.push(this.token(-1))
     }
     return tokens.map(token => token.text).join();
   }
@@ -1083,13 +1088,13 @@ export class Sqlite3Parser extends Parser {
   identifier() {
     let text
     if (this.consumeIf(TokenType.QuotedIdentifier)) {
-      text = dequote(this.peek(-1).text)
+      text = dequote(this.token(-1).text)
     } else if (this.consumeIf(TokenType.QuotedValue)) {
-      text = dequote(this.peek(-1).text)
+      text = dequote(this.token(-1).text)
     } else if (this.consumeIf(TokenType.String)) {
-      text = dequote(this.peek(-1).text)
+      text = dequote(this.token(-1).text)
     } else if (this.consumeIf(TokenType.Identifier)) {
-      text = this.peek(-1).text
+      text = this.token(-1).text
     } else {
       throw this.createParseError()
     }
@@ -1099,9 +1104,9 @@ export class Sqlite3Parser extends Parser {
   stringValue() {
     let text
     if (this.consumeIf(TokenType.String)) {
-      text = dequote(this.peek(-1).text)
+      text = dequote(this.token(-1).text)
     } else if (this.consumeIf(TokenType.QuotedValue)) {
-      text = dequote(this.peek(-1).text)
+      text = dequote(this.token(-1).text)
     } else {
       throw this.createParseError()
     }
@@ -1111,10 +1116,12 @@ export class Sqlite3Parser extends Parser {
   numberValue() {
     let text
     if (this.consumeIf(Keyword.OPE_PLUS) || this.consumeIf(Keyword.OPE_MINUS)) {
-      text = this.peek(-1).text
-      text += this.consume(TokenType.Number).text
+      text = this.token(-1).text
+      this.consume(TokenType.Number)
+      text += this.token(-1).text
     } else {
-      text = this.consume(TokenType.Number).text
+      this.consume(TokenType.Number)
+      text = this.token(-1).text
     }
     return new Decimal(text).toString()
   }
@@ -1122,7 +1129,7 @@ export class Sqlite3Parser extends Parser {
   expression() {
     const start = this.pos
     let depth = 0
-    while (this.peek() &&
+    while (this.token() &&
       (depth == 0 && !this.peekIf(TokenType.Comma)) &&
       (depth == 0 && !this.peekIf(TokenType.RightParen)) &&
       (depth == 0 && !this.peekIf(Keyword.AS)) &&

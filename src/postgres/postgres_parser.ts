@@ -240,7 +240,7 @@ export class PostgresParser extends Parser {
     const root = []
     const errors = []
     for (let i = 0;
-      this.peek() && (
+      this.token() && (
         i === 0 ||
         this.consumeIf(TokenType.SemiColon) ||
         root[root.length - 1] instanceof model.CommandStatement
@@ -252,7 +252,7 @@ export class PostgresParser extends Parser {
           const stmt = this.command()
           stmt.validate()
           root.push(stmt)
-        } else if (this.peek() && !this.peekIf(TokenType.SemiColon)) {
+        } else if (this.token() && !this.peekIf(TokenType.SemiColon)) {
           const stmt = this.statement()
           stmt.validate()
           root.push(stmt)
@@ -262,7 +262,7 @@ export class PostgresParser extends Parser {
           errors.push(e)
 
           // skip tokens
-          while (this.peek() && !this.peekIf(TokenType.SemiColon)) {
+          while (this.token() && !this.peekIf(TokenType.SemiColon)) {
             this.consume()
           }
         } else {
@@ -271,7 +271,7 @@ export class PostgresParser extends Parser {
       }
     }
 
-    if (this.peek() != null) {
+    if (this.token() != null) {
       try {
         throw this.createParseError()
       } catch (e) {
@@ -295,7 +295,8 @@ export class PostgresParser extends Parser {
   command() {
     const start = this.pos
     const stmt = new model.CommandStatement()
-    const token = this.consume(TokenType.Command)
+    this.consume(TokenType.Command)
+    const token = this.token(-1)
     const sep = token.text.indexOf(" ")
     if (sep === -1) {
       stmt.name = token.text

@@ -757,7 +757,7 @@ export class MysqlParser extends Parser {
     const errors = []
     for (
       let i = 0;
-      this.peek() && (
+      this.token() && (
         i === 0 ||
         this.consumeIf(TokenType.Delimiter) ||
         root[root.length - 1] instanceof model.CommandStatement
@@ -769,7 +769,7 @@ export class MysqlParser extends Parser {
           const stmt = this.command()
           stmt.validate()
           root.push(stmt)
-        } else if (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        } else if (this.token() && !this.peekIf(TokenType.Delimiter)) {
           const stmt = this.statement()
           stmt.validate()
           root.push(stmt)
@@ -779,7 +779,7 @@ export class MysqlParser extends Parser {
           errors.push(e)
 
           // skip tokens
-          while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+          while (this.token() && !this.peekIf(TokenType.Delimiter)) {
             this.consume()
           }
         } else {
@@ -788,7 +788,7 @@ export class MysqlParser extends Parser {
       }
     }
 
-    if (this.peek() != null) {
+    if (this.token() != null) {
       try {
         throw this.createParseError()
       } catch (e) {
@@ -813,7 +813,7 @@ export class MysqlParser extends Parser {
     const start = this.pos
     this.consume(TokenType.Command)
     const stmt = new model.CommandStatement()
-    const command = parseCommand(this.peek(-1).text || "")
+    const command = parseCommand(this.token(-1).text || "")
     if (command) {
       stmt.name = command.name
       stmt.args = command.args
@@ -838,7 +838,7 @@ export class MysqlParser extends Parser {
           stmt.ifNotExists = true
         }
         stmt.name = this.identifier()
-        while (this.peek()) {
+        while (this.token()) {
           this.consumeIf(Keyword.DEFAULT)
           if (this.consumeIf(Keyword.CHARACTER)) {
             this.consume(Keyword.SET)
@@ -1100,7 +1100,7 @@ export class MysqlParser extends Parser {
             }
           }
         }
-        while (this.peek()) {
+        while (this.token()) {
           if (this.consumeIf(Keyword.PASSWORD)) {
             if (this.consumeIf(Keyword.EXPIRE)) {
               if (this.consumeIf(Keyword.DEFAULT)) {
@@ -1819,7 +1819,7 @@ export class MysqlParser extends Parser {
           stmt.columns.push(column)
         }
         this.consume(TokenType.RightParen)
-        while (this.peek()) {
+        while (this.token()) {
           if (this.consumeIf(Keyword.KEY_BLOCK_SIZE)) {
             this.consumeIf(Keyword.OPE_EQ)
             stmt.keyBlockSize = this.sizeValue()
@@ -1849,7 +1849,7 @@ export class MysqlParser extends Parser {
             break
           }
         }
-        while (this.peek()) {
+        while (this.token()) {
           if (this.consumeIf(Keyword.ALGORITHM)) {
             this.consumeIf(Keyword.OPE_EQ)
             if (this.consumeIf(Keyword.DEFAULT)) {
@@ -1935,7 +1935,7 @@ export class MysqlParser extends Parser {
           this.consume(Keyword.RETURN)
           stmt.returnDataType = this.dataType()
         }
-        while (this.peek()) {
+        while (this.token()) {
           if (this.consumeIf(Keyword.COMMENT)) {
             stmt.comment = this.stringValue()
           } else if (this.consumeIf(Keyword.LANGUAGE)) {
@@ -1965,7 +1965,7 @@ export class MysqlParser extends Parser {
             break
           }
         }
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
       } else if (stmt instanceof model.CreateTriggerStatement) {
@@ -2004,7 +2004,7 @@ export class MysqlParser extends Parser {
           triggerOrder.tableName = this.identifier()
           stmt.triggerOrder = triggerOrder
         }
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
       } else if (stmt instanceof model.CreateEventStatement) {
@@ -2029,27 +2029,27 @@ export class MysqlParser extends Parser {
       if (this.consumeIf(Keyword.DATABASE) || this.consumeIf(Keyword.SCHEMA)) {
         stmt = new model.AlterDatabaseStatement()
         stmt.name = this.identifier()
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
       } else if (this.consumeIf(Keyword.SERVER)) {
         stmt = new model.AlterServerStatement()
         stmt.name = this.identifier()
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
       } else if (this.consumeIf(Keyword.RESOURCE)) {
         this.consume(Keyword.GROUP)
         stmt = new model.AlterResourceGroupStatement()
         stmt.name = this.identifier()
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
       } else if (this.consumeIf(Keyword.LOGFILE)) {
         this.consume(Keyword.GROUP)
         stmt = new model.AlterLogfileGroupStatement()
         stmt.name = this.identifier()
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
       } else if (this.peekIf(Keyword.UNDO) || this.peekIf(Keyword.TABLESPACE)) {
@@ -2059,7 +2059,7 @@ export class MysqlParser extends Parser {
         }
         this.consume(Keyword.TABLESPACE)
         stmt.name = this.identifier()
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
       } else if (this.consumeIf(Keyword.USER)) {
@@ -2076,19 +2076,19 @@ export class MysqlParser extends Parser {
           stmt.users = []
           for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
             const user = this.userRole()
-            while (this.peek() && !this.peekIf(TokenType.Delimiter) && !this.peekIf(TokenType.Comma)) {
+            while (this.token() && !this.peekIf(TokenType.Delimiter) && !this.peekIf(TokenType.Comma)) {
               this.consume()
             }
             stmt.users.push(user)
           }
         }
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
       } else if (this.consumeIf(Keyword.TABLE)) {
         stmt = new model.AlterTableStatement()
         stmt.table = this.schemaObject()
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           if (this.consumeIf(Keyword.RENAME)) {
             if (this.consumeIf(Keyword.COLUMN)) {
               // no handle
@@ -2104,7 +2104,7 @@ export class MysqlParser extends Parser {
         }
       } else if (this.consumeIf(Keyword.INSTANCE)) {
         stmt = new model.AlterInstanceStatement()
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
       } else {
@@ -2145,7 +2145,7 @@ export class MysqlParser extends Parser {
           stmt.algorithm = algorithm
           stmt.definer = definer
           stmt.sqlSecurity = sqlSecurity
-          while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+          while (this.token() && !this.peekIf(TokenType.Delimiter)) {
             this.consume()
           }
         } else if (
@@ -2154,7 +2154,7 @@ export class MysqlParser extends Parser {
         ) {
           stmt = new model.AlterProcedureStatement()
           stmt.definer = definer
-          while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+          while (this.token() && !this.peekIf(TokenType.Delimiter)) {
             this.consume()
           }
         } else if (
@@ -2163,7 +2163,7 @@ export class MysqlParser extends Parser {
         ) {
           stmt = new model.AlterFunctionStatement()
           stmt.definer = definer
-          while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+          while (this.token() && !this.peekIf(TokenType.Delimiter)) {
             this.consume()
           }
         } else if (
@@ -2172,7 +2172,7 @@ export class MysqlParser extends Parser {
         ) {
           stmt = new model.AlterEventStatement()
           stmt.definer = definer
-          while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+          while (this.token() && !this.peekIf(TokenType.Delimiter)) {
             this.consume()
           }
         } else {
@@ -2237,7 +2237,7 @@ export class MysqlParser extends Parser {
         }
         this.consume(Keyword.TABLESPACE)
         stmt.name = this.identifier()
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
       } else if (this.consumeIf(Keyword.SPATIAL)) {
@@ -2332,7 +2332,7 @@ export class MysqlParser extends Parser {
         stmt.index = this.schemaObject()
         this.consumeIf(Keyword.ON)
         stmt.table = this.schemaObject()
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
       } else if (this.consumeIf(Keyword.PREPARE)) {
@@ -2349,13 +2349,13 @@ export class MysqlParser extends Parser {
       stmt = new model.PrepareStatement()
       stmt.name = this.identifier()
       this.consume(Keyword.FROM)
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.EXECUTE)) {
       stmt = new model.ExecuteStatement()
       stmt.prepareName = this.identifier()
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.DEALLOCATE)) {
@@ -2365,12 +2365,12 @@ export class MysqlParser extends Parser {
     } else if (this.consumeIf(Keyword.START)) {
       if (this.consumeIf(Keyword.TRANSACTION)) {
         stmt = new model.StartTransactionStatement()
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
       } else if (this.consumeIf(Keyword.REPLICA) || this.consumeIf(Keyword.SLAVE)) {
         stmt = new model.StartReplicaStatement()
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
       } else {
@@ -2379,13 +2379,13 @@ export class MysqlParser extends Parser {
     } else if (this.consumeIf(Keyword.CHANGE)) {
       this.consume(Keyword.MASTER)
       stmt = new model.ChangeMasterStatement()
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.STOP)) {
       if (this.consumeIf(Keyword.REPLICA) || this.consumeIf(Keyword.SLAVE)) {
         stmt = new model.StopReplicaStatement()
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
       } else {
@@ -2393,29 +2393,29 @@ export class MysqlParser extends Parser {
       }
     } else if (this.consumeIf(Keyword.BEGIN)) {
       stmt = new model.BeginStatement()
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.SAVEPOINT)) {
       stmt = new model.SavepointStatement()
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.RELEASE)) {
       this.consume(Keyword.SAVEPOINT)
       stmt = new model.ReleaseSavepointStatement()
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.peekIf(Keyword.COMMIT) || this.peekIf(Keyword.ROLLBACK)) {
       if (this.consumeIf(Keyword.COMMIT)) {
         stmt = new model.CommitStatement()
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
         } else if (this.consumeIf(Keyword.ROLLBACK)) {
         stmt = new model.RollbackStatement()
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
       } else {
@@ -2424,13 +2424,13 @@ export class MysqlParser extends Parser {
     } else if (this.consumeIf(Keyword.LOCK)) {
       this.consume(Keyword.TABLES)
       stmt = new model.LockTableStatement()
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.UNLOCK)) {
       this.consume(Keyword.TABLES)
       stmt = new model.UnlockTableStatement()
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.XA)) {
@@ -2451,14 +2451,14 @@ export class MysqlParser extends Parser {
       } else {
         throw this.createParseError()
       }
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.PURGE)) {
       if (this.consumeIf(Keyword.BINARY) || this.consumeIf(Keyword.MASTER)) {
         this.consume(Keyword.LOGS)
         stmt = new model.PurgeBinaryLogsStatement()
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
       } else {
@@ -2467,12 +2467,12 @@ export class MysqlParser extends Parser {
     } else if (this.consumeIf(Keyword.RESET)) {
       if (this.consumeIf(Keyword.MASTER)) {
         stmt = new model.ResetMasterStatement()
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
       } else if (this.consumeIf(Keyword.REPLICA) || this.consumeIf(Keyword.SLAVE)) {
         stmt = new model.ResetReplicaStatement()
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
       } else {
@@ -2480,12 +2480,12 @@ export class MysqlParser extends Parser {
       }
     } else if (this.consumeIf(Keyword.GRANT)) {
       stmt = new model.GrantStatement()
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.REVOKE)) {
       stmt = new model.RevokeStatement()
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.ANALYZE)) {
@@ -2497,7 +2497,7 @@ export class MysqlParser extends Parser {
       for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
         stmt.tables.push(this.schemaObject())
       }
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.CHECK)) {
@@ -2506,7 +2506,7 @@ export class MysqlParser extends Parser {
         for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
           stmt.tables.push(this.schemaObject())
         }
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
       } else if (this.consumeIf(Keyword.INDEX)) {
@@ -2514,7 +2514,7 @@ export class MysqlParser extends Parser {
         for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
           stmt.indexes.push(this.schemaObject())
         }
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
       }
@@ -2524,7 +2524,7 @@ export class MysqlParser extends Parser {
       for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
         stmt.tables.push(this.schemaObject())
       }
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.OPTIMIZE)) {
@@ -2536,7 +2536,7 @@ export class MysqlParser extends Parser {
       for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
         stmt.tables.push(this.schemaObject())
       }
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.REPAIR)) {
@@ -2548,18 +2548,18 @@ export class MysqlParser extends Parser {
       for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
         stmt.tables.push(this.schemaObject())
       }
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.INSTALL)) {
       if (this.consume(Keyword.PLUGIN)) {
         stmt = new model.InstallPluginStatement()
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
       } else if (this.consume(Keyword.COMPONENT)) {
         stmt = new model.InstallComponentStatement()
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
       } else {
@@ -2568,12 +2568,12 @@ export class MysqlParser extends Parser {
     } else if (this.consumeIf(Keyword.UNINSTALL)) {
       if (this.consume(Keyword.PLUGIN)) {
         stmt = new model.UninstallPluginStatement()
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
       } else if (this.consume(Keyword.COMPONENT)) {
         stmt = new model.UninstallComponentStatement()
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
       } else {
@@ -2581,18 +2581,18 @@ export class MysqlParser extends Parser {
       }
     } else if (this.consumeIf(Keyword.EXPLAIN) || this.consumeIf(Keyword.DESCRIBE)) {
       stmt = new model.ExplainStatement()
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.CALL)) {
       stmt = new model.CallStatement()
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.USE)) {
       stmt = new model.UseStatement()
       stmt.schemaName = this.identifier()
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.INSERT)) {
@@ -2609,7 +2609,7 @@ export class MysqlParser extends Parser {
       }
       this.consumeIf(Keyword.INTO)
       stmt.table = this.schemaObject()
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.UPDATE)) {
@@ -2621,7 +2621,7 @@ export class MysqlParser extends Parser {
         stmt.conflictAction = model.ConflictAction.IGNORE
       }
       stmt.table = this.schemaObject()
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.REPLACE)) {
@@ -2636,7 +2636,7 @@ export class MysqlParser extends Parser {
       }
       this.consumeIf(Keyword.INTO)
       stmt.table = this.schemaObject()
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.DELETE)) {
@@ -2656,7 +2656,7 @@ export class MysqlParser extends Parser {
       }
       this.consumeIf(Keyword.FROM)
       stmt.table = this.schemaObject()
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.LOAD)) {
@@ -2675,14 +2675,14 @@ export class MysqlParser extends Parser {
           stmt.local = true
         }
         this.consume(Keyword.INFILE)
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
       } else if (this.consumeIf(Keyword.INDEX)) {
         this.consume(Keyword.INTO)
         this.consume(Keyword.CACHE)
         stmt = new model.LoadIndexIntoCacheStatement()
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
       } else {
@@ -2693,34 +2693,34 @@ export class MysqlParser extends Parser {
         this.consume(Keyword.GROUP)
         stmt = new model.SetResourceGroupStatement()
         stmt.name = this.identifier()
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
       } else if (this.consumeIf(Keyword.DEFAULT)) {
         this.consume(Keyword.ROLE)
         stmt = new model.SetDefaultRoleStatement()
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
       } else if (this.consumeIf(Keyword.ROLE)) {
         stmt = new model.SetRoleStatement()
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
       } else if (this.consumeIf(Keyword.PASSWORD)) {
         stmt = new model.SetPasswordStatement()
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
       } else if (this.consumeIf(Keyword.CHARACTER)) {
         this.consume(Keyword.SET)
         stmt = new model.SetCharacterSetStatement()
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
       } else if (this.consumeIf(Keyword.NAMES)) {
         stmt = new model.SetNamesStatement()
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
       } else if (
@@ -2735,7 +2735,7 @@ export class MysqlParser extends Parser {
         } else if (this.consumeIf(Keyword.SESSION) || this.consumeIf(Keyword.LOCAL)) {
           stmt.type = model.VariableType.SESSION
         }
-        while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
           this.consume()
         }
       } else {
@@ -2757,13 +2757,13 @@ export class MysqlParser extends Parser {
             this.consume(TokenType.Dot)
             va.name = this.identifier()
           } else if (this.consumeIf(TokenType.SessionVariable)) {
-            const name = this.peek(-1).text
+            const name = this.token(-1).text.substring(2)
             va.type = model.VariableType.SESSION
-            va.name = name.substring(2)
+            va.name = /^['"`]/.test(name) ? dequote(name) : lcase(name)
           } else if (this.consumeIf(TokenType.UserDefinedVariable)) {
-            const name = this.peek(-1).text
+            const name = this.token(-1).text.substring(1)
             va.type = model.VariableType.USER_DEFINED
-            va.name = name.substring(1)
+            va.name = /^['"`]/.test(name) ? dequote(name) : lcase(name)
           } else {
             throw this.createParseError()
           }
@@ -2773,72 +2773,81 @@ export class MysqlParser extends Parser {
             throw this.createParseError()
           }
           stmt.variableAssignments.push(va)
+
+          if (va.type !== model.VariableType.USER_DEFINED && va.name === "sql_mode") {
+            if (va.value.length === 1 && (
+              va.value[0].type === TokenType.String ||
+              (!this.sqlMode.has("ANSI_QUOTE") && va.value[0].type === TokenType.QuotedValue)
+            )) {
+              this.setSqlMode(dequote(va.value[0].text))
+            }
+          }
         }
       }
     } else if (this.consumeIf(Keyword.WITH) || this.consumeIf(Keyword.SELECT)) {
       stmt = new model.SelectStatement()
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.TABLE)) {
       stmt = new model.TableStatement()
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.DO)) {
       stmt = new model.DoStatement()
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.HANDLER)) {
       stmt = new model.HandlerStatement()
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.SHOW)) {
       stmt = new model.ShowStatement()
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.HELP)) {
       stmt = new model.HelpStatement()
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.BINLOG)) {
       stmt = new model.BinlogStatement()
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.CACHE)) {
       this.consume(Keyword.INDEX)
       stmt = new model.CacheIndexStatement()
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.FLUSH)) {
       stmt = new model.FlushStatement()
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.KILL)) {
       stmt = new model.KillStatement()
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.RESTART)) {
       stmt = new model.RestartStatement()
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.SHUTDOWN)) {
       stmt = new model.ShutdownStatement()
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     } else if (this.consumeIf(Keyword.CLONE)) {
       stmt = new model.CloneStatement()
-      while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
         this.consume()
       }
     }
@@ -2850,7 +2859,7 @@ export class MysqlParser extends Parser {
     if (typeof this.options.filename === "string") {
       stmt.filename = this.options.filename
     }
-    while (this.peek() && !this.peekIf(TokenType.Delimiter)) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
       this.consume()
     }
     stmt.tokens = this.tokens.slice(start, this.pos)
@@ -2864,7 +2873,7 @@ export class MysqlParser extends Parser {
     }
     this.consume(Keyword.SELECT)
     let depth = 0
-    while (this.peek() &&
+    while (this.token() &&
       !this.peekIf(TokenType.SemiColon) &&
       (depth == 0 && !this.peekIf(TokenType.RightParen)) &&
       (depth == 0 && !this.peekIf(Keyword.WITH))
@@ -2916,26 +2925,26 @@ export class MysqlParser extends Parser {
       this.consumeIf(TokenType.QuotedValue) ||
       this.consumeIf(TokenType.String)
     ) {
-      userRole.name = unescape(dequote(this.peek(-1).text))
+      userRole.name = unescape(dequote(this.token(-1).text))
     } else if (this.consumeIf(TokenType.Identifier)) {
-      userRole.name = lcase(this.peek(-1).text)
+      userRole.name = lcase(this.token(-1).text)
     } else {
       throw this.createParseError()
     }
 
     if (this.consumeIf(TokenType.UserDefinedVariable)) {
-      userRole.host = dequote(this.peek(-1).text.substring(1))
+      userRole.host = dequote(this.token(-1).text.substring(1))
     }
     return userRole
   }
 
   identifier() {
     if (this.consumeIf(TokenType.Identifier)) {
-      return lcase(this.peek(-1).text)
+      return lcase(this.token(-1).text)
     } else if (this.consumeIf(TokenType.QuotedIdentifier)) {
-      return unescape(dequote(this.peek(-1).text))
+      return unescape(dequote(this.token(-1).text))
     } else if (!this.sqlMode.has("ANSI_QUOTES") && this.consumeIf(TokenType.QuotedValue)) {
-      return unescape(dequote(this.peek(-1).text))
+      return unescape(dequote(this.token(-1).text))
     } else {
       throw this.createParseError()
     }
@@ -3315,7 +3324,7 @@ export class MysqlParser extends Parser {
   expression() {
     const start = this.pos
     let depth = 0
-    while (this.peek() &&
+    while (this.token() &&
       (depth == 0 && !this.peekIf(TokenType.Comma)) &&
       (depth == 0 && !this.peekIf(TokenType.RightParen)) &&
       (depth == 0 && !this.peekIf(Keyword.AS)) &&
@@ -3425,19 +3434,21 @@ export class MysqlParser extends Parser {
   stringValue() {
     let text
     if (this.consumeIf(TokenType.String)) {
-      text = unescape(dequote(this.peek(-1).text))
+      text = unescape(dequote(this.token(-1).text))
     } else if (!this.sqlMode.has("ANSI_QUOTE") && this.consumeIf(TokenType.QuotedValue)) {
-      text = unescape(dequote(this.peek(-1).text))
+      text = unescape(dequote(this.token(-1).text))
     } else if (this.consumeIf(Keyword.VAR_GLOBAL)) {
       this.consume(TokenType.Dot)
-      text = "@@GLOBAL." + lcase(this.consume(TokenType.Identifier).text)
+      this.consume(TokenType.Identifier)
+      text = "@@GLOBAL." + lcase(this.token(-1).text)
     } else if (this.consumeIf(Keyword.VAR_LOCAL) || this.consumeIf(Keyword.VAR_SESSION)) {
       this.consume(TokenType.Dot)
-      text = "@@SESSION." + lcase(this.consume(TokenType.Identifier).text)
+      this.consume(TokenType.Identifier)
+      text = "@@SESSION." + lcase(this.token(-1).text)
     } else if (this.consumeIf(TokenType.SessionVariable)) {
-      text = lcase(this.peek(-1).text)
+      text = lcase(this.token(-1).text)
     } else if (this.consumeIf(TokenType.UserDefinedVariable)) {
-      text = lcase(this.peek(-1).text)
+      text = lcase(this.token(-1).text)
     } else {
       throw this.createParseError()
     }
@@ -3446,7 +3457,8 @@ export class MysqlParser extends Parser {
 
   sizeValue() {
     if (this.peekIf(TokenType.Number) || this.peekIf(TokenType.Size)) {
-      return this.consume().text
+      this.consume()
+      return this.token(-1).text
     } else {
       throw this.createParseError()
     }
@@ -3455,10 +3467,12 @@ export class MysqlParser extends Parser {
   numberValue() {
     let text
     if (this.consumeIf(Keyword.OPE_PLUS) || this.consumeIf(Keyword.OPE_MINUS)) {
-      text = this.peek(-1).text
-      text += this.consume(TokenType.Number).text
+      text = this.token(-1).text
+      this.consume(TokenType.Number)
+      text += this.token(-1).text
     } else {
-      text = this.consume(TokenType.Number).text
+      this.consume(TokenType.Number)
+      text = this.token(-1).text
     }
     return new Decimal(text).toString()
   }
