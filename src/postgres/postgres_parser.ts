@@ -47,6 +47,7 @@ export class Keyword implements ITokenType {
   static ACCESS = new Keyword("ACCESS")
   static AGGREGATE = new Keyword("AGGREGATE")
   static ALL = new Keyword("ALL", { reserved: true })
+  static ALTER = new Keyword("ALTER")
   static ANALYSE = new Keyword("ANALYSE", { reserved: true })
   static ANALYZE = new Keyword("ANALYZE", { reserved: true })
   static AND = new Keyword("AND", { reserved: true })
@@ -87,6 +88,7 @@ export class Keyword implements ITokenType {
   static DISTINCT = new Keyword("DISTINCT", { reserved: true })
   static DO = new Keyword("DO", { reserved: true })
   static DOMAIN = new Keyword("DOMAIN")
+  static DROP = new Keyword("DROP")
   static ELSE = new Keyword("ELSE", { reserved: true })
   static END = new Keyword("END", { reserved: true })
   static EVENT = new Keyword("EVENT")
@@ -370,13 +372,11 @@ export class PostgresParser extends Parser {
     if (this.consumeIf(Keyword.CREATE)) {
       if (this.consumeIf(Keyword.DATABASE)) {
         stmt = new model.CreateDatabaseStatement()
-      } else if (this.consumeIf(Keyword.ACCESS)) {
-        this.consume(Keyword.METHOD)
+      } else if (this.consumeIf(Keyword.ACCESS, Keyword.METHOD)) {
         stmt = new model.CreateAccessMethodStatement()
       } else if (this.consumeIf(Keyword.CAST)) {
         stmt = new model.CreateCastStatement()
-      } else if (this.consumeIf(Keyword.EVENT)) {
-        this.consume(Keyword.TRIGGER)
+      } else if (this.consumeIf(Keyword.EVENT, Keyword.TRIGGER)) {
         stmt = new model.CreateEventTriggerStatement()
       } else if (this.consumeIf(Keyword.EXTENSION)) {
         stmt = new model.CreateExtensionStatement()
@@ -407,12 +407,11 @@ export class PostgresParser extends Parser {
         stmt = new model.CreateSchemaStatement()
       } else if (this.consumeIf(Keyword.COLLATION)) {
         stmt = new model.CreateCollationStatement()
-      } else if (this.peekIf(Keyword.DEFAULT) || this.consumeIf(Keyword.CONVERSION)) {
+      } else if (this.consumeIf(Keyword.DEFAULT, Keyword.CONVERSION)) {
         stmt = new model.CreateConversionStatement()
-        if (this.consumeIf(Keyword.DEFAULT)) {
-          stmt.default = true
-          this.consume(Keyword.CONVERSION)
-        }
+        stmt.default = true
+      } else if (this.consumeIf(Keyword.CONVERSION)) {
+        stmt = new model.CreateConversionStatement()
       } else if (this.consumeIf(Keyword.DOMAIN)) {
         stmt = new model.CreateDomainStatement()
       } else if (this.consumeIf(Keyword.OPERATOR)) {
@@ -442,13 +441,13 @@ export class PostgresParser extends Parser {
         } else if (this.consumeIf(Keyword.TRANSFORM)) {
           stmt = new model.CreateTransformStatement()
           stmt.orReplace = true
-        } else if (this.peekIf(Keyword.RECURSIVE) || this.consumeIf(Keyword.VIEW)) {
+        } else if (this.consumeIf(Keyword.RECURSIVE, Keyword.VIEW)) {
           stmt = new model.CreateViewStatement()
           stmt.orReplace = true
-          if (this.consumeIf(Keyword.RECURSIVE)) {
-            this.consume(Keyword.VIEW)
-            stmt.recursive = true
-          }
+          stmt.recursive = true
+        } else if (this.consumeIf(Keyword.VIEW)) {
+          stmt = new model.CreateViewStatement()
+          stmt.orReplace = true
         } else if (this.consumeIf(Keyword.PROCEDURE)) {
           stmt = new model.CreateProcedureStatement()
           stmt.orReplace = true
@@ -462,26 +461,31 @@ export class PostgresParser extends Parser {
           stmt = new model.CreateRuleStatement()
           stmt.orReplace = true
         } else {
+          this.consumeIf(Keyword.RECURSIVE)
           throw this.createParseError()
         }
       } else if (this.consumeIf(Keyword.TEMPORARY) || this.consumeIf(Keyword.TEMP)) {
-        if (this.peekIf(Keyword.UNLOGGED) || this.consumeIf(Keyword.TABLE)) {
+        if (this.consumeIf(Keyword.UNLOGGED, Keyword.TABLE)) {
           stmt = new model.CreateTableStatement()
           stmt.temporary = true
-          if (this.consumeIf(Keyword.UNLOGGED)) {
-            this.consume(Keyword.TABLE)
-            stmt.unlogged = true
-          }
+          stmt.unlogged = true
+        } else if (this.consumeIf(Keyword.TABLE)) {
+          stmt = new model.CreateTableStatement()
+          stmt.temporary = true
         } else if (this.consumeIf(Keyword.SEQUENCE)) {
           stmt = new model.CreateSequenceStatement()
           stmt.temporary = true
-        } else if (this.peekIf(Keyword.RECURSIVE) || this.consumeIf(Keyword.VIEW)) {
+        } else if (this.consumeIf(Keyword.RECURSIVE, Keyword.VIEW)) {
           stmt = new model.CreateViewStatement()
           stmt.temporary = true
-          if (this.consumeIf(Keyword.RECURSIVE)) {
-            this.consume(Keyword.VIEW)
-            stmt.recursive = true
-          }
+          stmt.recursive = true
+        } else if (this.consumeIf(Keyword.VIEW)) {
+          stmt = new model.CreateViewStatement()
+          stmt.temporary = true
+        } else {
+          this.consumeIf(Keyword.UNLOGGED) ||
+          this.consumeIf(Keyword.RECURSIVE)
+          throw this.createParseError()
         }
       } else if (this.consumeIf(Keyword.FOREIGN)) {
         if (this.consumeIf(Keyword.DATA)) {
@@ -492,20 +496,18 @@ export class PostgresParser extends Parser {
         } else {
           throw this.createParseError()
         }
-      } else if (this.peekIf(Keyword.UNLOGGED) || this.consumeIf(Keyword.TABLE)) {
+      } else if (this.consumeIf(Keyword.UNLOGGED, Keyword.TABLE)) {
         stmt = new model.CreateTableStatement()
-        if (this.consumeIf(Keyword.UNLOGGED)) {
-          this.consume(Keyword.TABLE)
-          stmt.unlogged = true
-        }
+        stmt.unlogged = true
+      } else if (this.consumeIf(Keyword.TABLE)) {
+        stmt = new model.CreateTableStatement()
       } else if (this.consumeIf(Keyword.SEQUENCE)) {
         stmt = new model.CreateSequenceStatement()
-      } else if (this.peekIf(Keyword.RECURSIVE) || this.consumeIf(Keyword.VIEW)) {
+      } else if (this.consumeIf(Keyword.RECURSIVE, Keyword.VIEW)) {
         stmt = new model.CreateViewStatement()
-        if (this.consumeIf(Keyword.RECURSIVE)) {
-          stmt.recursive = true
-          this.consume(Keyword.VIEW)
-        }
+        stmt.recursive = true
+      } else if (this.consumeIf(Keyword.VIEW)) {
+        stmt = new model.CreateViewStatement()
       } else if (this.consumeIf(Keyword.MATERIALIZED)) {
         stmt = new model.CreateMaterializedViewStatement()
       } else if (this.consumeIf(Keyword.PROCEDURE)) {
@@ -514,12 +516,11 @@ export class PostgresParser extends Parser {
         stmt = new model.CreateFunctionStatement()
       } else if (this.consumeIf(Keyword.AGGREGATE)) {
         stmt = new model.CreateAggregateStatement()
-      } else if (this.peekIf(Keyword.CONSTRAINT) || this.consumeIf(Keyword.TRIGGER)) {
+      } else if (this.consumeIf(Keyword.CONSTRAINT, Keyword.TRIGGER)) {
         stmt = new model.CreateTriggerStatement()
-        if (this.consumeIf(Keyword.CONSTRAINT)) {
-          stmt.constraint = true
-          this.consume(Keyword.TRIGGER)
-        }
+        stmt.constraint = true
+      } else if (this.consumeIf(Keyword.TRIGGER)) {
+        stmt = new model.CreateTriggerStatement()
       } else if (this.consumeIf(Keyword.TEXT)) {
         this.consume(Keyword.SEARCH)
         if (this.consumeIf(Keyword.CONFIGURATION)) {
@@ -537,12 +538,28 @@ export class PostgresParser extends Parser {
         stmt = new model.CreatePolicyStatement()
       } else if (this.consumeIf(Keyword.RULE)) {
         stmt = new model.CreateRuleStatement()
-      } else if (this.peekIf(Keyword.UNIQUE) || this.consumeIf(Keyword.INDEX)) {
+      } else if (this.consumeIf(Keyword.UNIQUE, Keyword.INDEX)) {
         stmt = new model.CreateIndexStatement()
-        if (this.consumeIf(Keyword.UNIQUE)) {
-          stmt.type = model.IndexType.UNIQUE
-          this.consume(Keyword.INDEX)
-        }
+        stmt.type = model.IndexType.UNIQUE
+      } else if (this.consumeIf(Keyword.INDEX)) {
+        stmt = new model.CreateIndexStatement()
+      } else {
+        this.consumeIf(Keyword.ACCESS) ||
+        this.consumeIf(Keyword.EVENT) ||
+        this.consumeIf(Keyword.DEFAULT) ||
+        this.consumeIf(Keyword.UNLOGGED) ||
+        this.consumeIf(Keyword.RECURSIVE) ||
+        this.consumeIf(Keyword.CONSTRAINT) ||
+        this.consumeIf(Keyword.UNIQUE)
+        throw this.createParseError()
+      }
+    } else if (this.consumeIf(Keyword.ALTER)) {
+      if (this.consumeIf(Keyword.DATABASE)) {
+        stmt = new model.AlterDatabaseStatement()
+      }
+    } else if (this.consumeIf(Keyword.DROP)) {
+      if (this.consumeIf(Keyword.DATABASE)) {
+        stmt = new model.DropDatabaseStatement()
       }
     }
 

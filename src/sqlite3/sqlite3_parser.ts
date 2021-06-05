@@ -386,8 +386,7 @@ export class Sqlite3Parser extends Parser {
       ) {
         stmt = new model.CreateTableStatement()
         stmt.temporary = true
-      } else if (this.consumeIf(Keyword.VIRTUAL)) {
-        this.consume(Keyword.TABLE)
+      } else if (this.consumeIf(Keyword.VIRTUAL, Keyword.TABLE)) {
         stmt = new model.CreateTableStatement()
         stmt.virtual = true
       } else if (this.consumeIf(Keyword.TABLE)) {
@@ -413,6 +412,13 @@ export class Sqlite3Parser extends Parser {
         stmt.type = model.IndexType.UNIQUE
       } else if (this.consumeIf(Keyword.INDEX)) {
         stmt = new model.CreateIndexStatement()
+      } else if (
+        this.consumeIf(Keyword.TEMPORARY) ||
+        this.consumeIf(Keyword.TEMP) ||
+        this.consumeIf(Keyword.VIRTUAL) ||
+        this.consumeIf(Keyword.UNIQUE)
+      ) {
+        throw this.createParseError()
       } else {
         throw this.createParseError()
       }

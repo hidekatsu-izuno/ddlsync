@@ -15,6 +15,15 @@ export class CreateDatabaseStatement extends Statement {
   name = ""
 }
 
+export class AlterDatabaseStatement extends Statement {
+  schemaName = ""
+}
+
+export class DropDatabaseStatement extends Statement {
+  schemaName = ""
+  ifExists = false
+}
+
 export class CreateAccessMethodStatement extends Statement {
   name = ""
 }
