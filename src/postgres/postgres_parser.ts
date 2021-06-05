@@ -119,6 +119,7 @@ export class Keyword implements ITokenType {
   static JOIN = new Keyword("JOIN")
   static LANGUAGE = new Keyword("LANGUAGE")
   static LATERAL = new Keyword("LATERAL", { reserved: true })
+  static LARGE = new Keyword("LARGE")
   static LEADING = new Keyword("LEADING", { reserved: true })
   static LEFT = new Keyword("LEFT")
   static LIKE = new Keyword("LIKE")
@@ -133,6 +134,7 @@ export class Keyword implements ITokenType {
   static NOT = new Keyword("NOT", { reserved: true })
   static NOTNULL = new Keyword("NOTNULL")
   static NULL = new Keyword("NULL", { reserved: true })
+  static OBJECT = new Keyword("OBJECT")
   static OFFSET = new Keyword("OFFSET", { reserved: true })
   static ON = new Keyword("ON", { reserved: true })
   static ONLY = new Keyword("ONLY", { reserved: true })
@@ -145,6 +147,8 @@ export class Keyword implements ITokenType {
   static PLACING = new Keyword("PLACING", { reserved: true })
   static POLICY = new Keyword("POLICY")
   static PRIMARY = new Keyword("PRIMARY", { reserved: true })
+  static PRIVILEGES = new Keyword("PRIVILEGES")
+  static PROCEDURAL = new Keyword("PROCEDURAL")
   static PROCEDURE = new Keyword("PROCEDURE")
   static PUBLICATION = new Keyword("PUBLICATION")
   static RECURSIVE = new Keyword("RECURSIVE")
@@ -152,6 +156,7 @@ export class Keyword implements ITokenType {
   static RETURNING = new Keyword("RETURNING", { reserved: true })
   static RIGHT = new Keyword("RIGHT")
   static ROLE = new Keyword("ROLE")
+  static ROUTINE = new Keyword("ROUTINE")
   static RULE = new Keyword("RULE")
   static REPLACE = new Keyword("REPLACE")
   static SCHEMA = new Keyword("SCHEMA")
@@ -165,6 +170,7 @@ export class Keyword implements ITokenType {
   static STATISTICS = new Keyword("STATISTICS")
   static SUBSCRIPTION = new Keyword("SUBSCRIPTION")
   static SYMMETRIC = new Keyword("SYMMETRIC", { reserved: true })
+  static SYSTEM = new Keyword("SYSTEM")
   static TABLE = new Keyword("TABLE", { reserved: true })
   static TABLESPACE  = new Keyword("TABLESPACE")
   static TEMP = new Keyword("TEMP")
@@ -177,6 +183,7 @@ export class Keyword implements ITokenType {
   static TRANSFORM = new Keyword("TRANSFORM")
   static TRIGGER = new Keyword("TRIGGER")
   static TRUE = new Keyword("TRUE", { reserved: true })
+  static TRUSTED = new Keyword("TRUSTED")
   static TYPE = new Keyword("TYPE")
   static UNION = new Keyword("UNION", { reserved: true })
   static UNIQUE = new Keyword("UNIQUE", { reserved: true })
@@ -372,14 +379,27 @@ export class PostgresParser extends Parser {
     if (this.consumeIf(Keyword.CREATE)) {
       if (this.consumeIf(Keyword.DATABASE)) {
         stmt = new model.CreateDatabaseStatement()
-      } else if (this.consumeIf(Keyword.ACCESS, Keyword.METHOD)) {
+      } else if (this.consumeIf(Keyword.ACCESS)) {
+        this.consume(Keyword.METHOD)
         stmt = new model.CreateAccessMethodStatement()
       } else if (this.consumeIf(Keyword.CAST)) {
         stmt = new model.CreateCastStatement()
-      } else if (this.consumeIf(Keyword.EVENT, Keyword.TRIGGER)) {
+      } else if (this.consumeIf(Keyword.EVENT)) {
+        this.consume(Keyword.TRIGGER)
         stmt = new model.CreateEventTriggerStatement()
       } else if (this.consumeIf(Keyword.EXTENSION)) {
         stmt = new model.CreateExtensionStatement()
+      } else if (this.consumeIf(Keyword.TRUSTED)) {
+        stmt = new model.CreateLanguageStatement()
+        stmt.trusted = true
+        if (this.consumeIf(Keyword.PROCEDURAL)) {
+          stmt.procedural = true
+        }
+        this.consume(Keyword.LANGUAGE)
+      } else if (this.consumeIf(Keyword.PROCEDURAL)) {
+        this.consume(Keyword.LANGUAGE)
+        stmt = new model.CreateLanguageStatement()
+        stmt.procedural = true
       } else if (this.consumeIf(Keyword.LANGUAGE)) {
         stmt = new model.CreateLanguageStatement()
       } else if (this.consumeIf(Keyword.TRANSFORM)) {
@@ -493,8 +513,6 @@ export class PostgresParser extends Parser {
           stmt = new model.CreateForeignDataWrapperStatement()
         } else if (this.consumeIf(Keyword.TABLE)) {
           stmt = new model.CreateForeignTableStatement()
-        } else {
-          throw this.createParseError()
         }
       } else if (this.consumeIf(Keyword.UNLOGGED, Keyword.TABLE)) {
         stmt = new model.CreateTableStatement()
@@ -531,8 +549,6 @@ export class PostgresParser extends Parser {
           stmt = new model.CreateTextSearchParserStatement()
         } else if (this.consumeIf(Keyword.TEMPLATE)) {
           stmt = new model.CreateTextSearchTemplateStatement()
-        } else {
-          throw this.createParseError()
         }
       } else if (this.consumeIf(Keyword.POLICY)) {
         stmt = new model.CreatePolicyStatement()
@@ -543,19 +559,122 @@ export class PostgresParser extends Parser {
         stmt.type = model.IndexType.UNIQUE
       } else if (this.consumeIf(Keyword.INDEX)) {
         stmt = new model.CreateIndexStatement()
-      } else {
-        this.consumeIf(Keyword.ACCESS) ||
-        this.consumeIf(Keyword.EVENT) ||
+      } else if (
         this.consumeIf(Keyword.DEFAULT) ||
+        this.consumeIf(Keyword.TEMPORARY) ||
+        this.consumeIf(Keyword.TEMP) ||
         this.consumeIf(Keyword.UNLOGGED) ||
         this.consumeIf(Keyword.RECURSIVE) ||
         this.consumeIf(Keyword.CONSTRAINT) ||
         this.consumeIf(Keyword.UNIQUE)
+      ) {
         throw this.createParseError()
       }
     } else if (this.consumeIf(Keyword.ALTER)) {
-      if (this.consumeIf(Keyword.DATABASE)) {
+      if (this.consumeIf(Keyword.SYSTEM)) {
+        stmt = new model.AlterSystemStatement()
+      } else if (this.consumeIf(Keyword.DATABASE)) {
         stmt = new model.AlterDatabaseStatement()
+      } else if (this.consumeIf(Keyword.EVENT)) {
+        this.consume(Keyword.TRIGGER)
+        stmt = new model.AlterEventTriggerStatement()
+      } else if (this.consumeIf(Keyword.EXTENSION)) {
+        stmt = new model.AlterExtensionStatement()
+      } else if (this.consumeIf(Keyword.PROCEDURAL)) {
+        this.consume(Keyword.LANGUAGE)
+        stmt = new model.AlterLanguageStatement()
+        stmt.procedural = true
+      } else if (this.consumeIf(Keyword.LANGUAGE)) {
+        stmt = new model.AlterLanguageStatement()
+      } else if (this.consumeIf(Keyword.PUBLICATION)) {
+        stmt = new model.AlterPublicationStatement()
+      } else if (this.consumeIf(Keyword.SUBSCRIPTION)) {
+        stmt = new model.AlterSubscriptionStatement()
+      } else if (this.consumeIf(Keyword.SERVER)) {
+        stmt = new model.AlterServerStatement()
+      } else if (this.consumeIf(Keyword.TABLESPACE)) {
+        stmt = new model.AlterTablespaceStatement()
+      } else if (this.consumeIf(Keyword.TYPE)) {
+        stmt = new model.AlterTypeStatement()
+      } else if (this.consumeIf(Keyword.GROUP) || this.consumeIf(Keyword.ROLE)) {
+        stmt = new model.AlterRoleStatement()
+      } else if (this.consumeIf(Keyword.USER)) {
+        if (this.consumeIf(Keyword.MAPPING)) {
+          stmt = new model.AlterUserMappingStatement()
+        } else {
+          stmt = new model.AlterRoleStatement()
+          stmt.login = true
+        }
+      } else if (this.consumeIf(Keyword.LARGE)) {
+        this.consume(Keyword.OBJECT)
+        stmt = new model.AlterLargeObjectStatement()
+      } else if (this.consumeIf(Keyword.SCHEMA)) {
+        stmt = new model.AlterSchemaStatement()
+      } else if (this.consumeIf(Keyword.COLLATION)) {
+        stmt = new model.AlterCollationStatement()
+      } else if (this.consumeIf(Keyword.DEFAULT, Keyword.PRIVILEGES)) {
+        stmt = new model.AlterDefaultPrivilegesStatement()
+      } else if (this.consumeIf(Keyword.CONVERSION)) {
+        stmt = new model.AlterConversionStatement()
+      } else if (this.consumeIf(Keyword.DOMAIN)) {
+        stmt = new model.AlterDomainStatement()
+      } else if (this.consumeIf(Keyword.OPERATOR)) {
+        if (this.consumeIf(Keyword.CLASS)) {
+          stmt = new model.AlterOperatorClassStatement()
+        } else if (this.consumeIf(Keyword.FAMILY)) {
+          stmt = new model.AlterOperatorFamilyStatement()
+        } else {
+          stmt = new model.AlterOperatorStatement()
+        }
+      } else if (this.consumeIf(Keyword.STATISTICS)) {
+        stmt = new model.AlterStatisticsClassStatement()
+      } else if (this.consumeIf(Keyword.FOREIGN)) {
+        if (this.consumeIf(Keyword.DATA)) {
+          this.consume(Keyword.WRAPPER)
+          stmt = new model.AlterForeignDataWrapperStatement()
+        } else if (this.consumeIf(Keyword.TABLE)) {
+          stmt = new model.AlterForeignTableStatement()
+        }
+      } else if (this.consumeIf(Keyword.TABLE)) {
+        stmt = new model.AlterTableStatement()
+      } else if (this.consumeIf(Keyword.SEQUENCE)) {
+        stmt = new model.AlterSequenceStatement()
+
+      } else if (this.consumeIf(Keyword.VIEW)) {
+        stmt = new model.AlterViewStatement()
+      } else if (this.consumeIf(Keyword.MATERIALIZED)) {
+        stmt = new model.AlterMaterializedViewStatement()
+      } else if (this.consumeIf(Keyword.PROCEDURE)) {
+        stmt = new model.AlterProcedureStatement()
+      } else if (this.consumeIf(Keyword.FUNCTION)) {
+        stmt = new model.AlterFunctionStatement()
+      } else if (this.consumeIf(Keyword.AGGREGATE)) {
+        stmt = new model.AlterAggregateStatement()
+      } else if (this.consumeIf(Keyword.TRIGGER)) {
+        stmt = new model.AlterTriggerStatement()
+      } else if (this.consumeIf(Keyword.ROUTINE)) {
+        stmt = new model.AlterRoutineStatement()
+      } else if (this.consumeIf(Keyword.TEXT)) {
+        this.consume(Keyword.SEARCH)
+        if (this.consumeIf(Keyword.CONFIGURATION)) {
+          stmt = new model.AlterTextSearchConfigurationStatement()
+        } else if (this.consumeIf(Keyword.DICTIONARY)) {
+          stmt = new model.AlterTextSearchDictionaryStatement()
+        } else if (this.consumeIf(Keyword.PARSER)) {
+          stmt = new model.AlterTextSearchParserStatement()
+        } else if (this.consumeIf(Keyword.TEMPLATE)) {
+          stmt = new model.AlterTextSearchTemplateStatement()
+        }
+      } else if (this.consumeIf(Keyword.POLICY)) {
+        stmt = new model.AlterPolicyStatement()
+      } else if (this.consumeIf(Keyword.RULE)) {
+        stmt = new model.AlterRuleStatement()
+      } else if (this.consumeIf(Keyword.INDEX)) {
+        stmt = new model.AlterIndexStatement()
+      } else if (
+        this.consumeIf(Keyword.DEFAULT)
+      ) {
+        throw this.createParseError()
       }
     } else if (this.consumeIf(Keyword.DROP)) {
       if (this.consumeIf(Keyword.DATABASE)) {
