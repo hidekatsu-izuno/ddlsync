@@ -833,8 +833,7 @@ export class MysqlParser extends Parser {
       if (this.consumeIf(Keyword.DATABASE) || this.consumeIf(Keyword.SCHEMA)) {
         stmt = new model.CreateDatabaseStatement()
         if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.NOT)
-          this.consume(Keyword.EXISTS)
+          this.consume(Keyword.NOT, Keyword.EXISTS)
           stmt.ifNotExists = true
         }
         stmt.name = this.identifier()
@@ -857,9 +856,7 @@ export class MysqlParser extends Parser {
       } else if (this.consumeIf(Keyword.SERVER)) {
         stmt = new model.CreateServerStatement()
         stmt.name = this.identifier()
-        this.consume(Keyword.FOREIGN)
-        this.consume(Keyword.DATA)
-        this.consume(Keyword.WRAPPER)
+        this.consume(Keyword.FOREIGN, Keyword.DATA, Keyword.WRAPPER)
         stmt.wrapperName = this.identifier()
         this.consume(Keyword.OPTIONS)
         this.consume(TokenType.LeftParen)
@@ -887,8 +884,7 @@ export class MysqlParser extends Parser {
         this.consume(Keyword.GROUP)
         stmt = new model.CreateResourceGroupStatement()
         stmt.name = this.identifier()
-        this.consume(Keyword.TYPE)
-        this.consume(Keyword.OPE_EQ)
+        this.consume(Keyword.TYPE, Keyword.OPE_EQ)
         if (this.consumeIf(Keyword.SYSTEM)) {
           stmt.type = model.ResourceGroupType.SYSTEM
         } else if (this.consumeIf(Keyword.USER)) {
@@ -922,8 +918,7 @@ export class MysqlParser extends Parser {
         this.consume(Keyword.GROUP)
         stmt = new model.CreateLogfileGroupStatement()
         stmt.name = this.identifier()
-        this.consume(Keyword.ADD)
-        this.consume(Keyword.UNDOFILE)
+        this.consume(Keyword.ADD, Keyword.UNDOFILE)
         stmt.undofile = this.stringValue()
         if (this.consumeIf(Keyword.INITIAL_SIZE)) {
           this.consumeIf(Keyword.OPE_EQ)
@@ -976,8 +971,7 @@ export class MysqlParser extends Parser {
           stmt.encryption = this.stringValue()
         }
         if (this.consumeIf(Keyword.USE)) {
-          this.consume(Keyword.LOGFILE)
-          this.consume(Keyword.GROUP)
+          this.consume(Keyword.LOGFILE, Keyword.GROUP)
           stmt.useLogfileGroup = this.identifier()
         }
         if (this.consumeIf(Keyword.EXTENT_SIZE)) {
@@ -1014,8 +1008,7 @@ export class MysqlParser extends Parser {
       } else if (this.consumeIf(Keyword.ROLE)) {
         stmt = new model.CreateRoleStatement()
         if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.NOT)
-          this.consume(Keyword.EXISTS)
+          this.consume(Keyword.NOT, Keyword.EXISTS)
           stmt.ifNotExists = true
         }
         for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
@@ -1024,8 +1017,7 @@ export class MysqlParser extends Parser {
       } else if (this.consumeIf(Keyword.USER)) {
         stmt = new model.CreateUserStatement()
         if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.NOT)
-          this.consume(Keyword.EXISTS)
+          this.consume(Keyword.NOT, Keyword.EXISTS)
           stmt.ifNotExists = true
         }
         for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
@@ -1171,8 +1163,7 @@ export class MysqlParser extends Parser {
         }
         this.consume(Keyword.TABLE)
         if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.NOT)
-          this.consume(Keyword.EXISTS)
+          this.consume(Keyword.NOT, Keyword.EXISTS)
           stmt.ifNotExists = true
         }
       } else if (this.consumeIf(Keyword.UNIQUE)) {
@@ -1235,8 +1226,7 @@ export class MysqlParser extends Parser {
           !algorithm && !aggregate && !sqlSecurity &&
           this.consumeIf(Keyword.SPATIAL)
         ) {
-          this.consume(Keyword.REFERENCE)
-          this.consume(Keyword.SYSTEM)
+          this.consume(Keyword.REFERENCE, Keyword.SYSTEM)
           stmt = new model.CreateSpatialReferenceSystemStatement()
           stmt.orReplace = true
           stmt.srid = this.numberValue()
@@ -1275,8 +1265,7 @@ export class MysqlParser extends Parser {
           stmt = new model.CreateEventStatement()
           stmt.definer = definer
           if (this.consumeIf(Keyword.IF)) {
-            this.consume(Keyword.NOT)
-            this.consume(Keyword.EXISTS)
+            this.consume(Keyword.NOT, Keyword.EXISTS)
             stmt.ifNotExists = true
           }
         } else {
@@ -3438,12 +3427,10 @@ export class MysqlParser extends Parser {
     } else if (!this.sqlMode.has("ANSI_QUOTE") && this.consumeIf(TokenType.QuotedValue)) {
       text = unescape(dequote(this.token(-1).text))
     } else if (this.consumeIf(Keyword.VAR_GLOBAL)) {
-      this.consume(TokenType.Dot)
-      this.consume(TokenType.Identifier)
+      this.consume(TokenType.Dot, TokenType.Identifier)
       text = "@@GLOBAL." + lcase(this.token(-1).text)
     } else if (this.consumeIf(Keyword.VAR_LOCAL) || this.consumeIf(Keyword.VAR_SESSION)) {
-      this.consume(TokenType.Dot)
-      this.consume(TokenType.Identifier)
+      this.consume(TokenType.Dot, TokenType.Identifier)
       text = "@@SESSION." + lcase(this.token(-1).text)
     } else if (this.consumeIf(TokenType.SessionVariable)) {
       text = lcase(this.token(-1).text)

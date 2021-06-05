@@ -419,8 +419,7 @@ export class Sqlite3Parser extends Parser {
 
       if (this.consumeIf(Keyword.IF)) {
         stmt.markers.set("ifNotExistsStart", this.pos - start - 1)
-        this.consume(Keyword.NOT)
-        this.consume(Keyword.EXISTS)
+        this.consume(Keyword.NOT, Keyword.EXISTS)
         stmt.ifNotExists = true
         stmt.markers.set("ifNotExistsEnd", this.pos - start)
       }
