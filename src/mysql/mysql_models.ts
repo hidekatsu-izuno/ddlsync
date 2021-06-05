@@ -560,6 +560,9 @@ export class CreateEventStatement extends Statement {
   every?: Interval
   starts?: Array<Token>
   ends?: Array<Token>
+  onCompletionPreserve = false
+  disable: boolean | "ON SLAVE" = false
+  comment?: string
 }
 
 export class AlterEventStatement extends Statement {
@@ -997,4 +1000,9 @@ export enum DropOption {
 export enum CacheCycle {
   CYCLE = "CYCLE",
   NOCYCLE = "NOCYCLE",
+}
+
+export enum OnCompletionAction {
+  PRESERVE = "PRESERVE",
+  NOT_PRESERVE = "NOT PRESERVE",
 }

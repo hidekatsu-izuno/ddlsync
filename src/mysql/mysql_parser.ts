@@ -113,6 +113,7 @@ export class Keyword implements ITokenType {
   static COMMIT = new Keyword("COMMIT")
   static COMMITTED = new Keyword("COMMITTED")
   static COMPACT = new Keyword("COMPACT")
+  static COMPLETION = new Keyword("COMPLETION")
   static COMPRESSED = new Keyword("COMPRESSED")
   static COMPRESSION = new Keyword("COMPRESSION")
   static COMPONENT = new Keyword("COMPONENT")
@@ -258,6 +259,7 @@ export class Keyword implements ITokenType {
   static IETF_QUOTES = new Keyword("IETF_QUOTES")
   static IF = new Keyword("IF", { reserved: true })
   static IGNORE = new Keyword("IGNORE", { reserved: true })
+  static IGNORED = new Keyword("IGNORED")
   static INCREMENT = new Keyword("INCREMENT")
   static INPLACE = new Keyword("INPLACE")
   static IMPORT = new Keyword("IMPORT")
@@ -423,6 +425,7 @@ export class Keyword implements ITokenType {
   static PRECEDES = new Keyword("PRECEDES")
   static PRECISION = new Keyword("PRECISION", { reserved: true })
   static PREPARE = new Keyword("PREPARE")
+  static PRESERVE  = new Keyword("PRESERVE")
   static PRIMARY = new Keyword("PRIMARY", { reserved: true })
   static PROCEDURE = new Keyword("PROCEDURE", { reserved: true })
   static PURGE = new Keyword("PURGE", { reserved: true })
@@ -1988,6 +1991,33 @@ export class MysqlParser extends Parser {
             stmt.ends = this.expression()
           }
         }
+        if (this.consumeIf(Keyword.ON)) {
+          this.consume(Keyword.COMPLETION)
+          if (this.consumeIf(Keyword.NOT)) {
+            this.consume(Keyword.PRESERVE)
+            stmt.onCompletionPreserve = false
+          } else {
+            this.consume(Keyword.PRESERVE)
+            stmt.onCompletionPreserve = true
+          }
+        }
+        if (this.consumeIf(Keyword.ENABLE)) {
+          stmt.disable = false
+        } else if (this.consumeIf(Keyword.DISABLE)) {
+          if (this.consumeIf(Keyword.ON)) {
+            this.consume(Keyword.SLAVE)
+            stmt.disable = "ON SLAVE"
+          } else {
+            stmt.disable = true
+          }
+        }
+        if (this.consumeIf(Keyword.COMMENT)) {
+          stmt.comment = this.stringValue()
+        }
+        this.consume(Keyword.DO)
+        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+          this.consume()
+        }
       }
     } else if (this.consumeIf(Keyword.ALTER)) {
       if (this.consumeIf(Keyword.DATABASE) || this.consumeIf(Keyword.SCHEMA)) {
@@ -3085,6 +3115,10 @@ export class MysqlParser extends Parser {
         } else {
           throw this.createParseError()
         }
+      } else if (this.consumeIf(Keyword.IGNORED)) {
+        options.push({ key: "IGNORED", value: true })
+      } else if (this.consumeIf(Keyword.NOT, Keyword.IGNORED)) {
+        options.push({ key: "IGNORED", value: false })
       } else {
         break
       }
