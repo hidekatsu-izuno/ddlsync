@@ -863,2011 +863,631 @@ export class MysqlParser extends Parser {
       if (this.consumeIf(Keyword.DATABASE) || this.consumeIf(Keyword.SCHEMA)) {
         stmt = new model.CreateDatabaseStatement()
         stmt.orReplace = orReplace
-        if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.NOT, Keyword.EXISTS)
-          stmt.ifNotExists = true
-        }
-        stmt.name = this.identifier()
-        while (this.token()) {
-          this.consumeIf(Keyword.DEFAULT)
-          if (this.consumeIf(Keyword.CHARACTER)) {
-            this.consume(Keyword.SET)
-            this.consumeIf(Keyword.OPE_EQ)
-            stmt.characterSet = this.stringValue()
-          } else if (this.consumeIf(Keyword.COLLATE)) {
-            this.consumeIf(Keyword.OPE_EQ)
-            stmt.collate = this.stringValue()
-          } else if (this.consumeIf(Keyword.ENCRYPTION)) {
-            this.consumeIf(Keyword.OPE_EQ)
-            stmt.encryption = this.stringValue()
-          } else {
-            throw new Error()
-          }
-        }
+        this.parseCreateDatabaseStatement(stmt, start)
       } else if (this.consumeIf(Keyword.SERVER)) {
         stmt = new model.CreateServerStatement()
         stmt.orReplace = orReplace
-        stmt.name = this.identifier()
-        this.consume(Keyword.FOREIGN, Keyword.DATA, Keyword.WRAPPER)
-        stmt.wrapperName = this.identifier()
-        this.consume(Keyword.OPTIONS)
-        this.consume(TokenType.LeftParen)
-        for (let i = 0; i === 0 || this.consume(TokenType.Comma); i++) {
-          if (this.consumeIf(Keyword.HOST)) {
-            stmt.host = this.stringValue()
-          } else if (this.consumeIf(Keyword.DATABASE)) {
-            stmt.database = this.stringValue()
-          } else if (this.consumeIf(Keyword.USER)) {
-            stmt.user = this.stringValue()
-          } else if (this.consumeIf(Keyword.PASSWORD)) {
-            stmt.password = this.stringValue()
-          } else if (this.consumeIf(Keyword.SOCKET)) {
-            stmt.socket = this.stringValue()
-          } else if (this.consumeIf(Keyword.OWNER)) {
-            stmt.owner = this.stringValue()
-          } else if (this.consumeIf(Keyword.PORT)) {
-            stmt.port = this.numberValue()
-          } else {
-            throw this.createParseError()
-          }
-        }
-        this.consume(TokenType.RightParen)
+        this.parseCreateServerStatement(stmt, start)
       } else if (this.consumeIf(Keyword.RESOURCE)) {
         this.consume(Keyword.GROUP)
         stmt = new model.CreateResourceGroupStatement()
         stmt.orReplace = orReplace
-        stmt.name = this.identifier()
-        this.consume(Keyword.TYPE, Keyword.OPE_EQ)
-        if (this.consumeIf(Keyword.SYSTEM)) {
-          stmt.type = model.ResourceGroupType.SYSTEM
-        } else if (this.consumeIf(Keyword.USER)) {
-          stmt.type = model.ResourceGroupType.USER
-        } else {
-          throw this.createParseError()
-        }
-        if (this.consumeIf(Keyword.VCPU)) {
-          this.consumeIf(Keyword.OPE_EQ)
-          for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-            const range = { min: "", max: "" }
-            range.min = this.numberValue()
-            if (this.consumeIf(Keyword.OPE_MINUS)) {
-              range.max = this.numberValue()
-            } else {
-              range.max = range.min
-            }
-            stmt.vcpu.push(range)
-          }
-        }
-        if (this.consumeIf(Keyword.THREAD_PRIORITY)) {
-          this.consumeIf(Keyword.OPE_EQ)
-          stmt.threadPriority = this.numberValue()
-        }
-        if (this.consumeIf(Keyword.ENABLE)) {
-          stmt.disable = false
-        } else if (this.consumeIf(Keyword.DISABLE)) {
-          stmt.disable = true
-        }
+        this.parseCreateResourceGroupStatement(stmt, start)
       } else if (!orReplace && this.consumeIf(Keyword.LOGFILE)) {
         this.consume(Keyword.GROUP)
         stmt = new model.CreateLogfileGroupStatement()
-        stmt.name = this.identifier()
-        this.consume(Keyword.ADD, Keyword.UNDOFILE)
-        stmt.undofile = this.stringValue()
-        if (this.consumeIf(Keyword.INITIAL_SIZE)) {
-          this.consumeIf(Keyword.OPE_EQ)
-          stmt.initialSize = this.sizeValue()
-        }
-        if (this.consumeIf(Keyword.UNDO_BUFFER_SIZE)) {
-          this.consumeIf(Keyword.OPE_EQ)
-          stmt.undoBufferSize = this.sizeValue()
-        }
-        if (this.consumeIf(Keyword.REDO_BUFFER_SIZE)) {
-          this.consumeIf(Keyword.OPE_EQ)
-          stmt.redoBufferSize = this.sizeValue()
-        }
-        if (this.consumeIf(Keyword.NODEGROUP)) {
-          this.consumeIf(Keyword.OPE_EQ)
-          stmt.nodeGroup = this.numberValue()
-        }
-        if (this.consumeIf(Keyword.WAIT)) {
-          stmt.wait = true
-        }
-        if (this.consumeIf(Keyword.COMMENT)) {
-          this.consumeIf(Keyword.OPE_EQ)
-          stmt.comment = this.stringValue()
-        }
-        if (this.consumeIf(Keyword.ENGINE)) {
-          this.consumeIf(Keyword.OPE_EQ)
-          stmt.engine = this.identifier()
-        }
-      } else if (!orReplace && (this.peekIf(Keyword.UNDO) || this.peekIf(Keyword.TABLESPACE))) {
+        this.parseCreateLogfileGroupStatement(stmt, start)
+      } else if (!orReplace && this.consumeIf(Keyword.UNDO, Keyword.TABLESPACE)) {
         stmt = new model.CreateTablespaceStatement()
-        if (this.consumeIf(Keyword.UNDO)) {
-          stmt.undo = true
-        }
-        this.consume(Keyword.TABLESPACE)
-        stmt.name = this.identifier()
-        if (this.consumeIf(Keyword.ADD)) {
-          this.consume(Keyword.DATAFILE)
-          stmt.addDataFile = this.stringValue()
-        }
-        if (this.consumeIf(Keyword.AUTOEXTEND_SIZE)) {
-          this.consumeIf(Keyword.OPE_EQ)
-          stmt.autoextendSize = this.sizeValue()
-        }
-        if (this.consumeIf(Keyword.FILE_BLOCK_SIZE)) {
-          this.consumeIf(Keyword.OPE_EQ)
-          stmt.fileBlockSize = this.sizeValue()
-        }
-        if (this.consumeIf(Keyword.ENCRYPTION)) {
-          this.consumeIf(Keyword.OPE_EQ)
-          stmt.encryption = this.stringValue()
-        }
-        if (this.consumeIf(Keyword.USE)) {
-          this.consume(Keyword.LOGFILE, Keyword.GROUP)
-          stmt.useLogfileGroup = this.identifier()
-        }
-        if (this.consumeIf(Keyword.EXTENT_SIZE)) {
-          this.consumeIf(Keyword.OPE_EQ)
-          stmt.extentSize = this.sizeValue()
-        }
-        if (this.consumeIf(Keyword.INITIAL_SIZE)) {
-          this.consumeIf(Keyword.OPE_EQ)
-          stmt.initialSize = this.sizeValue()
-        }
-        if (this.consumeIf(Keyword.MAX_SIZE)) {
-          this.consumeIf(Keyword.OPE_EQ)
-          stmt.maxSize = this.sizeValue()
-        }
-        if (this.consumeIf(Keyword.NODEGROUP)) {
-          this.consumeIf(Keyword.OPE_EQ)
-          stmt.nodeGroup = this.numberValue()
-        }
-        if (this.consumeIf(Keyword.WAIT)) {
-          stmt.wait = true
-        }
-        if (this.consumeIf(Keyword.COMMENT)) {
-          this.consumeIf(Keyword.OPE_EQ)
-          stmt.comment = this.stringValue()
-        }
-        if (this.consumeIf(Keyword.ENGINE)) {
-          this.consumeIf(Keyword.OPE_EQ)
-          stmt.engine = this.identifier()
-        }
-        if (this.consumeIf(Keyword.ENGINE_ATTRIBUTE)) {
-          this.consumeIf(Keyword.OPE_EQ)
-          stmt.engineAttribute = this.stringValue()
-        }
+        stmt.undo = true
+        this.parseCreateTablespaceStatement(stmt, start)
+      } else if (!orReplace && this.consumeIf(Keyword.TABLESPACE)) {
+        stmt = new model.CreateTablespaceStatement()
+        this.parseCreateTablespaceStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.SPATIAL, Keyword.REFERENCE, Keyword.SYSTEM)) {
+        stmt = new model.CreateSpatialReferenceSystemStatement()
+        stmt.orReplace = true
+        this.parseCreateSpatialReferenceSystemStatement(stmt, start)
       } else if (this.consumeIf(Keyword.ROLE)) {
         stmt = new model.CreateRoleStatement()
         stmt.orReplace = orReplace
-        if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.NOT, Keyword.EXISTS)
-          stmt.ifNotExists = true
-        }
-        for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-          stmt.roles.push(this.userRole())
-        }
+        this.parseCreateRoleStatement(stmt, start)
       } else if (this.consumeIf(Keyword.USER)) {
         stmt = new model.CreateUserStatement()
         stmt.orReplace = orReplace
-        if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.NOT, Keyword.EXISTS)
-          stmt.ifNotExists = true
-        }
-        for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-          const user = this.userRole()
-          if (this.consumeIf(Keyword.IDENTIFIED)) {
-            if (this.consumeIf(Keyword.BY)) {
-              if (this.consumeIf(Keyword.RANDOM)) {
-                this.consumeIf(Keyword.PASSWORD)
-                user.randowmPassword = true
-              } else {
-                user.password = this.stringValue()
-              }
-            } else if (this.consumeIf(Keyword.WITH)) {
-              user.authPlugin = this.identifier()
-              if (this.consumeIf(Keyword.BY)) {
-                if (this.consumeIf(Keyword.RANDOM)) {
-                  this.consume(Keyword.PASSWORD)
-                  user.randowmPassword = true
-                } else {
-                  user.password = this.stringValue()
-                }
-              } else if (this.consumeIf(Keyword.AS)) {
-                user.asPassword = true
-                user.password = this.stringValue()
-              }
-            }
-          }
-          stmt.users.push(user)
-        }
-        if (this.consumeIf(Keyword.DEFAULT)) {
-          this.consume(Keyword.ROLE)
-          for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-            stmt.defaultRoles.push(this.userRole())
-          }
-        }
-        if (this.consumeIf(Keyword.REQUIRE)) {
-          if (this.consumeIf(Keyword.NONE)) {
-            // no handle
-          } else {
-            for (let i = 0; true; i++) {
-              if (i > 0) {
-                this.consumeIf(Keyword.AND)
-              }
-              if (this.consumeIf(Keyword.SSL)) {
-                stmt.tlsOptions.push({ key: "SSL", value: true })
-              } else if (this.consumeIf(Keyword.X509)) {
-                stmt.tlsOptions.push({ key: "X509", value: true })
-              } else if (this.consumeIf(Keyword.ISSUER)) {
-                stmt.tlsOptions.push({ key: "ISSUER", value: this.stringValue() })
-              } else if (this.consumeIf(Keyword.SUBJECT)) {
-                stmt.tlsOptions.push({ key: "SUBJECT", value: this.stringValue() })
-              } else if (this.consumeIf(Keyword.CIPHER)) {
-                stmt.tlsOptions.push({ key: "CIPHER", value: this.stringValue() })
-              } else {
-                break
-              }
-            }
-          }
-        }
-        if (this.consumeIf(Keyword.WITH)) {
-          while (true) {
-            if (this.consumeIf(Keyword.MAX_QUERIES_PER_HOUR)) {
-              stmt.resourceOptions.push({ key: "MAX_QUERIES_PER_HOUR", value: this.numberValue() })
-            } else if (this.consumeIf(Keyword.MAX_UPDATES_PER_HOUR)) {
-              stmt.resourceOptions.push({ key: "MAX_UPDATES_PER_HOUR", value: this.numberValue() })
-            } else if (this.consumeIf(Keyword.MAX_CONNECTIONS_PER_HOUR)) {
-              stmt.resourceOptions.push({ key: "MAX_CONNECTIONS_PER_HOUR", value: this.numberValue() })
-            } else if (this.consumeIf(Keyword.MAX_USER_CONNECTIONS)) {
-              stmt.resourceOptions.push({ key: "MAX_USER_CONNECTIONS", value: this.numberValue() })
-            } else {
-              break
-            }
-          }
-        }
-        while (this.token()) {
-          if (this.consumeIf(Keyword.PASSWORD)) {
-            if (this.consumeIf(Keyword.EXPIRE)) {
-              if (this.consumeIf(Keyword.DEFAULT)) {
-                stmt.passwordOptions.push({ key: "PASSWORD EXPIRE", value: "DEFAULT" })
-              } else if (this.consumeIf(Keyword.NEVER)) {
-                stmt.passwordOptions.push({ key: "PASSWORD EXPIRE", value: "NEVER" })
-              } else if (this.consumeIf(Keyword.INTERVAL)) {
-                stmt.passwordOptions.push({ key: "PASSWORD EXPIRE", value: this.numberValue() })
-                this.consumeIf(Keyword.DAY)
-              } else {
-                stmt.passwordOptions.push({ key: "PASSWORD EXPIRE", value: true })
-              }
-            } else if (this.consumeIf(Keyword.HISTORY)) {
-              if (this.consumeIf(Keyword.DEFAULT)) {
-                stmt.passwordOptions.push({ key: "PASSWORD HISTORY", value: "DEFAULT" })
-              } else {
-                stmt.passwordOptions.push({ key: "PASSWORD HISTORY", value: this.numberValue() })
-              }
-            } else if (this.consumeIf(Keyword.REUSE)) {
-              this.consume(Keyword.INTERVAL)
-              if (this.consumeIf(Keyword.DEFAULT)) {
-                stmt.passwordOptions.push({ key: "PASSWORD REUSE INTERVAL", value: "DEFAULT" })
-              } else {
-                stmt.passwordOptions.push({ key: "PASSWORD REUSE INTERVAL", value: this.numberValue() })
-                this.consumeIf(Keyword.DAY)
-              }
-            } else if (this.consumeIf(Keyword.REQUIRE)) {
-              this.consumeIf(Keyword.CURRENT)
-              if (this.consumeIf(Keyword.DEFAULT)) {
-                stmt.passwordOptions.push({ key: "PASSWORD REQUIRE CURRENT", value: "DEFAULT" })
-              } else if (this.consumeIf(Keyword.OPTIONAL)) {
-                stmt.passwordOptions.push({ key: "PASSWORD REQUIRE CURRENT", value: "OPTIONAL" })
-              } else {
-                stmt.passwordOptions.push({ key: "PASSWORD REQUIRE CURRENT", value: true })
-              }
-            } else {
-              throw this.createParseError()
-            }
-          } else if (this.consumeIf(Keyword.FAILED_LOGIN_ATTEMPTS)) {
-            stmt.passwordOptions.push({ key: "FAILED_LOGIN_ATTEMPTS", value: this.numberValue() })
-          } else if (this.consumeIf(Keyword.PASSWORD_LOCK_TIME)) {
-            if (this.consumeIf(Keyword.UNBOUNDED)) {
-              stmt.passwordOptions.push({ key: "PASSWORD_LOCK_TIME", value: "UNBOUNDED" })
-            } else {
-              stmt.passwordOptions.push({ key: "PASSWORD_LOCK_TIME", value: this.numberValue() })
-            }
-          } else if (this.consumeIf(Keyword.ACCOUNT)) {
-            if (this.consumeIf(Keyword.LOCK)) {
-              stmt.lockOptions.push({ key: "ACCOUNT LOCK", value: true })
-            } else if (this.consumeIf(Keyword.UNLOCK)) {
-              stmt.lockOptions.push({ key: "ACCOUNT UNLOCK", value: true })
-            } else {
-              throw this.createParseError()
-            }
-          } else {
-            break
-          }
-        }
-        if (this.consumeIf(Keyword.COMMENT)) {
-          stmt.comment = this.stringValue()
-        } else if (this.consumeIf(Keyword.ATTRIBUTE)) {
-          stmt.attribute = this.stringValue()
-        }
-      } else if (this.consumeIf(Keyword.TEMPORARY)) {
-        if (this.consumeIf(Keyword.TABLE)) {
-          stmt = new model.CreateTableStatement()
-          stmt.orReplace = orReplace
-          stmt.temporary = true
-        } else if (this.consumeIf(Keyword.SEQUENCE)) {
-          stmt = new model.CreateSequenceStatement()
-          stmt.orReplace = orReplace
-          stmt.temporary = true
-        } else {
-          throw this.createParseError()
-        }
+        this.parseCreateUserStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.TEMPORARY, Keyword.TABLE)) {
+        stmt = new model.CreateTableStatement()
+        stmt.orReplace = orReplace
+        stmt.temporary = true
+        this.parseCreateTableStatement(stmt, start)
       } else if (this.consumeIf(Keyword.TABLE)) {
         stmt = new model.CreateTableStatement()
         stmt.orReplace = orReplace
+        this.parseCreateTableStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.TEMPORARY, Keyword.SEQUENCE)) {
+        stmt = new model.CreateSequenceStatement()
+        stmt.orReplace = orReplace
+        stmt.temporary = true
+        this.parseCreateSequenceStatement(stmt, start)
       } else if (this.consumeIf(Keyword.SEQUENCE)) {
         stmt = new model.CreateSequenceStatement()
-      } else if (this.consumeIf(Keyword.UNIQUE)) {
-        this.consume(Keyword.INDEX)
+        stmt.orReplace = orReplace
+        this.parseCreateSequenceStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.UNIQUE, Keyword.INDEX)) {
         stmt = new model.CreateIndexStatement()
         stmt.orReplace = orReplace
         stmt.type = model.IndexType.UNIQUE
-      } else if (this.consumeIf(Keyword.FULLTEXT)) {
-        this.consume(Keyword.INDEX)
+        this.parseCreateIndexStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.FULLTEXT, Keyword.INDEX)) {
         stmt = new model.CreateIndexStatement()
         stmt.orReplace = orReplace
         stmt.type = model.IndexType.FULLTEXT
-      } else if (this.consumeIf(Keyword.SPATIAL)) {
-        if (this.consumeIf(Keyword.REFERENCE)) {
-          this.consume(Keyword.SYSTEM)
-          stmt = new model.CreateSpatialReferenceSystemStatement()
-          stmt.orReplace = true
-          stmt.srid = this.numberValue()
-        } else if (this.consumeIf(Keyword.INDEX)) {
-          stmt = new model.CreateIndexStatement()
-          stmt.orReplace = orReplace
-          stmt.type = model.IndexType.SPATIAL
-        } else {
-          throw this.createParseError()
-        }
+        this.parseCreateIndexStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.SPATIAL, Keyword.INDEX)) {
+        stmt = new model.CreateIndexStatement()
+        stmt.orReplace = orReplace
+        stmt.type = model.IndexType.SPATIAL
+        this.parseCreateIndexStatement(stmt, start)
       } else if (this.consumeIf(Keyword.INDEX)) {
         stmt = new model.CreateIndexStatement()
         stmt.orReplace = orReplace
-      } else {
-        let algorithm
-        if (this.consumeIf(Keyword.ALGORITHM)) {
-          this.consume(Keyword.OPE_EQ)
-          if (this.consumeIf(Keyword.UNDEFINED)) {
-            algorithm = model.Algortihm.UNDEFINED
-          } else if (this.consumeIf(Keyword.MERGE)) {
-            algorithm = model.Algortihm.MERGE
-          } else if (this.consumeIf(Keyword.TEMPTABLE)) {
-            algorithm = model.Algortihm.TEMPTABLE
-          } else {
-            throw this.createParseError()
-          }
-        }
-
+        this.parseCreateIndexStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.ALGORITHM)) {
+        const viewAlgorithm = this.viewAlgorithm()
         let definer
-        let aggregate = false
         if (this.consumeIf(Keyword.DEFINER)) {
           this.consume(Keyword.OPE_EQ)
           definer = this.userRole()
-        } else if (this.consumeIf(Keyword.AGGREGATE)) {
-          aggregate = true
         }
-
         let sqlSecurity
-        if (this.consumeIf(Keyword.SQL)) {
-          this.consume(Keyword.SECURITY)
-          if (this.peekIf(Keyword.DEFINER)) {
-            sqlSecurity = model.SqlSecurity.DEFINER
-          } else if (this.peekIf(Keyword.INVOKER)) {
-            sqlSecurity = model.SqlSecurity.INVOKER
-          } else {
-            throw this.createParseError()
-          }
+        if (this.peekIf(Keyword.SQL)) {
+          sqlSecurity = this.sqlSecurity()
         }
-
-        if (
-          !aggregate &&
-          this.consumeIf(Keyword.VIEW)
-        ) {
+        this.consume(Keyword.VIEW)
+        stmt = new model.CreateViewStatement()
+        stmt.orReplace = orReplace
+        stmt.algorithm = viewAlgorithm
+        stmt.definer = definer
+        stmt.sqlSecurity = sqlSecurity
+        this.parseCreateViewStatement(stmt, start)
+      } else if (this.peekIf(Keyword.DEFINER)) {
+        this.consume(Keyword.OPE_EQ)
+        const definer = this.userRole()
+        if (this.peekIf(Keyword.SQL)) {
+          const sqlSecurity = this.sqlSecurity()
+          this.consume(Keyword.VIEW)
           stmt = new model.CreateViewStatement()
           stmt.orReplace = orReplace
-          stmt.algorithm = algorithm
           stmt.definer = definer
           stmt.sqlSecurity = sqlSecurity
-        } else if (
-          !algorithm && !aggregate && !sqlSecurity &&
-          this.consumeIf(Keyword.PACKAGE)
-        ) {
-          if (this.consumeIf(Keyword.BODY)) {
-            stmt = new model.CreatePackageBodyStatement()
-          } else {
-            stmt = new model.CreatePackageStatement()
-          }
+          this.parseCreateViewStatement(stmt, start)
+        } else if (this.consumeIf(Keyword.VIEW)) {
+          stmt = new model.CreateViewStatement()
           stmt.orReplace = orReplace
           stmt.definer = definer
-        } else if (
-          !algorithm && !aggregate && !sqlSecurity &&
-          this.consumeIf(Keyword.PROCEDURE)
-        ) {
+          this.parseCreateViewStatement(stmt, start)
+        } else if (this.consumeIf(Keyword.PACKAGE, Keyword.BODY)) {
+          stmt = new model.CreatePackageBodyStatement()
+          stmt.orReplace = orReplace
+          stmt.definer = definer
+          this.parseCreatePackageBodyStatement(stmt, start)
+        } else if (this.consumeIf(Keyword.PACKAGE)) {
+          stmt = new model.CreatePackageStatement()
+          stmt.orReplace = orReplace
+          stmt.definer = definer
+          this.parseCreatePackageStatement(stmt, start)
+        } else if (this.consumeIf(Keyword.PROCEDURE)) {
           stmt = new model.CreateProcedureStatement()
           stmt.orReplace = orReplace
           stmt.definer = definer
-        } else if (
-          !orReplace && !algorithm && !sqlSecurity &&
-          this.consumeIf(Keyword.FUNCTION)
-        ) {
+          this.parseCreateProcedureStatement(stmt, start)
+        } else if (this.consumeIf(Keyword.AGGREGATE, Keyword.FUNCTION)) {
           stmt = new model.CreateFunctionStatement()
           stmt.orReplace = orReplace
           stmt.definer = definer
-          stmt.aggregate = aggregate
-          if (this.consumeIf(Keyword.IF)) {
-            this.consume(Keyword.NOT, Keyword.EXISTS)
-            stmt.ifNotExists = true
-          }
-        } else if (
-          !algorithm && !aggregate && !sqlSecurity &&
-          this.consumeIf(Keyword.TRIGGER)
-        ) {
+          stmt.aggregate = true
+          this.parseCreateFunctionStatement(stmt, start)
+        } else if (this.consumeIf(Keyword.FUNCTION)) {
+          stmt = new model.CreateFunctionStatement()
+          stmt.orReplace = orReplace
+          stmt.definer = definer
+          this.parseCreateFunctionStatement(stmt, start)
+        } else if (this.consumeIf(Keyword.TRIGGER)) {
           stmt = new model.CreateTriggerStatement()
           stmt.orReplace = orReplace
           stmt.definer = definer
-          if (this.consumeIf(Keyword.IF)) {
-            this.consume(Keyword.NOT, Keyword.EXISTS)
-            stmt.ifNotExists = true
-          }
-        } else if (
-          !algorithm && !aggregate && !sqlSecurity &&
-          this.consumeIf(Keyword.EVENT)
-        ) {
+          this.parseCreateTriggerStatement(stmt, start)
+        } else if (this.consumeIf(Keyword.EVENT)) {
           stmt = new model.CreateEventStatement()
           stmt.orReplace = orReplace
           stmt.definer = definer
-        } else {
-          throw this.createParseError()
+          this.parseCreateEventStatement(stmt, start)
         }
-      }
-
-      if (stmt instanceof model.CreateTableStatement) {
-        if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.NOT, Keyword.EXISTS)
-          stmt.ifNotExists = true
-        }
-
-        const obj = this.schemaObject()
-        stmt.schemaName = obj.schemaName
-        stmt.name = obj.name
-
-        if (this.consumeIf(Keyword.LIKE)) {
-          stmt.like = this.schemaObject()
-        } else if (this.consumeIf(TokenType.LeftParen)) {
-          if (this.consumeIf(Keyword.LIKE)) {
-            stmt.like = this.schemaObject()
-          } else {
-            stmt.columns = []
-            stmt.constraints = []
-            for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-              let constraintName
-              let constraint
-              if (this.consumeIf(Keyword.CONSTRAINT)) {
-                if (
-                  !this.peekIf(Keyword.PRIMARY) &&
-                  !this.peekIf(Keyword.UNIQUE) &&
-                  !this.peekIf(Keyword.FOREIGN) &&
-                  !this.peekIf(Keyword.CHECK)
-                ) {
-                  constraintName = this.identifier()
-                }
-                if (this.consumeIf(Keyword.PRIMARY)) {
-                  this.consume(Keyword.KEY)
-                  constraint = new model.IndexConstraint()
-                  constraint.type = model.IndexType.PRIMARY_KEY
-                } else if (this.consumeIf(Keyword.UNIQUE)) {
-                  if (this.consumeIf(Keyword.INDEX) || this.consumeIf(Keyword.KEY)) {
-                    constraint = new model.IndexConstraint()
-                    constraint.type = model.IndexType.UNIQUE
-                  } else {
-                    throw this.createParseError()
-                  }
-                } else if (this.consumeIf(Keyword.FOREIGN)) {
-                  this.consume(Keyword.KEY)
-                  constraint = new model.ForeignKeyConstraint()
-                } else if (this.consumeIf(Keyword.CHECK)) {
-                  constraint = new model.CheckConstraint()
-                } else {
-                  throw this.createParseError()
-                }
-              } else if (this.consumeIf(Keyword.PRIMARY)) {
-                this.consume(Keyword.KEY)
-                constraint = new model.IndexConstraint()
-                constraint.type = model.IndexType.PRIMARY_KEY
-              } else if (this.consumeIf(Keyword.UNIQUE)) {
-                if (this.consumeIf(Keyword.INDEX) || this.consumeIf(Keyword.KEY)) {
-                  constraint = new model.IndexConstraint()
-                  constraint.type = model.IndexType.UNIQUE
-                } else {
-                  throw this.createParseError()
-                }
-              } else if (this.consumeIf(Keyword.FOREIGN)) {
-                this.consume(Keyword.KEY)
-                constraint = new model.ForeignKeyConstraint()
-              } else if (this.consumeIf(Keyword.CHECK)) {
-                constraint = new model.CheckConstraint()
-              } else if (this.consumeIf(Keyword.FULLTEXT)) {
-                if (this.consumeIf(Keyword.INDEX) || this.consumeIf(Keyword.KEY)) {
-                  constraint = new model.IndexConstraint()
-                  constraint.type = model.IndexType.FULLTEXT
-                } else {
-                  throw this.createParseError()
-                }
-              } else if (this.consumeIf(Keyword.SPATIAL)) {
-                if (this.consumeIf(Keyword.INDEX) || this.consumeIf(Keyword.KEY)) {
-                  constraint = new model.IndexConstraint()
-                  constraint.type = model.IndexType.SPATIAL
-                } else {
-                  throw this.createParseError()
-                }
-              } else if (this.consumeIf(Keyword.INDEX) || this.consumeIf(Keyword.KEY)) {
-                constraint = new model.IndexConstraint()
-              } else {
-                stmt.columns.push(this.tableColumn())
-              }
-
-              if (constraint instanceof model.IndexConstraint) {
-                constraint.name = constraintName
-                if (!this.peekIf(Keyword.USING) && !this.peekIf(TokenType.LeftParen)) {
-                  constraint.indexName = this.identifier()
-                }
-
-                if (this.consumeIf(Keyword.USING)) {
-                  if (this.consumeIf(Keyword.BTREE)) {
-                    constraint.algorithm = model.IndexAlgorithm.BTREE
-                  } else if (this.consumeIf(Keyword.HASH)) {
-                    constraint.algorithm = model.IndexAlgorithm.HASH
-                  } else {
-                    throw this.createParseError()
-                  }
-                }
-                this.consume(TokenType.LeftParen)
-                for (let j = 0; j === 0 || this.consumeIf(TokenType.Comma); j++) {
-                  const keyPart = new model.KeyPart()
-                  if (this.consumeIf(TokenType.LeftParen)) {
-                    keyPart.expression = this.expression()
-                    this.consumeIf(TokenType.RightParen)
-                  } else {
-                    keyPart.column = this.identifier()
-                  }
-                  if (this.consumeIf(Keyword.ASC)) {
-                    keyPart.sortOrder = model.SortOrder.ASC
-                  } else if (this.consumeIf(Keyword.DESC)) {
-                    keyPart.sortOrder = model.SortOrder.DESC
-                  }
-                  constraint.keyParts.push(keyPart)
-                }
-                this.consume(TokenType.RightParen)
-              } else if (constraint instanceof model.ForeignKeyConstraint) {
-                constraint.name = constraintName
-                if (!this.peekIf(TokenType.LeftParen)) {
-                  constraint.indexName = this.identifier()
-                }
-                this.consume(TokenType.LeftParen)
-                for (let j = 0; j === 0 || this.consumeIf(TokenType.Comma); j++) {
-                  constraint.columns.push(this.identifier())
-                }
-                this.consume(TokenType.RightParen)
-                constraint.references = this.references()
-              } else if (constraint instanceof model.CheckConstraint) {
-                constraint.name = constraintName
-                this.consume(TokenType.LeftParen)
-                constraint.expression = this.expression()
-                this.consume(TokenType.RightParen)
-
-                if (this.consumeIf(Keyword.NOT)) {
-                  this.consume(Keyword.ENFORCED)
-                  constraint.enforced = false
-                } else if (this.consumeIf(Keyword.ENFORCED)) {
-                  constraint.enforced = true
-                }
-              }
-            }
-          }
-          this.consumeIf(TokenType.RightParen)
-        } else {
-          stmt.asSelect = true
-        }
-
-        if (!stmt.like) {
-          stmt.tableOptions = this.tableOptions()
-          if (this.consumeIf(Keyword.PARTITION, Keyword.BY)) {
-            if (
-              this.consumeIf(Keyword.LINEAR, Keyword.HASH) ||
-              this.consumeIf(Keyword.HASH)
-            ) {
-              const partition = new model.LinearHashPartition()
-              this.consume(TokenType.LeftParen)
-              partition.expression = this.expression()
-              this.consume(TokenType.RightParen)
-              stmt.partition = partition
-            } else if (
-              this.consumeIf(Keyword.LINEAR, Keyword.KEY) ||
-              this.consumeIf(Keyword.KEY)
-            ) {
-              const partition = new model.LinearKeyPartition()
-              if (this.consumeIf(Keyword.ALGORITHM)) {
-                partition.algorithm = this.numberValue()
-              }
-              this.consume(TokenType.LeftParen)
-              for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-                partition.columns.push(this.identifier())
-              }
-              this.consume(TokenType.RightParen)
-              stmt.partition = partition
-            } else if (this.consumeIf(Keyword.RANGE)) {
-              const partition = new model.RangePartition()
-              if (this.consumeIf(TokenType.LeftParen)) {
-                partition.expression = this.expression()
-                this.consume(TokenType.RightParen)
-              } else if (this.consumeIf(Keyword.COLUMNS)) {
-                this.consume(TokenType.LeftParen)
-                partition.columns = []
-                for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-                  partition.columns.push(this.identifier())
-                }
-                this.consume(TokenType.RightParen)
-              }
-              stmt.partition = partition
-            } else if (this.consumeIf(Keyword.LIST)) {
-              const partition = new model.ListPartition()
-              if (this.consumeIf(TokenType.LeftParen)) {
-                partition.expression = this.expression()
-                this.consume(TokenType.RightParen)
-              } else if (this.consumeIf(Keyword.COLUMNS)) {
-                this.consume(TokenType.LeftParen)
-                partition.columns = []
-                for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-                  partition.columns.push(this.identifier())
-                }
-                this.consume(TokenType.RightParen)
-              }
-              stmt.partition = partition
-            } else {
-              throw this.createParseError()
-            }
-            if (this.consumeIf(Keyword.PARTITIONS)) {
-              stmt.partition.num = this.numberValue()
-            }
-            if (this.consumeIf(Keyword.SUBPARTITION, Keyword.BY)) {
-              if (
-                this.consumeIf(Keyword.LINEAR, Keyword.HASH) ||
-                this.consumeIf(Keyword.HASH)
-              ) {
-                const partition = new model.LinearHashPartition()
-                this.consume(TokenType.LeftParen)
-                partition.expression = this.expression()
-                this.consume(TokenType.RightParen)
-                stmt.partition.subpartition = partition
-              } else if (
-                this.consumeIf(Keyword.LINEAR, Keyword.KEY) ||
-                this.consumeIf(Keyword.KEY)
-              ) {
-                const partition = new model.LinearKeyPartition()
-                if (this.consumeIf(Keyword.ALGORITHM)) {
-                  partition.algorithm = this.numberValue()
-                }
-                this.consume(TokenType.LeftParen)
-                for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-                  partition.columns.push(this.identifier())
-                }
-                this.consume(TokenType.RightParen)
-                stmt.partition.subpartition = partition
-              } else {
-                throw this.createParseError()
-              }
-              if (this.consumeIf(Keyword.PARTITIONS)) {
-                stmt.partition.subpartition.num = this.numberValue()
-              }
-            }
-            if (this.consumeIf(TokenType.LeftParen)) {
-              for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-                this.consume(Keyword.PARTITION)
-                const def = new model.PartitionDef()
-                def.name = this.identifier()
-                if (this.consumeIf(Keyword.VALUES)) {
-                  if (this.consumeIf(Keyword.LESS)) {
-                    this.consume(Keyword.THAN)
-                    def.lessThanValues = []
-                    if (this.consumeIf(TokenType.LeftParen)) {
-                      for (let j = 0; j === 0 || this.consumeIf(TokenType.Comma); j++) {
-                        if (this.consumeIf(Keyword.MAXVALUE)) {
-                          def.lessThanValues.push("MAXVALUE")
-                        } else {
-                          def.lessThanValues.push(this.expression())
-                        }
-                      }
-                      this.consume(TokenType.RightParen)
-                    } else if (this.consumeIf(Keyword.MAXVALUE)) {
-                      def.lessThanValues.push("MAXVALUE")
-                    }
-                  } else if (this.consumeIf(Keyword.IN)) {
-                    def.inValues = []
-                    this.consume(TokenType.LeftParen)
-                    for (let j = 0; j === 0 || this.consumeIf(TokenType.Comma); j++) {
-                      def.inValues.push(this.expression())
-                    }
-                    this.consume(TokenType.RightParen)
-                  }
-                }
-                if (this.consumeIf(Keyword.STORAGE)) {
-                  this.consume(Keyword.ENGINE)
-                  def.storageEngine = this.identifier()
-                } else if (this.consumeIf(Keyword.ENGINE)) {
-                  def.storageEngine = this.identifier()
-                }
-                if (this.consumeIf(Keyword.COMMENT)) {
-                  this.consumeIf(Keyword.OPE_EQ)
-                  def.comment = this.stringValue()
-                }
-                if (this.consumeIf(Keyword.DATA, Keyword.DIRECTORY)) {
-                  this.consumeIf(Keyword.OPE_EQ)
-                  def.dataDirectory = this.stringValue()
-                }
-                if (this.consumeIf(Keyword.INDEX, Keyword.DIRECTORY)) {
-                  this.consumeIf(Keyword.OPE_EQ)
-                  def.indexDirectory = this.stringValue()
-                }
-                if (this.consumeIf(Keyword.MAX_ROWS)) {
-                  this.consumeIf(Keyword.OPE_EQ)
-                  def.maxRows = this.numberValue()
-                }
-                if (this.consumeIf(Keyword.MIN_ROWS)) {
-                  this.consumeIf(Keyword.OPE_EQ)
-                  def.minRows = this.numberValue()
-                }
-                if (this.consumeIf(Keyword.TABLESPACE)) {
-                  this.consumeIf(Keyword.OPE_EQ)
-                  def.tablespace = this.stringValue()
-                }
-                if (this.consumeIf(TokenType.LeftParen)) {
-                  for (let j = 0; j === 0 || this.consumeIf(TokenType.Comma); j++) {
-                    this.consume(Keyword.SUBPARTITION)
-                    const subDef = new model.PartitionDef()
-                    subDef.name = this.identifier()
-                    if (this.consumeIf(Keyword.STORAGE)) {
-                      this.consume(Keyword.ENGINE)
-                      subDef.storageEngine = this.identifier()
-                    } else if (this.consumeIf(Keyword.ENGINE)) {
-                      subDef.storageEngine = this.identifier()
-                    }
-                    if (this.consumeIf(Keyword.COMMENT)) {
-                      this.consumeIf(Keyword.OPE_EQ)
-                      subDef.comment = this.stringValue()
-                    }
-                    if (this.consumeIf(Keyword.DATA, Keyword.DIRECTORY)) {
-                      this.consumeIf(Keyword.OPE_EQ)
-                      subDef.dataDirectory = this.stringValue()
-                    }
-                    if (this.consumeIf(Keyword.INDEX, Keyword.DIRECTORY)) {
-                      this.consumeIf(Keyword.OPE_EQ)
-                      subDef.indexDirectory = this.stringValue()
-                    }
-                    if (this.consumeIf(Keyword.MAX_ROWS)) {
-                      this.consumeIf(Keyword.OPE_EQ)
-                      subDef.maxRows = this.numberValue()
-                    }
-                    if (this.consumeIf(Keyword.MIN_ROWS)) {
-                      this.consumeIf(Keyword.OPE_EQ)
-                      subDef.minRows = this.numberValue()
-                    }
-                    if (this.consumeIf(Keyword.TABLESPACE)) {
-                      this.consumeIf(Keyword.OPE_EQ)
-                      subDef.tablespace = this.stringValue()
-                    }
-                    def.subdefs.push(subDef)
-                  }
-                  this.consume(TokenType.RightParen)
-                }
-                stmt.partition.defs.push(def)
-              }
-              this.consume(TokenType.RightParen)
-            }
-          }
-          if (this.consumeIf(Keyword.IGNORE)) {
-            stmt.conflictAction = model.ConflictAction.IGNORE
-            stmt.asSelect = true
-          } else if (this.consumeIf(Keyword.REPLACE)) {
-            stmt.conflictAction = model.ConflictAction.REPLACE
-            stmt.asSelect = true
-          }
-          if (this.consumeIf(Keyword.AS)) {
-            stmt.asSelect = true
-          }
-          if (stmt.asSelect || this.peekIf(Keyword.WITH) || this.peekIf(Keyword.SELECT)) {
-            this.selectClause()
-          }
-        }
-      } else if (stmt instanceof model.CreateSequenceStatement) {
-        if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.NOT, Keyword.EXISTS)
-          stmt.ifNotExists = true
-        }
-
-        const obj = this.schemaObject()
-        stmt.schemaName = obj.schemaName
-        stmt.name = obj.name
-
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          if (this.consumeIf(Keyword.INCREMENT)) {
-            this.consumeIf(Keyword.BY) || this.consumeIf(Keyword.OPE_EQ)
-            stmt.increment = this.numberValue()
-          } else if (this.consumeIf(Keyword.MINVALUE)) {
-            this.consumeIf(Keyword.OPE_EQ)
-            if (
-              this.consumeIf(Keyword.NOMINVALUE) ||
-              (this.consumeIf(Keyword.NO) && this.consumeIf(Keyword.MINVALUE))
-            ) {
-              stmt.minvalue = "NOMINVALUE"
-            } else {
-              stmt.minvalue = this.numberValue()
-            }
-          } else if (this.consumeIf(Keyword.MAXVALUE)) {
-            this.consumeIf(Keyword.OPE_EQ)
-            if (
-              this.consumeIf(Keyword.NOMAXVALUE) ||
-              (this.consumeIf(Keyword.NO) && this.consumeIf(Keyword.MAXVALUE))
-            ) {
-              stmt.maxvalue = "NOMINVALUE"
-            } else {
-              stmt.maxvalue = this.numberValue()
-            }
-          } else if (this.consumeIf(Keyword.START)) {
-            this.consumeIf(Keyword.WITH) || this.consumeIf(Keyword.OPE_EQ)
-            stmt.start = this.numberValue()
-          } else if (this.consumeIf(Keyword.CACHE)) {
-            if (this.consumeIf(Keyword.NOCACHE)) {
-              stmt.cache = "NOCACHE"
-            } else {
-              stmt.cache = this.numberValue()
-            }
-            if (this.consumeIf(Keyword.CYCLE)) {
-              stmt.cacheCycle = model.CacheCycle.CYCLE
-            } else if (this.consumeIf(Keyword.NOCYCLE)) {
-              stmt.cacheCycle = model.CacheCycle.NOCYCLE
-            }
-          } else {
-            break
-          }
-        }
-
-        stmt.tableOptions = this.tableOptions()
-      } else if (stmt instanceof model.CreateIndexStatement) {
-        const obj = this.schemaObject()
-        stmt.schemaName = obj.schemaName
-        stmt.name = obj.name
-
-        if (this.consumeIf(Keyword.USING)) {
-          if (this.consumeIf(Keyword.BTREE)) {
-            stmt.algorithm = model.IndexAlgorithm.BTREE
-          } else if (this.consumeIf(Keyword.HASH)) {
-            stmt.algorithm = model.IndexAlgorithm.HASH
-          } else {
-            throw this.createParseError()
-          }
-        }
-        this.consume(Keyword.ON)
-        stmt.table.schemaName = this.identifier()
-        if (this.consumeIf(TokenType.Dot)) {
-          stmt.table.schemaName = stmt.table.name
-          stmt.table.name = this.identifier()
-        }
-        this.consume(TokenType.LeftParen)
-        for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-          const column = new model.IndexColumn()
-          const start = this.pos
-          const tokens = this.expression()
-          if (tokens.length === 1) {
-            this.pos = start
-            column.name = this.identifier()
-          } else {
-            column.expression = tokens
-          }
-          if (this.consumeIf(Keyword.ASC)) {
-            column.sortOrder = model.SortOrder.ASC
-          } else if (this.consumeIf(Keyword.DESC)) {
-            column.sortOrder = model.SortOrder.DESC
-          }
-          stmt.columns.push(column)
-        }
-        this.consume(TokenType.RightParen)
-        stmt.indexOptions = this.indexOptions()
-        while (this.token()) {
-          if (this.consumeIf(Keyword.ALGORITHM)) {
-            this.consumeIf(Keyword.OPE_EQ)
-            if (this.consumeIf(Keyword.DEFAULT)) {
-              stmt.algorithmOption = model.IndexAlgorithmOption.DEFAULT
-            } else if (this.consumeIf(Keyword.INPLACE)) {
-              stmt.algorithmOption = model.IndexAlgorithmOption.INPLACE
-            } else if (this.consumeIf(Keyword.COPY)) {
-              stmt.algorithmOption = model.IndexAlgorithmOption.COPY
-            } else {
-              throw this.createParseError()
-            }
-          } else if (this.consumeIf(Keyword.LOCK)) {
-            this.consumeIf(Keyword.OPE_EQ)
-            if (this.consumeIf(Keyword.DEFAULT)) {
-              stmt.lockOption = model.IndexLockOption.DEFAULT
-            } else if (this.consumeIf(Keyword.NONE)) {
-              stmt.lockOption = model.IndexLockOption.NONE
-            } else if (this.consumeIf(Keyword.SHARED)) {
-              stmt.lockOption = model.IndexLockOption.SHARED
-            } else if (this.consumeIf(Keyword.EXCLUSIVE)) {
-              stmt.lockOption = model.IndexLockOption.EXCLUSIVE
-            } else {
-              throw this.createParseError()
-            }
-          } else {
-            break
-          }
-        }
-      } else if (stmt instanceof model.CreateViewStatement) {
-        const obj = this.schemaObject()
-        stmt.schemaName = obj.schemaName
-        stmt.name = obj.name
-        if (this.consumeIf(TokenType.LeftParen)) {
-          stmt.columns = []
-          for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-            stmt.columns.push(this.identifier())
-          }
-          this.consume(TokenType.RightParen)
-        }
-        this.consume(Keyword.AS)
-        this.selectClause()
-        if (this.consumeIf(Keyword.WITH)) {
-          if (this.consumeIf(Keyword.CASCADED)) {
-            stmt.checkOption = model.CheckOption.CASCADED
-          } else if (this.consumeIf(Keyword.LOCAL)) {
-            stmt.checkOption = model.CheckOption.LOCAL
-          } else {
-            stmt.checkOption = model.CheckOption.CASCADED
-          }
-          this.consume(Keyword.CHECK)
-          this.consume(Keyword.OPTION)
-        }
+      } else if (this.peekIf(Keyword.SQL)) {
+        const sqlSecurity = this.sqlSecurity()
+        this.consume(Keyword.VIEW)
+        stmt = new model.CreateViewStatement()
+        stmt.orReplace = orReplace
+        stmt.sqlSecurity = sqlSecurity
+        this.parseCreateViewStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.VIEW)) {
+        stmt = new model.CreateViewStatement()
+        stmt.orReplace = orReplace
+        this.parseCreateViewStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.PACKAGE, Keyword.BODY)) {
+        stmt = new model.CreatePackageBodyStatement()
+        stmt.orReplace = orReplace
+        this.parseCreatePackageBodyStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.PACKAGE)) {
+        stmt = new model.CreatePackageStatement()
+        stmt.orReplace = orReplace
+        this.parseCreatePackageStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.PROCEDURE)) {
+        stmt = new model.CreateProcedureStatement()
+        stmt.orReplace = orReplace
+        this.parseCreateProcedureStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.AGGREGATE, Keyword.FUNCTION)) {
+        stmt = new model.CreateFunctionStatement()
+        stmt.orReplace = orReplace
+        stmt.aggregate = true
+        this.parseCreateFunctionStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.FUNCTION)) {
+        stmt = new model.CreateFunctionStatement()
+        stmt.orReplace = orReplace
+        this.parseCreateFunctionStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.TRIGGER)) {
+        stmt = new model.CreateTriggerStatement()
+        stmt.orReplace = orReplace
+        this.parseCreateTriggerStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.EVENT)) {
+        stmt = new model.CreateEventStatement()
+        stmt.orReplace = orReplace
+        this.parseCreateEventStatement(stmt, start)
       } else if (
-        stmt instanceof model.CreatePackageStatement ||
-        stmt instanceof model.CreatePackageBodyStatement
+        this.consumeIf(Keyword.SPATIAL, Keyword.REFERENCE) ||
+        this.consumeIf(Keyword.SPATIAL) ||
+        this.consumeIf(Keyword.TEMPORARY) ||
+        this.consumeIf(Keyword.UNIQUE) ||
+        this.consumeIf(Keyword.FULLTEXT) ||
+        this.consumeIf(Keyword.SPATIAL)
       ) {
-        const obj = this.schemaObject()
-        stmt.schemaName = obj.schemaName
-        stmt.name = obj.name
-        while (this.token()) {
-          if (this.consumeIf(Keyword.COMMENT)) {
-            stmt.comment = this.stringValue()
-          } else if (this.consumeIf(Keyword.SQL, Keyword.SECURITY)) {
-            if (this.consumeIf(Keyword.DEFINER)) {
-              stmt.sqlSecurity = model.SqlSecurity.DEFINER
-            } else if (this.consumeIf(Keyword.INVOKER)) {
-              stmt.sqlSecurity = model.SqlSecurity.INVOKER
-            } else {
-              throw this.createParseError()
-            }
-          } else {
-            break
-          }
-        }
-        if (this.consumeIf(Keyword.AS) || this.consumeIf(Keyword.IS)) {
-          while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-            this.consume()
-          }
-        } else {
-          throw this.createParseError()
-        }
-      } else if (
-        stmt instanceof model.CreateProcedureStatement ||
-        stmt instanceof model.CreateFunctionStatement
-      ) {
-        const obj = this.schemaObject()
-        stmt.schemaName = obj.schemaName
-        stmt.name = obj.name
-        this.consume(TokenType.LeftParen)
-        for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-          if (stmt instanceof model.CreateFunctionStatement) {
-            const param = new model.FunctionParam()
-            param.name = this.identifier()
-            param.dataType = this.dataType()
-            stmt.params.push(param)
-          } else {
-            const param = new model.ProcedureParam()
-            if (this.consumeIf(Keyword.IN)) {
-              param.direction = model.Direction.IN
-            } else if (this.consumeIf(Keyword.OUT)) {
-              param.direction = model.Direction.OUT
-            } else if (this.consumeIf(Keyword.INOUT)) {
-              param.direction = model.Direction.INOUT
-            }
-            param.name = this.identifier()
-            param.dataType = this.dataType()
-            stmt.params.push(param)
-          }
-        }
-        this.consume(TokenType.RightParen)
-        if (stmt instanceof model.CreateFunctionStatement) {
-          this.consume(Keyword.RETURN)
-          stmt.returnDataType = this.dataType()
-        }
-        while (this.token()) {
-          if (this.consumeIf(Keyword.COMMENT)) {
-            stmt.comment = this.stringValue()
-          } else if (this.consumeIf(Keyword.LANGUAGE)) {
-            this.consume(Keyword.SQL)
-            stmt.language = model.ProcedureLanguage.SQL
-          } else if (this.consumeIf(Keyword.DETERMINISTIC)) {
-            stmt.deterministic = true
-          } else if (this.consumeIf(Keyword.NOT, Keyword.DETERMINISTIC)) {
-            stmt.deterministic = false
-          } else if (this.consumeIf(Keyword.CONTAINS, Keyword.SQL)) {
-            stmt.characteristic = model.ProcedureCharacteristic.CONTAINS_SQL
-          } else if (this.consumeIf(Keyword.NO, Keyword.SQL)) {
-            stmt.characteristic = model.ProcedureCharacteristic.NO_SQL
-          } else if (this.consumeIf(Keyword.READS, Keyword.SQL, Keyword.DATA)) {
-            stmt.characteristic = model.ProcedureCharacteristic.READS_SQL_DATA
-          } else if (this.consumeIf(Keyword.MODIFIES, Keyword.SQL, Keyword.DATA)) {
-            stmt.characteristic = model.ProcedureCharacteristic.MODIFIES_SQL_DATA
-          } else if (this.consumeIf(Keyword.SQL, Keyword.SECURITY)) {
-            if (this.consumeIf(Keyword.DEFINER)) {
-              stmt.sqlSecurity = model.SqlSecurity.DEFINER
-            } else if (this.consumeIf(Keyword.INVOKER)) {
-              stmt.sqlSecurity = model.SqlSecurity.INVOKER
-            } else {
-              throw this.createParseError()
-            }
-          } else {
-            break
-          }
-        }
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
-      } else if (stmt instanceof model.CreateTriggerStatement) {
-        const obj = this.schemaObject()
-        stmt.schemaName = obj.schemaName
-        stmt.name = obj.name
-        if (this.consumeIf(Keyword.BEFORE)) {
-          stmt.triggerTime = model.TriggerTime.BEFORE
-        } else if (this.consumeIf(Keyword.AFTER)) {
-          stmt.triggerTime = model.TriggerTime.AFTER
-        } else {
-          throw this.createParseError()
-        }
-        if (this.consumeIf(Keyword.INSERT)) {
-          stmt.triggerEvent = model.TriggerEvent.INSERT
-        } else if (this.consumeIf(Keyword.UPDATE)) {
-          stmt.triggerEvent = model.TriggerEvent.UPDATE
-        } else if (this.consumeIf(Keyword.DELETE)) {
-          stmt.triggerEvent = model.TriggerEvent.DELETE
-        } else {
-          throw this.createParseError()
-        }
-        this.consume(Keyword.ON)
-        stmt.table = this.schemaObject()
-        this.consume(Keyword.FOR)
-        this.consume(Keyword.EACH)
-        this.consume(Keyword.ROW)
-        if (this.consumeIf(Keyword.FOLLOWS)) {
-          const triggerOrder = new model.TriggerOrder()
-          triggerOrder.position = model.TriggerOrderPosition.FOLLOWS
-          triggerOrder.tableName = this.identifier()
-          stmt.triggerOrder = triggerOrder
-        } else if (this.consumeIf(Keyword.PRECEDES)) {
-          const triggerOrder = new model.TriggerOrder()
-          triggerOrder.position = model.TriggerOrderPosition.PRECEDES
-          triggerOrder.tableName = this.identifier()
-          stmt.triggerOrder = triggerOrder
-        }
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
-      } else if (stmt instanceof model.CreateEventStatement) {
-        if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.NOT, Keyword.EXISTS)
-          stmt.ifNotExists = true
-        }
-
-        const obj = this.schemaObject()
-        stmt.schemaName = obj.schemaName
-        stmt.name = obj.name
-        this.consume(Keyword.ON)
-        this.consume(Keyword.SCHEDULE)
-        if (this.consumeIf(Keyword.AT)) {
-          stmt.at = this.expression()
-        } else if (this.consumeIf(Keyword.EVERY)) {
-          stmt.every = this.intervalValue()
-          if (this.consumeIf(Keyword.STARTS)) {
-            stmt.starts = this.expression()
-          }
-          if (this.consumeIf(Keyword.ENDS)) {
-            stmt.ends = this.expression()
-          }
-        }
-        if (this.consumeIf(Keyword.ON)) {
-          this.consume(Keyword.COMPLETION)
-          if (this.consumeIf(Keyword.NOT)) {
-            this.consume(Keyword.PRESERVE)
-            stmt.onCompletionPreserve = false
-          } else {
-            this.consume(Keyword.PRESERVE)
-            stmt.onCompletionPreserve = true
-          }
-        }
-        if (this.consumeIf(Keyword.ENABLE)) {
-          stmt.disable = false
-        } else if (this.consumeIf(Keyword.DISABLE)) {
-          if (this.consumeIf(Keyword.ON)) {
-            this.consume(Keyword.SLAVE)
-            stmt.disable = "ON SLAVE"
-          } else {
-            stmt.disable = true
-          }
-        }
-        if (this.consumeIf(Keyword.COMMENT)) {
-          stmt.comment = this.stringValue()
-        }
-        this.consume(Keyword.DO)
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
+        throw this.createParseError()
       }
     } else if (this.consumeIf(Keyword.ALTER)) {
       if (this.consumeIf(Keyword.DATABASE) || this.consumeIf(Keyword.SCHEMA)) {
         stmt = new model.AlterDatabaseStatement()
-        stmt.name = this.identifier()
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
+        this.parseAlterDatabaseStatement(stmt, start)
       } else if (this.consumeIf(Keyword.SERVER)) {
         stmt = new model.AlterServerStatement()
-        stmt.name = this.identifier()
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
+        this.parseAlterServerStatement(stmt, start)
       } else if (this.consumeIf(Keyword.RESOURCE)) {
         this.consume(Keyword.GROUP)
         stmt = new model.AlterResourceGroupStatement()
-        stmt.name = this.identifier()
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
+        this.parseAlterResourceGroupStatement(stmt, start)
       } else if (this.consumeIf(Keyword.LOGFILE)) {
         this.consume(Keyword.GROUP)
         stmt = new model.AlterLogfileGroupStatement()
-        stmt.name = this.identifier()
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
-      } else if (this.peekIf(Keyword.UNDO) || this.peekIf(Keyword.TABLESPACE)) {
+        this.parseAlterLogfileGroupStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.UNDO, Keyword.TABLESPACE)) {
         stmt = new model.AlterTablespaceStatement()
-        if (this.consumeIf(Keyword.UNDO)) {
-          stmt.undo = true
-        }
-        this.consume(Keyword.TABLESPACE)
-        stmt.name = this.identifier()
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
+        stmt.undo = true
+        this.parseAlterTablespaceStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.TABLESPACE)) {
+        stmt = new model.AlterTablespaceStatement()
+        this.parseAlterTablespaceStatement(stmt, start)
       } else if (this.consumeIf(Keyword.USER)) {
         stmt = new model.AlterUserStatement()
-        if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.EXISTS)
-          stmt.ifExists = true
-        }
-        if (this.consumeIf(Keyword.CURRENT_USER)) {
-          if (this.consumeIf(TokenType.LeftParen)) {
-            this.consumeIf(TokenType.RightParen)
-          }
-        } else {
-          stmt.users = []
-          for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-            const user = this.userRole()
-            while (this.token() && !this.peekIf(TokenType.Delimiter) && !this.peekIf(TokenType.Comma)) {
-              this.consume()
-            }
-            stmt.users.push(user)
-          }
-        }
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
+        this.parseAlterUserStatement(stmt, start)
       } else if (this.consumeIf(Keyword.TABLE)) {
         stmt = new model.AlterTableStatement()
-        stmt.table = this.schemaObject()
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          if (this.consumeIf(Keyword.RENAME)) {
-            if (this.consumeIf(Keyword.COLUMN)) {
-              // no handle
-            } else if (this.consumeIf(Keyword.INDEX) || this.consumeIf(Keyword.KEY)) {
-              // no handle
-            } else {
-              this.consumeIf(Keyword.TO) || this.consumeIf(Keyword.AS)
-              stmt.newTable = this.schemaObject()
-            }
-          } else {
-            this.consume()
-          }
-        }
+        this.parseAlterTableStatement(stmt, start)
       } else if (this.consumeIf(Keyword.INSTANCE)) {
         stmt = new model.AlterInstanceStatement()
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
-      } else {
-        let algorithm
-        if (this.consumeIf(Keyword.ALGORITHM)) {
-          this.consume(Keyword.OPE_EQ)
-          if (this.consumeIf(Keyword.UNDEFINED)) {
-            algorithm = model.Algortihm.UNDEFINED
-          } else if (this.consumeIf(Keyword.MERGE)) {
-            algorithm = model.Algortihm.MERGE
-          } else if (this.consumeIf(Keyword.TEMPTABLE)) {
-            algorithm = model.Algortihm.TEMPTABLE
-          } else {
-            throw this.createParseError()
-          }
-        }
-
+        this.parseAlterInstanceStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.ALGORITHM)) {
+        const viewAlgorithm = this.viewAlgorithm()
         let definer
         if (this.consumeIf(Keyword.DEFINER)) {
           this.consume(Keyword.OPE_EQ)
           definer = this.userRole()
         }
-
         let sqlSecurity
-        if (this.consumeIf(Keyword.SQL)) {
-          this.consume(Keyword.SECURITY)
-          if (this.peekIf(Keyword.DEFINER)) {
-            sqlSecurity = model.SqlSecurity.DEFINER
-          } else if (this.peekIf(Keyword.INVOKER)) {
-            sqlSecurity = model.SqlSecurity.INVOKER
-          } else {
-            throw this.createParseError()
-          }
+        if (this.peekIf(Keyword.SQL)) {
+          sqlSecurity = this.sqlSecurity()
         }
-
-        if (this.consumeIf(Keyword.VIEW)) {
-          stmt = new model.AlterViewStatement()
-          stmt.algorithm = algorithm
-          stmt.definer = definer
-          stmt.sqlSecurity = sqlSecurity
-          while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-            this.consume()
+        this.consume(Keyword.VIEW)
+        stmt = new model.AlterViewStatement()
+        stmt.algorithm = viewAlgorithm
+        stmt.definer = definer
+        stmt.sqlSecurity = sqlSecurity
+        this.parseAlterInstanceStatement(stmt, start)
+      } else if (this.peekIf(Keyword.DEFINER)) {
+        this.consume(Keyword.OPE_EQ)
+        const definer = this.userRole()
+        if (this.peekIf(Keyword.SQL)) {
+          const sqlSecurity = this.sqlSecurity()
+          if (this.consumeIf(Keyword.VIEW)) {
+            stmt = new model.AlterViewStatement()
+            stmt.definer = definer
+            stmt.sqlSecurity = sqlSecurity
           }
-        } else if (
-          !algorithm && !sqlSecurity &&
-          this.consumeIf(Keyword.PROCEDURE)
-        ) {
+        } else if (this.consumeIf(Keyword.VIEW)) {
+          stmt = new model.AlterViewStatement()
+          stmt.definer = definer
+          this.parseAlterViewStatement(stmt, start)
+        } else if (this.consumeIf(Keyword.PROCEDURE)) {
           stmt = new model.AlterProcedureStatement()
           stmt.definer = definer
-          while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-            this.consume()
-          }
-        } else if (
-          !algorithm && !sqlSecurity &&
-          this.consumeIf(Keyword.FUNCTION)
-        ) {
+          this.parseAlterProcedureStatement(stmt, start)
+        } else if (this.consumeIf(Keyword.FUNCTION)) {
           stmt = new model.AlterFunctionStatement()
           stmt.definer = definer
-          while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-            this.consume()
-          }
-        } else if (
-          !algorithm && !sqlSecurity &&
-          this.consumeIf(Keyword.EVENT)
-        ) {
+          this.parseAlterFunctionStatement(stmt, start)
+        } else if (this.consumeIf(Keyword.EVENT)) {
           stmt = new model.AlterEventStatement()
           stmt.definer = definer
-          while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-            this.consume()
-          }
-        } else {
-          throw this.createParseError()
+          this.parseAlterEventStatement(stmt, start)
         }
+      } else if (this.peekIf(Keyword.SQL)) {
+        const sqlSecurity = this.sqlSecurity()
+        this.consumeIf(Keyword.VIEW)
+        stmt = new model.AlterViewStatement()
+        stmt.sqlSecurity = sqlSecurity
+        this.parseAlterViewStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.VIEW)) {
+        stmt = new model.AlterViewStatement()
+        this.parseAlterViewStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.PROCEDURE)) {
+        stmt = new model.AlterProcedureStatement()
+        this.parseAlterProcedureStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.FUNCTION)) {
+        stmt = new model.AlterFunctionStatement()
+        this.parseAlterFunctionStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.EVENT)) {
+        stmt = new model.AlterEventStatement()
+        this.parseAlterEventStatement(stmt, start)
       }
     } else if (this.consumeIf(Keyword.RENAME)) {
       if (this.consumeIf(Keyword.TABLE)) {
         stmt = new model.RenameTableStatement()
-        for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-          const pair = new model.RenameTablePair()
-          pair.table = this.schemaObject()
-          this.consumeIf(Keyword.TO)
-          pair.newTable = this.schemaObject()
-          stmt.pairs.push(pair)
-        }
+        this.parseRenameTableStatement(stmt, start)
       } else if (this.consumeIf(Keyword.USER)) {
         stmt = new model.RenameUserStatement()
-        for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-          const pair = new model.RenameUserPair()
-          pair.user = this.userRole()
-          this.consumeIf(Keyword.TO)
-          pair.newUser = this.userRole()
-          stmt.pairs.push(pair)
-        }
-      } else {
-        throw this.createParseError()
+        this.parseRenameUserStatement(stmt, start)
       }
     } else if (this.consumeIf(Keyword.DROP)) {
       if (this.consumeIf(Keyword.DATABASE) || this.consumeIf(Keyword.SCHEMA)) {
         stmt = new model.DropDatabaseStatement()
-        if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.EXISTS)
-          stmt.ifExists = true
-        }
-        stmt.name = this.identifier()
+        this.parseDropDatabaseStatement(stmt, start)
       } else if (this.consumeIf(Keyword.SERVER)) {
         stmt = new model.DropServerStatement()
-        if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.EXISTS)
-          stmt.ifExists = true
-        }
-        stmt.name = this.identifier()
+        this.parseDropServerStatement(stmt, start)
       } else if (this.consumeIf(Keyword.RESOURCE)) {
         this.consume(Keyword.GROUP)
         stmt = new model.DropResourceGroupStatement()
-        stmt.name = this.identifier()
-        if (this.consumeIf(Keyword.FORCE)) {
-          stmt.force = true
-        }
+        this.parseDropResourceGroupStatement(stmt, start)
       } else if (this.consumeIf(Keyword.LOGFILE)) {
         this.consume(Keyword.GROUP)
         stmt = new model.DropLogfileGroupStatement()
-        stmt.name = this.identifier()
-        this.consume(Keyword.ENGINE)
-        this.consumeIf(Keyword.OPE_EQ)
-        stmt.engine = this.identifier()
-      } else if (this.peekIf(Keyword.UNDO) || this.peekIf(Keyword.TABLESPACE)) {
+        this.parseDropLogfileGroupStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.UNDO, Keyword.TABLESPACE)) {
         stmt = new model.DropTablespaceStatement()
-        if (this.consumeIf(Keyword.UNDO)) {
-          stmt.undo = true
-        }
-        this.consume(Keyword.TABLESPACE)
-        stmt.name = this.identifier()
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
-      } else if (this.consumeIf(Keyword.SPATIAL)) {
-        this.consume(Keyword.REFERENCE)
-        this.consume(Keyword.SYSTEM)
+        stmt.undo = true
+        this.parseDropTablespaceStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.TABLESPACE)) {
+        stmt = new model.DropTablespaceStatement()
+        this.parseDropTablespaceStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.SPATIAL, Keyword.REFERENCE, Keyword.SYSTEM)) {
         stmt = new model.DropSpatialReferenceSystemStatement()
-        if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.EXISTS)
-          stmt.ifExists = true
-        }
-        stmt.srid = this.numberValue()
+        this.parseDropSpatialReferenceSystemStatement(stmt, start)
       } else if (this.consumeIf(Keyword.ROLE)) {
         stmt = new model.DropRoleStatement()
-        if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.EXISTS)
-          stmt.ifExists = true
-        }
-        for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-          stmt.roles.push(this.userRole())
-        }
+        this.parseDropRoleStatement(stmt, start)
       } else if (this.consumeIf(Keyword.USER)) {
         stmt = new model.DropUserStatement()
-        if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.EXISTS)
-          stmt.ifExists = true
-        }
-        for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-          stmt.users.push(this.userRole())
-        }
-      } else if (this.peekIf(Keyword.TEMPORARY) || this.peekIf(Keyword.TABLE)) {
+        this.parseDropUserStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.TEMPORARY, Keyword.TABLE)) {
         stmt = new model.DropTableStatement()
-        if (this.consumeIf(Keyword.TEMPORARY)) {
-          stmt.temporary = true
-        }
-        this.consume(Keyword.TABLE)
-        if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.EXISTS)
-          stmt.ifExists = true
-        }
-        for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-          stmt.tables.push(this.schemaObject())
-        }
-        if (this.consumeIf(Keyword.RESTRICT)) {
-          stmt.dropOption = model.DropOption.RESTRICT
-        } else if (this.consumeIf(Keyword.CASCADE)) {
-          stmt.dropOption = model.DropOption.CASCADE
-        }
+        stmt.temporary = true
+        this.parseDropTableStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.TABLE)) {
+        stmt = new model.DropTableStatement()
+        this.parseDropTableStatement(stmt, start)
       } else if (this.consumeIf(Keyword.VIEW)) {
         stmt = new model.DropViewStatement()
-        if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.EXISTS)
-          stmt.ifExists = true
-        }
-        for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-          stmt.views.push(this.schemaObject())
-        }
-        if (this.consumeIf(Keyword.RESTRICT)) {
-          stmt.dropOption = model.DropOption.RESTRICT
-        } else if (this.consumeIf(Keyword.CASCADE)) {
-          stmt.dropOption = model.DropOption.CASCADE
-        }
+        this.parseDropViewStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.PACKAGE, Keyword.BODY)) {
+        stmt = new model.DropPackageBodyStatement()
+        this.parseDropPackageBodyStatement(stmt, start)
       } else if (this.consumeIf(Keyword.PACKAGE)) {
-        if (this.consumeIf(Keyword.BODY)) {
-          stmt = new model.DropPackageBodyStatement()
-          if (this.consumeIf(Keyword.IF)) {
-            this.consume(Keyword.EXISTS)
-            stmt.ifExists = true
-          }
-          stmt.packageBody = this.schemaObject()
-        } else {
-          stmt = new model.DropPackageStatement()
-          if (this.consumeIf(Keyword.IF)) {
-            this.consume(Keyword.EXISTS)
-            stmt.ifExists = true
-          }
-          stmt.package = this.schemaObject()
-        }
-      } else if (this.consumeIf(Keyword.FUNCTION)) {
-        stmt = new model.DropFunctionStatement()
-        if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.EXISTS)
-          stmt.ifExists = true
-        }
-        stmt.function = this.schemaObject()
+        stmt = new model.DropPackageStatement()
+        this.parseDropPackageStatement(stmt, start)
       } else if (this.consumeIf(Keyword.PROCEDURE)) {
         stmt = new model.DropProcedureStatement()
-        if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.EXISTS)
-          stmt.ifExists = true
-        }
-        stmt.procedure = this.schemaObject()
+        this.parseDropProcedureStatement(stmt, start)
       } else if (this.consumeIf(Keyword.FUNCTION)) {
         stmt = new model.DropFunctionStatement()
-        if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.EXISTS)
-          stmt.ifExists = true
-        }
-        stmt.function = this.schemaObject()
+        this.parseDropFunctionStatement(stmt, start)
       } else if (this.consumeIf(Keyword.TRIGGER)) {
         stmt = new model.DropTriggerStatement()
-        if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.EXISTS)
-          stmt.ifExists = true
-        }
-        stmt.trigger = this.schemaObject()
+        this.parseDropTriggerStatement(stmt, start)
       } else if (this.consumeIf(Keyword.EVENT)) {
         stmt = new model.DropEventStatement()
-        if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.EXISTS)
-          stmt.ifExists = true
-        }
-        stmt.event = this.schemaObject()
+        this.parseDropEventStatement(stmt, start)
       } else if (this.consumeIf(Keyword.INDEX)) {
         stmt = new model.DropIndexStatement()
-        stmt.index = this.schemaObject()
-        this.consumeIf(Keyword.ON)
-        stmt.table = this.schemaObject()
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
+        this.parseDropIndexStatement(stmt, start)
       } else if (this.consumeIf(Keyword.PREPARE)) {
         stmt = new model.DeallocatePrepareStatement()
-        stmt.prepareName = this.identifier()
-      } else {
+        this.parseDeallocatePrepareStatement(stmt, start)
+      } else if (
+        this.consumeIf(Keyword.SPATIAL, Keyword.REFERENCE) ||
+        this.consumeIf(Keyword.SPATIAL) ||
+        this.consumeIf(Keyword.TEMPORARY)
+      ) {
         throw this.createParseError()
       }
     } else if (this.consumeIf(Keyword.TRUNCATE)) {
       this.consumeIf(Keyword.TABLE)
       stmt = new model.TruncateTableStatement()
-      stmt.table = this.schemaObject()
+      this.parseTruncateTableStatement(stmt, start)
     } else if (this.consumeIf(Keyword.PREPARE)) {
       stmt = new model.PrepareStatement()
-      stmt.name = this.identifier()
-      this.consume(Keyword.FROM)
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
+      this.parsePrepareStatement(stmt, start)
     } else if (this.consumeIf(Keyword.EXECUTE)) {
       stmt = new model.ExecuteStatement()
-      stmt.prepareName = this.identifier()
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
+      this.parseExecuteStatement(stmt, start)
     } else if (this.consumeIf(Keyword.DEALLOCATE)) {
       this.consume(Keyword.PREPARE)
-      stmt = new model.DeallocatePrepareStatement()
-      stmt.prepareName = this.identifier()
     } else if (this.consumeIf(Keyword.START)) {
       if (this.consumeIf(Keyword.TRANSACTION)) {
         stmt = new model.StartTransactionStatement()
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
+        this.parseStartTransactionStatement(stmt, start)
       } else if (this.consumeIf(Keyword.REPLICA) || this.consumeIf(Keyword.SLAVE)) {
         stmt = new model.StartReplicaStatement()
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
-      } else {
-        throw this.createParseError()
+        this.parseStartReplicaStatement(stmt, start)
       }
     } else if (this.consumeIf(Keyword.CHANGE)) {
       this.consume(Keyword.MASTER)
       stmt = new model.ChangeMasterStatement()
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
+      this.parseChangeMasterStatement(stmt, start)
     } else if (this.consumeIf(Keyword.STOP)) {
       if (this.consumeIf(Keyword.REPLICA) || this.consumeIf(Keyword.SLAVE)) {
         stmt = new model.StopReplicaStatement()
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
-      } else {
-        throw this.createParseError()
+        this.parseStopReplicaStatement(stmt, start)
       }
     } else if (this.consumeIf(Keyword.BEGIN)) {
       stmt = new model.BeginStatement()
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
+      this.parseBeginStatement(stmt, start)
     } else if (this.consumeIf(Keyword.SAVEPOINT)) {
       stmt = new model.SavepointStatement()
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
+      this.parseSavepointStatement(stmt, start)
     } else if (this.consumeIf(Keyword.RELEASE)) {
-      this.consume(Keyword.SAVEPOINT)
+      this.consumeIf(Keyword.SAVEPOINT)
       stmt = new model.ReleaseSavepointStatement()
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
-    } else if (this.peekIf(Keyword.COMMIT) || this.peekIf(Keyword.ROLLBACK)) {
-      if (this.consumeIf(Keyword.COMMIT)) {
-        stmt = new model.CommitStatement()
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
-        } else if (this.consumeIf(Keyword.ROLLBACK)) {
-        stmt = new model.RollbackStatement()
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
-      } else {
-        throw this.createParseError()
-      }
+      this.parseReleaseSavepointStatement(stmt, start)
+    } else if (this.consumeIf(Keyword.COMMIT)) {
+      stmt = new model.CommitStatement()
+      this.parseCommitStatement(stmt, start)
+    } else if (this.consumeIf(Keyword.ROLLBACK)) {
+      stmt = new model.RollbackStatement()
+      this.parseRollbackStatement(stmt, start)
     } else if (this.consumeIf(Keyword.LOCK)) {
       this.consume(Keyword.TABLES)
-      stmt = new model.LockTableStatement()
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
+      stmt = new model.LockTablesStatement()
+      this.parseLockTablesStatement(stmt, start)
     } else if (this.consumeIf(Keyword.UNLOCK)) {
-      this.consume(Keyword.TABLES)
-      stmt = new model.UnlockTableStatement()
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
+      this.consumeIf(Keyword.TABLES)
+      stmt = new model.UnlockTablesStatement()
+      this.parseUnlockTablesStatement(stmt, start)
     } else if (this.consumeIf(Keyword.XA)) {
       if (this.consumeIf(Keyword.START)) {
         stmt = new model.XaStartStatement()
+        this.parseXaStartStatement(stmt, start)
       } else if (this.consumeIf(Keyword.BEGIN)) {
         stmt = new model.XaBeginStatement()
+        this.parseXaBeginStatement(stmt, start)
       } else if (this.consumeIf(Keyword.END)) {
         stmt = new model.XaEndStatement()
+        this.parseXaEndStatement(stmt, start)
       } else if (this.consumeIf(Keyword.PREPARE)) {
         stmt = new model.XaPrepareStatement()
+        this.parseXaPrepareStatement(stmt, start)
       } else if (this.consumeIf(Keyword.COMMIT)) {
         stmt = new model.XaCommitStatement()
+        this.parseXaCommitStatement(stmt, start)
       } else if (this.consumeIf(Keyword.ROLLBACK)) {
         stmt = new model.XaRollbackStatement()
+        this.parseXaRollbackStatement(stmt, start)
       } else if (this.consumeIf(Keyword.RECOVER)) {
         stmt = new model.XaRecoverStatement()
-      } else {
-        throw this.createParseError()
-      }
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
+        this.parseXaRecoverStatement(stmt, start)
       }
     } else if (this.consumeIf(Keyword.PURGE)) {
-      if (this.consumeIf(Keyword.BINARY) || this.consumeIf(Keyword.MASTER)) {
-        this.consume(Keyword.LOGS)
+      if (
+        this.consumeIf(Keyword.BINARY, Keyword.LOGS) ||
+        this.consumeIf(Keyword.MASTER, Keyword.LOGS)
+      ) {
         stmt = new model.PurgeBinaryLogsStatement()
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
-      } else {
-        throw this.createParseError()
+        this.parsePurgeBinaryLogsStatement(stmt, start)
       }
     } else if (this.consumeIf(Keyword.RESET)) {
       if (this.consumeIf(Keyword.MASTER)) {
         stmt = new model.ResetMasterStatement()
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
+        this.parseResetMasterStatement(stmt, start)
       } else if (this.consumeIf(Keyword.REPLICA) || this.consumeIf(Keyword.SLAVE)) {
         stmt = new model.ResetReplicaStatement()
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
-      } else {
-        throw this.createParseError()
+        this.parseResetReplicaStatement(stmt, start)
       }
     } else if (this.consumeIf(Keyword.GRANT)) {
       stmt = new model.GrantStatement()
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
+      this.parseGrantStatement(stmt, start)
     } else if (this.consumeIf(Keyword.REVOKE)) {
       stmt = new model.RevokeStatement()
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
+      this.parseRevokeStatement(stmt, start)
     } else if (this.consumeIf(Keyword.ANALYZE)) {
       stmt = new model.AnalyzeTableStatement()
       if (this.consumeIf(Keyword.NO_WRITE_TO_BINLOG) || this.consumeIf(Keyword.LOCAL)) {
         stmt.noWriteToBinlog = true
       }
       this.consume(Keyword.TABLE)
-      for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-        stmt.tables.push(this.schemaObject())
-      }
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
+      this.parseAnalyzeTableStatement(stmt, start)
     } else if (this.consumeIf(Keyword.CHECK)) {
       if (this.consumeIf(Keyword.TABLE)) {
         stmt = new model.CheckTableStatement()
-        for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-          stmt.tables.push(this.schemaObject())
-        }
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
+        this.parseCheckTableStatement(stmt, start)
       } else if (this.consumeIf(Keyword.INDEX)) {
         stmt = new model.CheckIndexStatement()
-        for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-          stmt.indexes.push(this.schemaObject())
-        }
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
+        this.parseCheckIndexStatement(stmt, start)
       }
     } else if (this.consumeIf(Keyword.CHECKSUM)) {
-      stmt = new model.ChecksumTableStatement()
       this.consume(Keyword.TABLE)
-      for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-        stmt.tables.push(this.schemaObject())
-      }
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
+      stmt = new model.ChecksumTableStatement()
+      this.parseChecksumTableStatement(stmt, start)
     } else if (this.consumeIf(Keyword.OPTIMIZE)) {
       stmt = new model.OptimizeTableStatement()
       if (this.consumeIf(Keyword.NO_WRITE_TO_BINLOG) || this.consumeIf(Keyword.LOCAL)) {
         stmt.noWriteToBinlog = true
       }
       this.consume(Keyword.TABLE)
-      for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-        stmt.tables.push(this.schemaObject())
-      }
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
+      this.parseOptimizeTableStatement(stmt, start)
     } else if (this.consumeIf(Keyword.REPAIR)) {
       stmt = new model.RepairTableStatement()
       if (this.consumeIf(Keyword.NO_WRITE_TO_BINLOG) || this.consumeIf(Keyword.LOCAL)) {
         stmt.noWriteToBinlog = true
       }
       this.consume(Keyword.TABLE)
-      for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-        stmt.tables.push(this.schemaObject())
-      }
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
+      this.parseRepairTableStatement(stmt, start)
     } else if (this.consumeIf(Keyword.INSTALL)) {
       if (this.consume(Keyword.PLUGIN)) {
         stmt = new model.InstallPluginStatement()
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
+        this.parseInstallPluginStatement(stmt, start)
       } else if (this.consume(Keyword.COMPONENT)) {
         stmt = new model.InstallComponentStatement()
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
-      } else {
-        throw this.createParseError()
+        this.parseInstallComponentStatement(stmt, start)
       }
     } else if (this.consumeIf(Keyword.UNINSTALL)) {
       if (this.consume(Keyword.PLUGIN)) {
         stmt = new model.UninstallPluginStatement()
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
+        this.parseUninstallPluginStatement(stmt, start)
       } else if (this.consume(Keyword.COMPONENT)) {
         stmt = new model.UninstallComponentStatement()
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
-      } else {
-        throw this.createParseError()
+        this.parseUninstallComponentStatement(stmt, start)
+      }
+    } else if (this.consumeIf(Keyword.BINLOG)) {
+      stmt = new model.BinlogStatement()
+      this.parseBinlogStatement(stmt, start)
+    } else if (this.consumeIf(Keyword.CACHE)) {
+      this.consume(Keyword.INDEX)
+      stmt = new model.CacheIndexStatement()
+      this.parseCacheIndexStatement(stmt, start)
+    } else if (this.consumeIf(Keyword.FLUSH)) {
+      stmt = new model.FlushStatement()
+      this.parseFlushStatement(stmt, start)
+    } else if (this.consumeIf(Keyword.KILL)) {
+      stmt = new model.KillStatement()
+      this.parseKillStatement(stmt, start)
+    } else if (this.consumeIf(Keyword.RESTART)) {
+      stmt = new model.RestartStatement()
+      this.parseRestartStatement(stmt, start)
+    } else if (this.consumeIf(Keyword.SHUTDOWN)) {
+      stmt = new model.ShutdownStatement()
+      this.parseShutdownStatement(stmt, start)
+    } else if (this.consumeIf(Keyword.CLONE)) {
+      stmt = new model.CloneStatement()
+      this.parseCloneStatement(stmt, start)
+    } else if (this.consumeIf(Keyword.LOAD)) {
+      if (this.consumeIf(Keyword.DATA)) {
+        stmt = new model.LoadDataStatement()
+        this.parseLoadDataStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.XML)) {
+        stmt = new model.LoadXmlStatement()
+        this.parseLoadXmlStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.INDEX)) {
+        this.consume(Keyword.INTO, Keyword.CACHE)
+        stmt = new model.LoadIndexIntoCacheStatement()
+        this.parseLoadIndexIntoCacheStatement(stmt, start)
       }
     } else if (this.consumeIf(Keyword.EXPLAIN) || this.consumeIf(Keyword.DESCRIBE)) {
       stmt = new model.ExplainStatement()
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
-    } else if (this.consumeIf(Keyword.CALL)) {
-      stmt = new model.CallStatement()
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
-    } else if (this.consumeIf(Keyword.USE)) {
-      stmt = new model.UseStatement()
-      stmt.schemaName = this.identifier()
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
-    } else if (this.consumeIf(Keyword.INSERT)) {
-      stmt = new model.InsertStatement()
-      if (this.consumeIf(Keyword.LOW_PRIORITY)) {
-        stmt.concurrency = model.Concurrency.LOW_PRIORITY
-      } else if (this.consumeIf(Keyword.DELAYED)) {
-        stmt.concurrency = model.Concurrency.DELAYED
-      } else if (this.consumeIf(Keyword.HIGH_PRIORITY)) {
-        stmt.concurrency = model.Concurrency.HIGH_PRIORITY
-      }
-      if (this.consumeIf(Keyword.IGNORE)) {
-        stmt.conflictAction = model.ConflictAction.IGNORE
-      }
-      this.consumeIf(Keyword.INTO)
-      stmt.table = this.schemaObject()
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
-    } else if (this.consumeIf(Keyword.UPDATE)) {
-      stmt = new model.UpdateStatement()
-      if (this.consumeIf(Keyword.LOW_PRIORITY)) {
-        stmt.concurrency = model.Concurrency.LOW_PRIORITY
-      }
-      if (this.consumeIf(Keyword.IGNORE)) {
-        stmt.conflictAction = model.ConflictAction.IGNORE
-      }
-      stmt.table = this.schemaObject()
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
-    } else if (this.consumeIf(Keyword.REPLACE)) {
-      stmt = new model.ReplaceStatement()
-      if (this.consumeIf(Keyword.LOW_PRIORITY)) {
-        stmt.concurrency = model.Concurrency.LOW_PRIORITY
-      } else if (this.consumeIf(Keyword.DELAYED)) {
-        stmt.concurrency = model.Concurrency.DELAYED
-      }
-      if (this.consumeIf(Keyword.IGNORE)) {
-        stmt.conflictAction = model.ConflictAction.IGNORE
-      }
-      this.consumeIf(Keyword.INTO)
-      stmt.table = this.schemaObject()
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
-    } else if (this.consumeIf(Keyword.DELETE)) {
-      stmt = new model.DeleteStatement()
-      if (this.consumeIf(Keyword.LOW_PRIORITY)) {
-        stmt.concurrency = model.Concurrency.LOW_PRIORITY
-      } else if (this.consumeIf(Keyword.DELAYED)) {
-        stmt.concurrency = model.Concurrency.DELAYED
-      } else if (this.consumeIf(Keyword.HIGH_PRIORITY)) {
-        stmt.concurrency = model.Concurrency.HIGH_PRIORITY
-      }
-      if (this.consumeIf(Keyword.QUICK)) {
-        stmt.quick = true
-      }
-      if (this.consumeIf(Keyword.IGNORE)) {
-        stmt.conflictAction = model.ConflictAction.IGNORE
-      }
-      this.consumeIf(Keyword.FROM)
-      stmt.table = this.schemaObject()
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
-    } else if (this.consumeIf(Keyword.LOAD)) {
-      if (this.peekIf(Keyword.DATA) || this.peekIf(Keyword.XML)) {
-        if (this.consumeIf(Keyword.DATA)) {
-          stmt = new model.LoadDataInfileStatement()
-        } else {
-          stmt = new model.LoadXmlInfileStatement()
-        }
-        if (this.consumeIf(Keyword.LOW_PRIORITY)) {
-          stmt.concurrency = model.Concurrency.LOW_PRIORITY
-        } else if (this.consumeIf(Keyword.CONCURRENT)) {
-          stmt.concurrency = model.Concurrency.CONCURRENT
-        }
-        if (this.consumeIf(Keyword.LOCAL)) {
-          stmt.local = true
-        }
-        this.consume(Keyword.INFILE)
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
-      } else if (this.consumeIf(Keyword.INDEX)) {
-        this.consume(Keyword.INTO)
-        this.consume(Keyword.CACHE)
-        stmt = new model.LoadIndexIntoCacheStatement()
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
-      } else {
-        throw this.createParseError()
-      }
+      this.parseExplainStatement(stmt, start)
     } else if (this.consumeIf(Keyword.SET)) {
       if (this.consumeIf(Keyword.RESOURCE)) {
         this.consume(Keyword.GROUP)
         stmt = new model.SetResourceGroupStatement()
-        stmt.name = this.identifier()
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
+        this.parseSetResourceGroupStatement(stmt, start)
       } else if (this.consumeIf(Keyword.DEFAULT)) {
         this.consume(Keyword.ROLE)
         stmt = new model.SetDefaultRoleStatement()
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
+        this.parseSetDefaultRoleStatement(stmt, start)
       } else if (this.consumeIf(Keyword.ROLE)) {
         stmt = new model.SetRoleStatement()
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
+        this.parseSetRoleStatement(stmt, start)
       } else if (this.consumeIf(Keyword.PASSWORD)) {
         stmt = new model.SetPasswordStatement()
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
+        this.parseSetPasswordStatement(stmt, start)
       } else if (this.consumeIf(Keyword.CHARACTER)) {
         this.consume(Keyword.SET)
         stmt = new model.SetCharacterSetStatement()
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
+        this.parseSetCharacterSetStatement(stmt, start)
       } else if (this.consumeIf(Keyword.NAMES)) {
         stmt = new model.SetNamesStatement()
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
+        this.parseSetNamesStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.GLOBAL, Keyword.TRANSACTION)) {
+        stmt = new model.SetTransactionStatement()
+        stmt.type = model.VariableType.GLOBAL
+        this.parseSetTransactionStatement(stmt, start)
       } else if (
-        this.peekIf(Keyword.TRANSACTION) ||
-        this.peekIf(Keyword.GLOBAL, Keyword.TRANSACTION) ||
-        this.peekIf(Keyword.SESSION, Keyword.TRANSACTION) ||
-        this.peekIf(Keyword.LOCAL, Keyword.TRANSACTION)
+        this.consumeIf(Keyword.SESSION, Keyword.TRANSACTION) ||
+        this.consumeIf(Keyword.LOCAL, Keyword.TRANSACTION)
       ) {
         stmt = new model.SetTransactionStatement()
-        if (this.consumeIf(Keyword.GLOBAL)) {
-          stmt.type = model.VariableType.GLOBAL
-        } else if (this.consumeIf(Keyword.SESSION) || this.consumeIf(Keyword.LOCAL)) {
-          stmt.type = model.VariableType.SESSION
-        }
-        while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          this.consume()
-        }
+        stmt.type = model.VariableType.SESSION
+        this.parseSetTransactionStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.TRANSACTION)) {
+        stmt = new model.SetTransactionStatement()
+        this.parseSetTransactionStatement(stmt, start)
       } else {
         stmt = new model.SetStatement()
-        for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-          const va = new model.VariableAssignment()
-          if (this.consumeIf(Keyword.GLOBAL)) {
-            va.type = model.VariableType.GLOBAL
-            va.name = this.identifier()
-          } else if (this.consumeIf(Keyword.SESSION) || this.consumeIf(Keyword.LOCAL)) {
-            va.type = model.VariableType.SESSION
-            va.name = this.identifier()
-          } else if (this.consumeIf(Keyword.VAR_GLOBAL)) {
-            va.type = model.VariableType.GLOBAL
-            this.consume(TokenType.Dot)
-            va.name = this.identifier()
-          } else if (this.consumeIf(Keyword.VAR_SESSION) || this.consumeIf(Keyword.VAR_LOCAL)) {
-            va.type = model.VariableType.SESSION
-            this.consume(TokenType.Dot)
-            va.name = this.identifier()
-          } else if (this.consumeIf(TokenType.SessionVariable)) {
-            const name = this.token(-1).text.substring(2)
-            va.type = model.VariableType.SESSION
-            va.name = /^['"`]/.test(name) ? dequote(name) : lcase(name)
-          } else if (this.consumeIf(TokenType.UserDefinedVariable)) {
-            const name = this.token(-1).text.substring(1)
-            va.type = model.VariableType.USER_DEFINED
-            va.name = /^['"`]/.test(name) ? dequote(name) : lcase(name)
-          } else {
-            throw this.createParseError()
-          }
-          if (this.consumeIf(Keyword.OPE_EQ) || this.consumeIf(Keyword.OPE_COLON_EQ)) {
-            va.value = this.expression()
-          } else {
-            throw this.createParseError()
-          }
-          stmt.variableAssignments.push(va)
-
-          if (va.type !== model.VariableType.USER_DEFINED && va.name === "sql_mode") {
-            if (va.value.length === 1 && (
-              va.value[0].type === TokenType.String ||
-              (!this.sqlMode.has("ANSI_QUOTE") && va.value[0].type === TokenType.QuotedValue)
-            )) {
-              this.setSqlMode(dequote(va.value[0].text))
-            }
-          }
-        }
+        this.parseSetStatement(stmt, start)
       }
-    } else if (this.consumeIf(Keyword.WITH) || this.consumeIf(Keyword.SELECT)) {
-      stmt = new model.SelectStatement()
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
+    } else if (this.consumeIf(Keyword.CALL)) {
+      stmt = new model.CallStatement()
+      this.parseCallStatement(stmt, start)
+    } else if (this.consumeIf(Keyword.USE)) {
+      stmt = new model.UseStatement()
+      this.parseUseStatement(stmt, start)
+    } else if (this.consumeIf(Keyword.INSERT)) {
+      stmt = new model.InsertStatement()
+      this.parseInsertStatement(stmt, start)
+    } else if (this.consumeIf(Keyword.UPDATE)) {
+      stmt = new model.UpdateStatement()
+      this.parseUpdateStatement(stmt, start)
+    } else if (this.consumeIf(Keyword.REPLACE)) {
+      stmt = new model.ReplaceStatement()
+      this.parseReplaceStatement(stmt, start)
+    } else if (this.consumeIf(Keyword.DELETE)) {
+      stmt = new model.DeleteStatement()
+      this.parseDeleteStatement(stmt, start)
     } else if (this.consumeIf(Keyword.TABLE)) {
       stmt = new model.TableStatement()
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
+      this.parseTableStatement(stmt, start)
     } else if (this.consumeIf(Keyword.DO)) {
       stmt = new model.DoStatement()
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
+      this.parseDoStatement(stmt, start)
     } else if (this.consumeIf(Keyword.HANDLER)) {
       stmt = new model.HandlerStatement()
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
+      this.parseHandlerStatement(stmt, start)
     } else if (this.consumeIf(Keyword.SHOW)) {
       stmt = new model.ShowStatement()
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
+      this.parseShowStatement(stmt, start)
     } else if (this.consumeIf(Keyword.HELP)) {
       stmt = new model.HelpStatement()
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
-    } else if (this.consumeIf(Keyword.BINLOG)) {
-      stmt = new model.BinlogStatement()
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
-    } else if (this.consumeIf(Keyword.CACHE)) {
-      this.consume(Keyword.INDEX)
-      stmt = new model.CacheIndexStatement()
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
-    } else if (this.consumeIf(Keyword.FLUSH)) {
-      stmt = new model.FlushStatement()
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
-    } else if (this.consumeIf(Keyword.KILL)) {
-      stmt = new model.KillStatement()
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
-    } else if (this.consumeIf(Keyword.RESTART)) {
-      stmt = new model.RestartStatement()
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
-    } else if (this.consumeIf(Keyword.SHUTDOWN)) {
-      stmt = new model.ShutdownStatement()
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
-    } else if (this.consumeIf(Keyword.CLONE)) {
-      stmt = new model.CloneStatement()
-      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
-        this.consume()
-      }
+      this.parseHelpStatement(stmt, start)
+    } else if (this.peekIf(Keyword.WITH) || this.peekIf(Keyword.SELECT)) {
+      stmt = new model.SelectStatement()
+      this.parseSelectStatement(stmt, start)
     }
 
     if (!stmt) {
@@ -2883,6 +1503,1965 @@ export class MysqlParser extends Parser {
     stmt.tokens = this.tokens.slice(start, this.pos)
 
     return stmt
+  }
+
+  private parseCreateDatabaseStatement(stmt: model.CreateDatabaseStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.NOT, Keyword.EXISTS)
+      stmt.ifNotExists = true
+    }
+    stmt.name = this.identifier()
+    while (this.token()) {
+      this.consumeIf(Keyword.DEFAULT)
+      if (this.consumeIf(Keyword.CHARACTER)) {
+        this.consume(Keyword.SET)
+        this.consumeIf(Keyword.OPE_EQ)
+        stmt.characterSet = this.stringValue()
+      } else if (this.consumeIf(Keyword.COLLATE)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        stmt.collate = this.stringValue()
+      } else if (this.consumeIf(Keyword.ENCRYPTION)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        stmt.encryption = this.stringValue()
+      } else {
+        break
+      }
+    }
+  }
+
+  private parseCreateServerStatement(stmt: model.CreateServerStatement, start: number) {
+    stmt.name = this.identifier()
+    this.consume(Keyword.FOREIGN, Keyword.DATA, Keyword.WRAPPER)
+    stmt.wrapperName = this.identifier()
+    this.consume(Keyword.OPTIONS)
+    this.consume(TokenType.LeftParen)
+    for (let i = 0; i === 0 || this.consume(TokenType.Comma); i++) {
+      if (this.consumeIf(Keyword.HOST)) {
+        stmt.host = this.stringValue()
+      } else if (this.consumeIf(Keyword.DATABASE)) {
+        stmt.database = this.stringValue()
+      } else if (this.consumeIf(Keyword.USER)) {
+        stmt.user = this.stringValue()
+      } else if (this.consumeIf(Keyword.PASSWORD)) {
+        stmt.password = this.stringValue()
+      } else if (this.consumeIf(Keyword.SOCKET)) {
+        stmt.socket = this.stringValue()
+      } else if (this.consumeIf(Keyword.OWNER)) {
+        stmt.owner = this.stringValue()
+      } else if (this.consumeIf(Keyword.PORT)) {
+        stmt.port = this.numberValue()
+      } else {
+        throw this.createParseError()
+      }
+    }
+    this.consume(TokenType.RightParen)
+  }
+
+  private parseCreateResourceGroupStatement(stmt: model.CreateResourceGroupStatement, start: number) {
+    stmt.name = this.identifier()
+    this.consume(Keyword.TYPE, Keyword.OPE_EQ)
+    if (this.consumeIf(Keyword.SYSTEM)) {
+      stmt.type = model.ResourceGroupType.SYSTEM
+    } else if (this.consumeIf(Keyword.USER)) {
+      stmt.type = model.ResourceGroupType.USER
+    } else {
+      throw this.createParseError()
+    }
+    if (this.consumeIf(Keyword.VCPU)) {
+      this.consumeIf(Keyword.OPE_EQ)
+      for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+        const range = { min: "", max: "" }
+        range.min = this.numberValue()
+        if (this.consumeIf(Keyword.OPE_MINUS)) {
+          range.max = this.numberValue()
+        } else {
+          range.max = range.min
+        }
+        stmt.vcpu.push(range)
+      }
+    }
+    if (this.consumeIf(Keyword.THREAD_PRIORITY)) {
+      this.consumeIf(Keyword.OPE_EQ)
+      stmt.threadPriority = this.numberValue()
+    }
+    if (this.consumeIf(Keyword.ENABLE)) {
+      stmt.disable = false
+    } else if (this.consumeIf(Keyword.DISABLE)) {
+      stmt.disable = true
+    }
+  }
+
+  private parseCreateLogfileGroupStatement(stmt: model.CreateLogfileGroupStatement, start: number) {
+    stmt.name = this.identifier()
+    this.consume(Keyword.ADD, Keyword.UNDOFILE)
+    stmt.undofile = this.stringValue()
+    if (this.consumeIf(Keyword.INITIAL_SIZE)) {
+      this.consumeIf(Keyword.OPE_EQ)
+      stmt.initialSize = this.sizeValue()
+    }
+    if (this.consumeIf(Keyword.UNDO_BUFFER_SIZE)) {
+      this.consumeIf(Keyword.OPE_EQ)
+      stmt.undoBufferSize = this.sizeValue()
+    }
+    if (this.consumeIf(Keyword.REDO_BUFFER_SIZE)) {
+      this.consumeIf(Keyword.OPE_EQ)
+      stmt.redoBufferSize = this.sizeValue()
+    }
+    if (this.consumeIf(Keyword.NODEGROUP)) {
+      this.consumeIf(Keyword.OPE_EQ)
+      stmt.nodeGroup = this.numberValue()
+    }
+    if (this.consumeIf(Keyword.WAIT)) {
+      stmt.wait = true
+    }
+    if (this.consumeIf(Keyword.COMMENT)) {
+      this.consumeIf(Keyword.OPE_EQ)
+      stmt.comment = this.stringValue()
+    }
+    if (this.consumeIf(Keyword.ENGINE)) {
+      this.consumeIf(Keyword.OPE_EQ)
+      stmt.engine = this.identifier()
+    }
+  }
+
+  private parseCreateTablespaceStatement(stmt: model.CreateTablespaceStatement, start: number) {
+    stmt.name = this.identifier()
+    if (this.consumeIf(Keyword.ADD)) {
+      this.consume(Keyword.DATAFILE)
+      stmt.addDataFile = this.stringValue()
+    }
+    if (this.consumeIf(Keyword.AUTOEXTEND_SIZE)) {
+      this.consumeIf(Keyword.OPE_EQ)
+      stmt.autoextendSize = this.sizeValue()
+    }
+    if (this.consumeIf(Keyword.FILE_BLOCK_SIZE)) {
+      this.consumeIf(Keyword.OPE_EQ)
+      stmt.fileBlockSize = this.sizeValue()
+    }
+    if (this.consumeIf(Keyword.ENCRYPTION)) {
+      this.consumeIf(Keyword.OPE_EQ)
+      stmt.encryption = this.stringValue()
+    }
+    if (this.consumeIf(Keyword.USE)) {
+      this.consume(Keyword.LOGFILE, Keyword.GROUP)
+      stmt.useLogfileGroup = this.identifier()
+    }
+    if (this.consumeIf(Keyword.EXTENT_SIZE)) {
+      this.consumeIf(Keyword.OPE_EQ)
+      stmt.extentSize = this.sizeValue()
+    }
+    if (this.consumeIf(Keyword.INITIAL_SIZE)) {
+      this.consumeIf(Keyword.OPE_EQ)
+      stmt.initialSize = this.sizeValue()
+    }
+    if (this.consumeIf(Keyword.MAX_SIZE)) {
+      this.consumeIf(Keyword.OPE_EQ)
+      stmt.maxSize = this.sizeValue()
+    }
+    if (this.consumeIf(Keyword.NODEGROUP)) {
+      this.consumeIf(Keyword.OPE_EQ)
+      stmt.nodeGroup = this.numberValue()
+    }
+    if (this.consumeIf(Keyword.WAIT)) {
+      stmt.wait = true
+    }
+    if (this.consumeIf(Keyword.COMMENT)) {
+      this.consumeIf(Keyword.OPE_EQ)
+      stmt.comment = this.stringValue()
+    }
+    if (this.consumeIf(Keyword.ENGINE)) {
+      this.consumeIf(Keyword.OPE_EQ)
+      stmt.engine = this.identifier()
+    }
+    if (this.consumeIf(Keyword.ENGINE_ATTRIBUTE)) {
+      this.consumeIf(Keyword.OPE_EQ)
+      stmt.engineAttribute = this.stringValue()
+    }
+  }
+
+  private parseCreateRoleStatement(stmt: model.CreateRoleStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.NOT, Keyword.EXISTS)
+      stmt.ifNotExists = true
+    }
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      stmt.roles.push(this.userRole())
+    }
+  }
+
+  private parseCreateUserStatement(stmt: model.CreateUserStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.NOT, Keyword.EXISTS)
+      stmt.ifNotExists = true
+    }
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      const user = this.userRole()
+      if (this.consumeIf(Keyword.IDENTIFIED)) {
+        if (this.consumeIf(Keyword.BY)) {
+          if (this.consumeIf(Keyword.RANDOM)) {
+            this.consumeIf(Keyword.PASSWORD)
+            user.randowmPassword = true
+          } else {
+            user.password = this.stringValue()
+          }
+        } else if (this.consumeIf(Keyword.WITH)) {
+          user.authPlugin = this.identifier()
+          if (this.consumeIf(Keyword.BY)) {
+            if (this.consumeIf(Keyword.RANDOM)) {
+              this.consume(Keyword.PASSWORD)
+              user.randowmPassword = true
+            } else {
+              user.password = this.stringValue()
+            }
+          } else if (this.consumeIf(Keyword.AS)) {
+            user.asPassword = true
+            user.password = this.stringValue()
+          }
+        }
+      }
+      stmt.users.push(user)
+    }
+    if (this.consumeIf(Keyword.DEFAULT)) {
+      this.consume(Keyword.ROLE)
+      for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+        stmt.defaultRoles.push(this.userRole())
+      }
+    }
+    if (this.consumeIf(Keyword.REQUIRE)) {
+      if (this.consumeIf(Keyword.NONE)) {
+        // no handle
+      } else {
+        for (let i = 0; true; i++) {
+          if (i > 0) {
+            this.consumeIf(Keyword.AND)
+          }
+          if (this.consumeIf(Keyword.SSL)) {
+            stmt.tlsOptions.push({ key: "SSL", value: true })
+          } else if (this.consumeIf(Keyword.X509)) {
+            stmt.tlsOptions.push({ key: "X509", value: true })
+          } else if (this.consumeIf(Keyword.ISSUER)) {
+            stmt.tlsOptions.push({ key: "ISSUER", value: this.stringValue() })
+          } else if (this.consumeIf(Keyword.SUBJECT)) {
+            stmt.tlsOptions.push({ key: "SUBJECT", value: this.stringValue() })
+          } else if (this.consumeIf(Keyword.CIPHER)) {
+            stmt.tlsOptions.push({ key: "CIPHER", value: this.stringValue() })
+          } else {
+            break
+          }
+        }
+      }
+    }
+    if (this.consumeIf(Keyword.WITH)) {
+      while (true) {
+        if (this.consumeIf(Keyword.MAX_QUERIES_PER_HOUR)) {
+          stmt.resourceOptions.push({ key: "MAX_QUERIES_PER_HOUR", value: this.numberValue() })
+        } else if (this.consumeIf(Keyword.MAX_UPDATES_PER_HOUR)) {
+          stmt.resourceOptions.push({ key: "MAX_UPDATES_PER_HOUR", value: this.numberValue() })
+        } else if (this.consumeIf(Keyword.MAX_CONNECTIONS_PER_HOUR)) {
+          stmt.resourceOptions.push({ key: "MAX_CONNECTIONS_PER_HOUR", value: this.numberValue() })
+        } else if (this.consumeIf(Keyword.MAX_USER_CONNECTIONS)) {
+          stmt.resourceOptions.push({ key: "MAX_USER_CONNECTIONS", value: this.numberValue() })
+        } else {
+          break
+        }
+      }
+    }
+    while (this.token()) {
+      if (this.consumeIf(Keyword.PASSWORD)) {
+        if (this.consumeIf(Keyword.EXPIRE)) {
+          if (this.consumeIf(Keyword.DEFAULT)) {
+            stmt.passwordOptions.push({ key: "PASSWORD EXPIRE", value: "DEFAULT" })
+          } else if (this.consumeIf(Keyword.NEVER)) {
+            stmt.passwordOptions.push({ key: "PASSWORD EXPIRE", value: "NEVER" })
+          } else if (this.consumeIf(Keyword.INTERVAL)) {
+            stmt.passwordOptions.push({ key: "PASSWORD EXPIRE", value: this.numberValue() })
+            this.consumeIf(Keyword.DAY)
+          } else {
+            stmt.passwordOptions.push({ key: "PASSWORD EXPIRE", value: true })
+          }
+        } else if (this.consumeIf(Keyword.HISTORY)) {
+          if (this.consumeIf(Keyword.DEFAULT)) {
+            stmt.passwordOptions.push({ key: "PASSWORD HISTORY", value: "DEFAULT" })
+          } else {
+            stmt.passwordOptions.push({ key: "PASSWORD HISTORY", value: this.numberValue() })
+          }
+        } else if (this.consumeIf(Keyword.REUSE)) {
+          this.consume(Keyword.INTERVAL)
+          if (this.consumeIf(Keyword.DEFAULT)) {
+            stmt.passwordOptions.push({ key: "PASSWORD REUSE INTERVAL", value: "DEFAULT" })
+          } else {
+            stmt.passwordOptions.push({ key: "PASSWORD REUSE INTERVAL", value: this.numberValue() })
+            this.consumeIf(Keyword.DAY)
+          }
+        } else if (this.consumeIf(Keyword.REQUIRE)) {
+          this.consumeIf(Keyword.CURRENT)
+          if (this.consumeIf(Keyword.DEFAULT)) {
+            stmt.passwordOptions.push({ key: "PASSWORD REQUIRE CURRENT", value: "DEFAULT" })
+          } else if (this.consumeIf(Keyword.OPTIONAL)) {
+            stmt.passwordOptions.push({ key: "PASSWORD REQUIRE CURRENT", value: "OPTIONAL" })
+          } else {
+            stmt.passwordOptions.push({ key: "PASSWORD REQUIRE CURRENT", value: true })
+          }
+        } else {
+          throw this.createParseError()
+        }
+      } else if (this.consumeIf(Keyword.FAILED_LOGIN_ATTEMPTS)) {
+        stmt.passwordOptions.push({ key: "FAILED_LOGIN_ATTEMPTS", value: this.numberValue() })
+      } else if (this.consumeIf(Keyword.PASSWORD_LOCK_TIME)) {
+        if (this.consumeIf(Keyword.UNBOUNDED)) {
+          stmt.passwordOptions.push({ key: "PASSWORD_LOCK_TIME", value: "UNBOUNDED" })
+        } else {
+          stmt.passwordOptions.push({ key: "PASSWORD_LOCK_TIME", value: this.numberValue() })
+        }
+      } else if (this.consumeIf(Keyword.ACCOUNT)) {
+        if (this.consumeIf(Keyword.LOCK)) {
+          stmt.lockOptions.push({ key: "ACCOUNT LOCK", value: true })
+        } else if (this.consumeIf(Keyword.UNLOCK)) {
+          stmt.lockOptions.push({ key: "ACCOUNT UNLOCK", value: true })
+        } else {
+          throw this.createParseError()
+        }
+      } else {
+        break
+      }
+    }
+    if (this.consumeIf(Keyword.COMMENT)) {
+      stmt.comment = this.stringValue()
+    } else if (this.consumeIf(Keyword.ATTRIBUTE)) {
+      stmt.attribute = this.stringValue()
+    }
+  }
+
+  private parseCreateSpatialReferenceSystemStatement(stmt: model.CreateSpatialReferenceSystemStatement, start: number) {
+    stmt.srid = this.numberValue()
+  }
+
+  private parseCreateTableStatement(stmt: model.CreateTableStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.NOT, Keyword.EXISTS)
+      stmt.ifNotExists = true
+    }
+
+    const obj = this.schemaObject()
+    stmt.schemaName = obj.schemaName
+    stmt.name = obj.name
+
+    if (this.consumeIf(Keyword.LIKE)) {
+      stmt.like = this.schemaObject()
+    } else if (this.consumeIf(TokenType.LeftParen)) {
+      if (this.consumeIf(Keyword.LIKE)) {
+        stmt.like = this.schemaObject()
+      } else {
+        stmt.columns = []
+        stmt.constraints = []
+        for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+          let constraintName
+          let constraint
+          if (this.consumeIf(Keyword.CONSTRAINT)) {
+            if (
+              !this.peekIf(Keyword.PRIMARY) &&
+              !this.peekIf(Keyword.UNIQUE) &&
+              !this.peekIf(Keyword.FOREIGN) &&
+              !this.peekIf(Keyword.CHECK)
+            ) {
+              constraintName = this.identifier()
+            }
+            if (this.consumeIf(Keyword.PRIMARY)) {
+              this.consume(Keyword.KEY)
+              constraint = new model.IndexConstraint()
+              constraint.type = model.IndexType.PRIMARY_KEY
+            } else if (this.consumeIf(Keyword.UNIQUE)) {
+              if (this.consumeIf(Keyword.INDEX) || this.consumeIf(Keyword.KEY)) {
+                constraint = new model.IndexConstraint()
+                constraint.type = model.IndexType.UNIQUE
+              } else {
+                throw this.createParseError()
+              }
+            } else if (this.consumeIf(Keyword.FOREIGN)) {
+              this.consume(Keyword.KEY)
+              constraint = new model.ForeignKeyConstraint()
+            } else if (this.consumeIf(Keyword.CHECK)) {
+              constraint = new model.CheckConstraint()
+            } else {
+              throw this.createParseError()
+            }
+          } else if (this.consumeIf(Keyword.PRIMARY)) {
+            this.consume(Keyword.KEY)
+            constraint = new model.IndexConstraint()
+            constraint.type = model.IndexType.PRIMARY_KEY
+          } else if (this.consumeIf(Keyword.UNIQUE)) {
+            if (this.consumeIf(Keyword.INDEX) || this.consumeIf(Keyword.KEY)) {
+              constraint = new model.IndexConstraint()
+              constraint.type = model.IndexType.UNIQUE
+            } else {
+              throw this.createParseError()
+            }
+          } else if (this.consumeIf(Keyword.FOREIGN)) {
+            this.consume(Keyword.KEY)
+            constraint = new model.ForeignKeyConstraint()
+          } else if (this.consumeIf(Keyword.CHECK)) {
+            constraint = new model.CheckConstraint()
+          } else if (this.consumeIf(Keyword.FULLTEXT)) {
+            if (this.consumeIf(Keyword.INDEX) || this.consumeIf(Keyword.KEY)) {
+              constraint = new model.IndexConstraint()
+              constraint.type = model.IndexType.FULLTEXT
+            } else {
+              throw this.createParseError()
+            }
+          } else if (this.consumeIf(Keyword.SPATIAL)) {
+            if (this.consumeIf(Keyword.INDEX) || this.consumeIf(Keyword.KEY)) {
+              constraint = new model.IndexConstraint()
+              constraint.type = model.IndexType.SPATIAL
+            } else {
+              throw this.createParseError()
+            }
+          } else if (this.consumeIf(Keyword.INDEX) || this.consumeIf(Keyword.KEY)) {
+            constraint = new model.IndexConstraint()
+          } else {
+            stmt.columns.push(this.tableColumn())
+          }
+
+          if (constraint instanceof model.IndexConstraint) {
+            constraint.name = constraintName
+            if (!this.peekIf(Keyword.USING) && !this.peekIf(TokenType.LeftParen)) {
+              constraint.indexName = this.identifier()
+            }
+
+            if (this.consumeIf(Keyword.USING)) {
+              if (this.consumeIf(Keyword.BTREE)) {
+                constraint.algorithm = model.IndexAlgorithm.BTREE
+              } else if (this.consumeIf(Keyword.HASH)) {
+                constraint.algorithm = model.IndexAlgorithm.HASH
+              } else {
+                throw this.createParseError()
+              }
+            }
+            this.consume(TokenType.LeftParen)
+            for (let j = 0; j === 0 || this.consumeIf(TokenType.Comma); j++) {
+              const keyPart = new model.KeyPart()
+              if (this.consumeIf(TokenType.LeftParen)) {
+                keyPart.expression = this.expression()
+                this.consumeIf(TokenType.RightParen)
+              } else {
+                keyPart.column = this.identifier()
+              }
+              if (this.consumeIf(Keyword.ASC)) {
+                keyPart.sortOrder = model.SortOrder.ASC
+              } else if (this.consumeIf(Keyword.DESC)) {
+                keyPart.sortOrder = model.SortOrder.DESC
+              }
+              constraint.keyParts.push(keyPart)
+            }
+            this.consume(TokenType.RightParen)
+          } else if (constraint instanceof model.ForeignKeyConstraint) {
+            constraint.name = constraintName
+            if (!this.peekIf(TokenType.LeftParen)) {
+              constraint.indexName = this.identifier()
+            }
+            this.consume(TokenType.LeftParen)
+            for (let j = 0; j === 0 || this.consumeIf(TokenType.Comma); j++) {
+              constraint.columns.push(this.identifier())
+            }
+            this.consume(TokenType.RightParen)
+            constraint.references = this.references()
+          } else if (constraint instanceof model.CheckConstraint) {
+            constraint.name = constraintName
+            this.consume(TokenType.LeftParen)
+            constraint.expression = this.expression()
+            this.consume(TokenType.RightParen)
+
+            if (this.consumeIf(Keyword.NOT)) {
+              this.consume(Keyword.ENFORCED)
+              constraint.enforced = false
+            } else if (this.consumeIf(Keyword.ENFORCED)) {
+              constraint.enforced = true
+            }
+          }
+        }
+      }
+      this.consumeIf(TokenType.RightParen)
+    } else {
+      stmt.asSelect = true
+    }
+
+    if (!stmt.like) {
+      stmt.tableOptions = this.tableOptions()
+      if (this.consumeIf(Keyword.PARTITION, Keyword.BY)) {
+        if (
+          this.consumeIf(Keyword.LINEAR, Keyword.HASH) ||
+          this.consumeIf(Keyword.HASH)
+        ) {
+          const partition = new model.LinearHashPartition()
+          this.consume(TokenType.LeftParen)
+          partition.expression = this.expression()
+          this.consume(TokenType.RightParen)
+          stmt.partition = partition
+        } else if (
+          this.consumeIf(Keyword.LINEAR, Keyword.KEY) ||
+          this.consumeIf(Keyword.KEY)
+        ) {
+          const partition = new model.LinearKeyPartition()
+          if (this.consumeIf(Keyword.ALGORITHM)) {
+            partition.algorithm = this.numberValue()
+          }
+          this.consume(TokenType.LeftParen)
+          for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+            partition.columns.push(this.identifier())
+          }
+          this.consume(TokenType.RightParen)
+          stmt.partition = partition
+        } else if (this.consumeIf(Keyword.RANGE)) {
+          const partition = new model.RangePartition()
+          if (this.consumeIf(TokenType.LeftParen)) {
+            partition.expression = this.expression()
+            this.consume(TokenType.RightParen)
+          } else if (this.consumeIf(Keyword.COLUMNS)) {
+            this.consume(TokenType.LeftParen)
+            partition.columns = []
+            for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+              partition.columns.push(this.identifier())
+            }
+            this.consume(TokenType.RightParen)
+          }
+          stmt.partition = partition
+        } else if (this.consumeIf(Keyword.LIST)) {
+          const partition = new model.ListPartition()
+          if (this.consumeIf(TokenType.LeftParen)) {
+            partition.expression = this.expression()
+            this.consume(TokenType.RightParen)
+          } else if (this.consumeIf(Keyword.COLUMNS)) {
+            this.consume(TokenType.LeftParen)
+            partition.columns = []
+            for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+              partition.columns.push(this.identifier())
+            }
+            this.consume(TokenType.RightParen)
+          }
+          stmt.partition = partition
+        } else {
+          throw this.createParseError()
+        }
+        if (this.consumeIf(Keyword.PARTITIONS)) {
+          stmt.partition.num = this.numberValue()
+        }
+        if (this.consumeIf(Keyword.SUBPARTITION, Keyword.BY)) {
+          if (
+            this.consumeIf(Keyword.LINEAR, Keyword.HASH) ||
+            this.consumeIf(Keyword.HASH)
+          ) {
+            const partition = new model.LinearHashPartition()
+            this.consume(TokenType.LeftParen)
+            partition.expression = this.expression()
+            this.consume(TokenType.RightParen)
+            stmt.partition.subpartition = partition
+          } else if (
+            this.consumeIf(Keyword.LINEAR, Keyword.KEY) ||
+            this.consumeIf(Keyword.KEY)
+          ) {
+            const partition = new model.LinearKeyPartition()
+            if (this.consumeIf(Keyword.ALGORITHM)) {
+              partition.algorithm = this.numberValue()
+            }
+            this.consume(TokenType.LeftParen)
+            for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+              partition.columns.push(this.identifier())
+            }
+            this.consume(TokenType.RightParen)
+            stmt.partition.subpartition = partition
+          } else {
+            throw this.createParseError()
+          }
+          if (this.consumeIf(Keyword.PARTITIONS)) {
+            stmt.partition.subpartition.num = this.numberValue()
+          }
+        }
+        if (this.consumeIf(TokenType.LeftParen)) {
+          for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+            this.consume(Keyword.PARTITION)
+            const def = new model.PartitionDef()
+            def.name = this.identifier()
+            if (this.consumeIf(Keyword.VALUES)) {
+              if (this.consumeIf(Keyword.LESS)) {
+                this.consume(Keyword.THAN)
+                def.lessThanValues = []
+                if (this.consumeIf(TokenType.LeftParen)) {
+                  for (let j = 0; j === 0 || this.consumeIf(TokenType.Comma); j++) {
+                    if (this.consumeIf(Keyword.MAXVALUE)) {
+                      def.lessThanValues.push("MAXVALUE")
+                    } else {
+                      def.lessThanValues.push(this.expression())
+                    }
+                  }
+                  this.consume(TokenType.RightParen)
+                } else if (this.consumeIf(Keyword.MAXVALUE)) {
+                  def.lessThanValues.push("MAXVALUE")
+                }
+              } else if (this.consumeIf(Keyword.IN)) {
+                def.inValues = []
+                this.consume(TokenType.LeftParen)
+                for (let j = 0; j === 0 || this.consumeIf(TokenType.Comma); j++) {
+                  def.inValues.push(this.expression())
+                }
+                this.consume(TokenType.RightParen)
+              }
+            }
+            if (this.consumeIf(Keyword.STORAGE)) {
+              this.consume(Keyword.ENGINE)
+              def.storageEngine = this.identifier()
+            } else if (this.consumeIf(Keyword.ENGINE)) {
+              def.storageEngine = this.identifier()
+            }
+            if (this.consumeIf(Keyword.COMMENT)) {
+              this.consumeIf(Keyword.OPE_EQ)
+              def.comment = this.stringValue()
+            }
+            if (this.consumeIf(Keyword.DATA, Keyword.DIRECTORY)) {
+              this.consumeIf(Keyword.OPE_EQ)
+              def.dataDirectory = this.stringValue()
+            }
+            if (this.consumeIf(Keyword.INDEX, Keyword.DIRECTORY)) {
+              this.consumeIf(Keyword.OPE_EQ)
+              def.indexDirectory = this.stringValue()
+            }
+            if (this.consumeIf(Keyword.MAX_ROWS)) {
+              this.consumeIf(Keyword.OPE_EQ)
+              def.maxRows = this.numberValue()
+            }
+            if (this.consumeIf(Keyword.MIN_ROWS)) {
+              this.consumeIf(Keyword.OPE_EQ)
+              def.minRows = this.numberValue()
+            }
+            if (this.consumeIf(Keyword.TABLESPACE)) {
+              this.consumeIf(Keyword.OPE_EQ)
+              def.tablespace = this.stringValue()
+            }
+            if (this.consumeIf(TokenType.LeftParen)) {
+              for (let j = 0; j === 0 || this.consumeIf(TokenType.Comma); j++) {
+                this.consume(Keyword.SUBPARTITION)
+                const subDef = new model.PartitionDef()
+                subDef.name = this.identifier()
+                if (this.consumeIf(Keyword.STORAGE)) {
+                  this.consume(Keyword.ENGINE)
+                  subDef.storageEngine = this.identifier()
+                } else if (this.consumeIf(Keyword.ENGINE)) {
+                  subDef.storageEngine = this.identifier()
+                }
+                if (this.consumeIf(Keyword.COMMENT)) {
+                  this.consumeIf(Keyword.OPE_EQ)
+                  subDef.comment = this.stringValue()
+                }
+                if (this.consumeIf(Keyword.DATA, Keyword.DIRECTORY)) {
+                  this.consumeIf(Keyword.OPE_EQ)
+                  subDef.dataDirectory = this.stringValue()
+                }
+                if (this.consumeIf(Keyword.INDEX, Keyword.DIRECTORY)) {
+                  this.consumeIf(Keyword.OPE_EQ)
+                  subDef.indexDirectory = this.stringValue()
+                }
+                if (this.consumeIf(Keyword.MAX_ROWS)) {
+                  this.consumeIf(Keyword.OPE_EQ)
+                  subDef.maxRows = this.numberValue()
+                }
+                if (this.consumeIf(Keyword.MIN_ROWS)) {
+                  this.consumeIf(Keyword.OPE_EQ)
+                  subDef.minRows = this.numberValue()
+                }
+                if (this.consumeIf(Keyword.TABLESPACE)) {
+                  this.consumeIf(Keyword.OPE_EQ)
+                  subDef.tablespace = this.stringValue()
+                }
+                def.subdefs.push(subDef)
+              }
+              this.consume(TokenType.RightParen)
+            }
+            stmt.partition.defs.push(def)
+          }
+          this.consume(TokenType.RightParen)
+        }
+      }
+      if (this.consumeIf(Keyword.IGNORE)) {
+        stmt.conflictAction = model.ConflictAction.IGNORE
+        stmt.asSelect = true
+      } else if (this.consumeIf(Keyword.REPLACE)) {
+        stmt.conflictAction = model.ConflictAction.REPLACE
+        stmt.asSelect = true
+      }
+      if (this.consumeIf(Keyword.AS)) {
+        stmt.asSelect = true
+      }
+      if (stmt.asSelect || this.peekIf(Keyword.WITH) || this.peekIf(Keyword.SELECT)) {
+        this.selectClause()
+      }
+    }
+  }
+
+  private parseCreateSequenceStatement(stmt: model.CreateSequenceStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.NOT, Keyword.EXISTS)
+      stmt.ifNotExists = true
+    }
+
+    const obj = this.schemaObject()
+    stmt.schemaName = obj.schemaName
+    stmt.name = obj.name
+
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      if (this.consumeIf(Keyword.INCREMENT)) {
+        this.consumeIf(Keyword.BY) || this.consumeIf(Keyword.OPE_EQ)
+        stmt.increment = this.numberValue()
+      } else if (this.consumeIf(Keyword.MINVALUE)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        if (
+          this.consumeIf(Keyword.NOMINVALUE) ||
+          (this.consumeIf(Keyword.NO) && this.consumeIf(Keyword.MINVALUE))
+        ) {
+          stmt.minvalue = "NOMINVALUE"
+        } else {
+          stmt.minvalue = this.numberValue()
+        }
+      } else if (this.consumeIf(Keyword.MAXVALUE)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        if (
+          this.consumeIf(Keyword.NOMAXVALUE) ||
+          (this.consumeIf(Keyword.NO) && this.consumeIf(Keyword.MAXVALUE))
+        ) {
+          stmt.maxvalue = "NOMINVALUE"
+        } else {
+          stmt.maxvalue = this.numberValue()
+        }
+      } else if (this.consumeIf(Keyword.START)) {
+        this.consumeIf(Keyword.WITH) || this.consumeIf(Keyword.OPE_EQ)
+        stmt.start = this.numberValue()
+      } else if (this.consumeIf(Keyword.CACHE)) {
+        if (this.consumeIf(Keyword.NOCACHE)) {
+          stmt.cache = "NOCACHE"
+        } else {
+          stmt.cache = this.numberValue()
+        }
+        if (this.consumeIf(Keyword.CYCLE)) {
+          stmt.cacheCycle = model.CacheCycle.CYCLE
+        } else if (this.consumeIf(Keyword.NOCYCLE)) {
+          stmt.cacheCycle = model.CacheCycle.NOCYCLE
+        }
+      } else {
+        break
+      }
+    }
+
+    stmt.tableOptions = this.tableOptions()
+  }
+
+  private parseCreateIndexStatement(stmt: model.CreateIndexStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.NOT, Keyword.EXISTS)
+      stmt.ifNotExists = true
+    }
+
+    const obj = this.schemaObject()
+    stmt.schemaName = obj.schemaName
+    stmt.name = obj.name
+
+    if (this.consumeIf(Keyword.USING)) {
+      if (this.consumeIf(Keyword.BTREE)) {
+        stmt.algorithm = model.IndexAlgorithm.BTREE
+      } else if (this.consumeIf(Keyword.HASH)) {
+        stmt.algorithm = model.IndexAlgorithm.HASH
+      } else {
+        throw this.createParseError()
+      }
+    }
+    this.consume(Keyword.ON)
+    stmt.table.schemaName = this.identifier()
+    if (this.consumeIf(TokenType.Dot)) {
+      stmt.table.schemaName = stmt.table.name
+      stmt.table.name = this.identifier()
+    }
+    this.consume(TokenType.LeftParen)
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      const column = new model.IndexColumn()
+      const start = this.pos
+      const tokens = this.expression()
+      if (tokens.length === 1) {
+        this.pos = start
+        column.name = this.identifier()
+      } else {
+        column.expression = tokens
+      }
+      if (this.consumeIf(Keyword.ASC)) {
+        column.sortOrder = model.SortOrder.ASC
+      } else if (this.consumeIf(Keyword.DESC)) {
+        column.sortOrder = model.SortOrder.DESC
+      }
+      stmt.columns.push(column)
+    }
+    this.consume(TokenType.RightParen)
+    stmt.indexOptions = this.indexOptions()
+    while (this.token()) {
+      if (this.consumeIf(Keyword.ALGORITHM)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        if (this.consumeIf(Keyword.DEFAULT)) {
+          stmt.algorithmOption = model.IndexAlgorithmOption.DEFAULT
+        } else if (this.consumeIf(Keyword.INPLACE)) {
+          stmt.algorithmOption = model.IndexAlgorithmOption.INPLACE
+        } else if (this.consumeIf(Keyword.COPY)) {
+          stmt.algorithmOption = model.IndexAlgorithmOption.COPY
+        } else {
+          throw this.createParseError()
+        }
+      } else if (this.consumeIf(Keyword.LOCK)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        if (this.consumeIf(Keyword.DEFAULT)) {
+          stmt.lockOption = model.IndexLockOption.DEFAULT
+        } else if (this.consumeIf(Keyword.NONE)) {
+          stmt.lockOption = model.IndexLockOption.NONE
+        } else if (this.consumeIf(Keyword.SHARED)) {
+          stmt.lockOption = model.IndexLockOption.SHARED
+        } else if (this.consumeIf(Keyword.EXCLUSIVE)) {
+          stmt.lockOption = model.IndexLockOption.EXCLUSIVE
+        } else {
+          throw this.createParseError()
+        }
+      } else {
+        break
+      }
+    }
+  }
+
+  private parseCreateViewStatement(stmt: model.CreateViewStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.NOT, Keyword.EXISTS)
+      stmt.ifNotExists = true
+    }
+
+    const obj = this.schemaObject()
+    stmt.schemaName = obj.schemaName
+    stmt.name = obj.name
+    if (this.consumeIf(TokenType.LeftParen)) {
+      stmt.columns = []
+      for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+        stmt.columns.push(this.identifier())
+      }
+      this.consume(TokenType.RightParen)
+    }
+    this.consume(Keyword.AS)
+    this.selectClause()
+    if (this.consumeIf(Keyword.WITH)) {
+      if (this.consumeIf(Keyword.CASCADED)) {
+        stmt.checkOption = model.CheckOption.CASCADED
+      } else if (this.consumeIf(Keyword.LOCAL)) {
+        stmt.checkOption = model.CheckOption.LOCAL
+      } else {
+        stmt.checkOption = model.CheckOption.CASCADED
+      }
+      this.consume(Keyword.CHECK)
+      this.consume(Keyword.OPTION)
+    }
+  }
+
+  private parseCreatePackageBodyStatement(stmt: model.CreatePackageBodyStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.NOT, Keyword.EXISTS)
+      stmt.ifNotExists = true
+    }
+    
+    const obj = this.schemaObject()
+    stmt.schemaName = obj.schemaName
+    stmt.name = obj.name
+    while (this.token()) {
+      if (this.consumeIf(Keyword.COMMENT)) {
+        stmt.comment = this.stringValue()
+      } else if (this.consumeIf(Keyword.SQL, Keyword.SECURITY)) {
+        if (this.consumeIf(Keyword.DEFINER)) {
+          stmt.sqlSecurity = model.SqlSecurity.DEFINER
+        } else if (this.consumeIf(Keyword.INVOKER)) {
+          stmt.sqlSecurity = model.SqlSecurity.INVOKER
+        } else {
+          throw this.createParseError()
+        }
+      } else {
+        break
+      }
+    }
+    if (this.consumeIf(Keyword.AS) || this.consumeIf(Keyword.IS)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+        this.consume()
+      }
+    } else {
+      throw this.createParseError()
+    }
+  }
+
+  private parseCreatePackageStatement(stmt: model.CreatePackageStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.NOT, Keyword.EXISTS)
+      stmt.ifNotExists = true
+    }
+    
+    const obj = this.schemaObject()
+    stmt.schemaName = obj.schemaName
+    stmt.name = obj.name
+    while (this.token()) {
+      if (this.consumeIf(Keyword.COMMENT)) {
+        stmt.comment = this.stringValue()
+      } else if (this.consumeIf(Keyword.SQL, Keyword.SECURITY)) {
+        if (this.consumeIf(Keyword.DEFINER)) {
+          stmt.sqlSecurity = model.SqlSecurity.DEFINER
+        } else if (this.consumeIf(Keyword.INVOKER)) {
+          stmt.sqlSecurity = model.SqlSecurity.INVOKER
+        } else {
+          throw this.createParseError()
+        }
+      } else {
+        break
+      }
+    }
+    if (this.consumeIf(Keyword.AS) || this.consumeIf(Keyword.IS)) {
+      while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+        this.consume()
+      }
+    } else {
+      throw this.createParseError()
+    }
+  }
+
+  private parseCreateProcedureStatement(stmt: model.CreateProcedureStatement, start: number) {
+    const obj = this.schemaObject()
+    stmt.schemaName = obj.schemaName
+    stmt.name = obj.name
+    this.consume(TokenType.LeftParen)
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      const param = new model.ProcedureParam()
+      if (this.consumeIf(Keyword.IN)) {
+        param.direction = model.Direction.IN
+      } else if (this.consumeIf(Keyword.OUT)) {
+        param.direction = model.Direction.OUT
+      } else if (this.consumeIf(Keyword.INOUT)) {
+        param.direction = model.Direction.INOUT
+      }
+      param.name = this.identifier()
+      param.dataType = this.dataType()
+      stmt.params.push(param)
+    }
+    this.consume(TokenType.RightParen)
+    while (this.token()) {
+      if (this.consumeIf(Keyword.COMMENT)) {
+        stmt.comment = this.stringValue()
+      } else if (this.consumeIf(Keyword.LANGUAGE)) {
+        this.consume(Keyword.SQL)
+        stmt.language = model.ProcedureLanguage.SQL
+      } else if (this.consumeIf(Keyword.DETERMINISTIC)) {
+        stmt.deterministic = true
+      } else if (this.consumeIf(Keyword.NOT, Keyword.DETERMINISTIC)) {
+        stmt.deterministic = false
+      } else if (this.consumeIf(Keyword.CONTAINS, Keyword.SQL)) {
+        stmt.characteristic = model.ProcedureCharacteristic.CONTAINS_SQL
+      } else if (this.consumeIf(Keyword.NO, Keyword.SQL)) {
+        stmt.characteristic = model.ProcedureCharacteristic.NO_SQL
+      } else if (this.consumeIf(Keyword.READS, Keyword.SQL, Keyword.DATA)) {
+        stmt.characteristic = model.ProcedureCharacteristic.READS_SQL_DATA
+      } else if (this.consumeIf(Keyword.MODIFIES, Keyword.SQL, Keyword.DATA)) {
+        stmt.characteristic = model.ProcedureCharacteristic.MODIFIES_SQL_DATA
+      } else if (this.consumeIf(Keyword.SQL, Keyword.SECURITY)) {
+        if (this.consumeIf(Keyword.DEFINER)) {
+          stmt.sqlSecurity = model.SqlSecurity.DEFINER
+        } else if (this.consumeIf(Keyword.INVOKER)) {
+          stmt.sqlSecurity = model.SqlSecurity.INVOKER
+        } else {
+          throw this.createParseError()
+        }
+      } else {
+        break
+      }
+    }
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseCreateFunctionStatement(stmt: model.CreateFunctionStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.NOT, Keyword.EXISTS)
+      stmt.ifNotExists = true
+    }
+    
+    const obj = this.schemaObject()
+    stmt.schemaName = obj.schemaName
+    stmt.name = obj.name
+    this.consume(TokenType.LeftParen)
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      const param = new model.FunctionParam()
+      param.name = this.identifier()
+      param.dataType = this.dataType()
+      stmt.params.push(param)
+    }
+    this.consume(TokenType.RightParen)
+    this.consume(Keyword.RETURN)
+    stmt.returnDataType = this.dataType()
+    while (this.token()) {
+      if (this.consumeIf(Keyword.COMMENT)) {
+        stmt.comment = this.stringValue()
+      } else if (this.consumeIf(Keyword.LANGUAGE)) {
+        this.consume(Keyword.SQL)
+        stmt.language = model.ProcedureLanguage.SQL
+      } else if (this.consumeIf(Keyword.DETERMINISTIC)) {
+        stmt.deterministic = true
+      } else if (this.consumeIf(Keyword.NOT, Keyword.DETERMINISTIC)) {
+        stmt.deterministic = false
+      } else if (this.consumeIf(Keyword.CONTAINS, Keyword.SQL)) {
+        stmt.characteristic = model.ProcedureCharacteristic.CONTAINS_SQL
+      } else if (this.consumeIf(Keyword.NO, Keyword.SQL)) {
+        stmt.characteristic = model.ProcedureCharacteristic.NO_SQL
+      } else if (this.consumeIf(Keyword.READS, Keyword.SQL, Keyword.DATA)) {
+        stmt.characteristic = model.ProcedureCharacteristic.READS_SQL_DATA
+      } else if (this.consumeIf(Keyword.MODIFIES, Keyword.SQL, Keyword.DATA)) {
+        stmt.characteristic = model.ProcedureCharacteristic.MODIFIES_SQL_DATA
+      } else if (this.consumeIf(Keyword.SQL, Keyword.SECURITY)) {
+        if (this.consumeIf(Keyword.DEFINER)) {
+          stmt.sqlSecurity = model.SqlSecurity.DEFINER
+        } else if (this.consumeIf(Keyword.INVOKER)) {
+          stmt.sqlSecurity = model.SqlSecurity.INVOKER
+        } else {
+          throw this.createParseError()
+        }
+      } else {
+        break
+      }
+    }
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseCreateTriggerStatement(stmt: model.CreateTriggerStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.NOT, Keyword.EXISTS)
+      stmt.ifNotExists = true
+    }
+    
+    const obj = this.schemaObject()
+    stmt.schemaName = obj.schemaName
+    stmt.name = obj.name
+    if (this.consumeIf(Keyword.BEFORE)) {
+      stmt.triggerTime = model.TriggerTime.BEFORE
+    } else if (this.consumeIf(Keyword.AFTER)) {
+      stmt.triggerTime = model.TriggerTime.AFTER
+    } else {
+      throw this.createParseError()
+    }
+    if (this.consumeIf(Keyword.INSERT)) {
+      stmt.triggerEvent = model.TriggerEvent.INSERT
+    } else if (this.consumeIf(Keyword.UPDATE)) {
+      stmt.triggerEvent = model.TriggerEvent.UPDATE
+    } else if (this.consumeIf(Keyword.DELETE)) {
+      stmt.triggerEvent = model.TriggerEvent.DELETE
+    } else {
+      throw this.createParseError()
+    }
+    this.consume(Keyword.ON)
+    stmt.table = this.schemaObject()
+    this.consume(Keyword.FOR, Keyword.EACH, Keyword.ROW)
+    if (this.consumeIf(Keyword.FOLLOWS)) {
+      const triggerOrder = new model.TriggerOrder()
+      triggerOrder.position = model.TriggerOrderPosition.FOLLOWS
+      triggerOrder.tableName = this.identifier()
+      stmt.triggerOrder = triggerOrder
+    } else if (this.consumeIf(Keyword.PRECEDES)) {
+      const triggerOrder = new model.TriggerOrder()
+      triggerOrder.position = model.TriggerOrderPosition.PRECEDES
+      triggerOrder.tableName = this.identifier()
+      stmt.triggerOrder = triggerOrder
+    }
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseCreateEventStatement(stmt: model.CreateEventStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.NOT, Keyword.EXISTS)
+      stmt.ifNotExists = true
+    }
+
+    const obj = this.schemaObject()
+    stmt.schemaName = obj.schemaName
+    stmt.name = obj.name
+    this.consume(Keyword.ON)
+    this.consume(Keyword.SCHEDULE)
+    if (this.consumeIf(Keyword.AT)) {
+      stmt.at = this.expression()
+    } else if (this.consumeIf(Keyword.EVERY)) {
+      stmt.every = this.intervalValue()
+      if (this.consumeIf(Keyword.STARTS)) {
+        stmt.starts = this.expression()
+      }
+      if (this.consumeIf(Keyword.ENDS)) {
+        stmt.ends = this.expression()
+      }
+    }
+    if (this.consumeIf(Keyword.ON)) {
+      this.consume(Keyword.COMPLETION)
+      if (this.consumeIf(Keyword.NOT)) {
+        this.consume(Keyword.PRESERVE)
+        stmt.onCompletionPreserve = false
+      } else {
+        this.consume(Keyword.PRESERVE)
+        stmt.onCompletionPreserve = true
+      }
+    }
+    if (this.consumeIf(Keyword.ENABLE)) {
+      stmt.disable = false
+    } else if (this.consumeIf(Keyword.DISABLE)) {
+      if (this.consumeIf(Keyword.ON)) {
+        this.consume(Keyword.SLAVE)
+        stmt.disable = "ON SLAVE"
+      } else {
+        stmt.disable = true
+      }
+    }
+    if (this.consumeIf(Keyword.COMMENT)) {
+      stmt.comment = this.stringValue()
+    }
+    this.consume(Keyword.DO)
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseAlterDatabaseStatement(stmt: model.AlterDatabaseStatement, start: number) {
+    stmt.name = this.identifier()
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseAlterServerStatement(stmt: model.AlterServerStatement, start: number) {
+    stmt.name = this.identifier()
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseAlterResourceGroupStatement(stmt: model.AlterResourceGroupStatement, start: number) {
+    stmt.name = this.identifier()
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseAlterLogfileGroupStatement(stmt: model.AlterLogfileGroupStatement, start: number) {
+    stmt.name = this.identifier()
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseAlterTablespaceStatement(stmt: model.AlterTablespaceStatement, start: number) {
+    stmt.name = this.identifier()
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseAlterUserStatement(stmt: model.AlterUserStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    if (this.consumeIf(Keyword.CURRENT_USER)) {
+      if (this.consumeIf(TokenType.LeftParen)) {
+        this.consumeIf(TokenType.RightParen)
+      }
+    } else {
+      stmt.users = []
+      for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+        const user = this.userRole()
+        while (this.token() && !this.peekIf(TokenType.Delimiter) && !this.peekIf(TokenType.Comma)) {
+          this.consume()
+        }
+        stmt.users.push(user)
+      }
+    }
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseAlterTableStatement(stmt: model.AlterTableStatement, start: number) {
+    stmt.table = this.schemaObject()
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      if (this.consumeIf(Keyword.RENAME)) {
+        if (this.consumeIf(Keyword.COLUMN)) {
+          // no handle
+        } else if (this.consumeIf(Keyword.INDEX) || this.consumeIf(Keyword.KEY)) {
+          // no handle
+        } else {
+          this.consumeIf(Keyword.TO) || this.consumeIf(Keyword.AS)
+          stmt.newTable = this.schemaObject()
+        }
+      } else {
+        this.consume()
+      }
+    }
+  }
+
+  private parseAlterInstanceStatement(stmt: model.AlterInstanceStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseAlterViewStatement(stmt: model.AlterViewStatement, start: number) {
+    stmt.view = this.schemaObject()
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseAlterProcedureStatement(stmt: model.AlterProcedureStatement, start: number) {
+    stmt.procedure = this.schemaObject()
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseAlterFunctionStatement(stmt: model.AlterFunctionStatement, start: number) {
+    stmt.function = this.schemaObject()
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseAlterEventStatement(stmt: model.AlterEventStatement, start: number) {
+    stmt.event = this.schemaObject()
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseRenameTableStatement(stmt: model.RenameTableStatement, start: number) {
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      const pair = new model.RenameTablePair()
+      pair.table = this.schemaObject()
+      this.consumeIf(Keyword.TO)
+      pair.newTable = this.schemaObject()
+      stmt.pairs.push(pair)
+    }
+  }
+
+  private parseRenameUserStatement(stmt: model.RenameUserStatement, start: number) {
+    stmt = new model.RenameUserStatement()
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      const pair = new model.RenameUserPair()
+      pair.user = this.userRole()
+      this.consumeIf(Keyword.TO)
+      pair.newUser = this.userRole()
+      stmt.pairs.push(pair)
+    }
+  }
+
+  private parseDropDatabaseStatement(stmt: model.DropDatabaseStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    stmt.name = this.identifier()
+  }
+
+  private parseDropServerStatement(stmt: model.DropServerStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    stmt.name = this.identifier()
+  }
+
+  private parseDropResourceGroupStatement(stmt: model.DropResourceGroupStatement, start: number) {
+    stmt.name = this.identifier()
+    if (this.consumeIf(Keyword.FORCE)) {
+      stmt.force = true
+    }
+  }
+
+  private parseDropLogfileGroupStatement(stmt: model.DropLogfileGroupStatement, start: number) {
+    stmt.name = this.identifier()
+    this.consume(Keyword.ENGINE)
+    this.consumeIf(Keyword.OPE_EQ)
+    stmt.engine = this.identifier()
+  }
+
+  private parseDropTablespaceStatement(stmt: model.DropTablespaceStatement, start: number) {
+    stmt.name = this.identifier()
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseDropSpatialReferenceSystemStatement(stmt: model.DropSpatialReferenceSystemStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    stmt.srid = this.numberValue()
+  }
+
+  private parseDropRoleStatement(stmt: model.DropRoleStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      stmt.roles.push(this.userRole())
+    }
+  }
+
+  private parseDropUserStatement(stmt: model.DropUserStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      stmt.users.push(this.userRole())
+    }
+  }
+
+  private parseDropTableStatement(stmt: model.DropTableStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      stmt.tables.push(this.schemaObject())
+    }
+    if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dropOption = model.DropOption.RESTRICT
+    } else if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dropOption = model.DropOption.CASCADE
+    }
+  }
+
+  private parseDropViewStatement(stmt: model.DropViewStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      stmt.views.push(this.schemaObject())
+    }
+    if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dropOption = model.DropOption.RESTRICT
+    } else if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dropOption = model.DropOption.CASCADE
+    }
+  }
+
+  private parseDropPackageBodyStatement(stmt: model.DropPackageBodyStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    stmt.packageBody = this.schemaObject()
+  }
+
+  private parseDropPackageStatement(stmt: model.DropPackageStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    stmt.package = this.schemaObject()
+  }
+
+  private parseDropProcedureStatement(stmt: model.DropProcedureStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    stmt.procedure = this.schemaObject()
+  }
+
+  private parseDropFunctionStatement(stmt: model.DropFunctionStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    stmt.function = this.schemaObject()
+  }
+
+  private parseDropTriggerStatement(stmt: model.DropTriggerStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    stmt.trigger = this.schemaObject()
+  }
+
+  private parseDropEventStatement(stmt: model.DropEventStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    stmt.event = this.schemaObject()
+  }
+
+  private parseDropIndexStatement(stmt: model.DropIndexStatement, start: number) {
+    stmt.index = this.schemaObject()
+    this.consumeIf(Keyword.ON)
+    stmt.table = this.schemaObject()
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseDeallocatePrepareStatement(stmt: model.DeallocatePrepareStatement, start: number) {
+    stmt.prepareName = this.identifier()
+  }
+
+  private parseTruncateTableStatement(stmt: model.TruncateTableStatement, start: number) {
+    stmt.table = this.schemaObject()
+  }
+
+  private parsePrepareStatement(stmt: model.PrepareStatement, start: number) {
+    stmt.name = this.identifier()
+    this.consume(Keyword.FROM)
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseExecuteStatement(stmt: model.ExecuteStatement, start: number) {
+    stmt.prepareName = this.identifier()
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseStartTransactionStatement(stmt: model.StartTransactionStatement, start: number) {
+    stmt = new model.StartTransactionStatement()
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseStartReplicaStatement(stmt: model.StartReplicaStatement, start: number) {
+    stmt = new model.StartReplicaStatement()
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseChangeMasterStatement(stmt: model.ChangeMasterStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseStopReplicaStatement(stmt: model.StopReplicaStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseBeginStatement(stmt: model.BeginStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseSavepointStatement(stmt: model.SavepointStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseReleaseSavepointStatement(stmt: model.ReleaseSavepointStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseCommitStatement(stmt: model.CommitStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseRollbackStatement(stmt: model.RollbackStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseLockTablesStatement(stmt: model.LockTablesStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseUnlockTablesStatement(stmt: model.UnlockTablesStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseXaStartStatement(stmt: model.XaStartStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseXaBeginStatement(stmt: model.XaBeginStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseXaEndStatement(stmt: model.XaEndStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseXaPrepareStatement(stmt: model.XaPrepareStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseXaCommitStatement(stmt: model.XaCommitStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseXaRollbackStatement(stmt: model.XaRollbackStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseXaRecoverStatement(stmt: model.XaRecoverStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parsePurgeBinaryLogsStatement(stmt: model.PurgeBinaryLogsStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseResetMasterStatement(stmt: model.ResetMasterStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseResetReplicaStatement(stmt: model.ResetReplicaStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseGrantStatement(stmt: model.GrantStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseRevokeStatement(stmt: model.RevokeStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseAnalyzeTableStatement(stmt: model.AnalyzeTableStatement, start: number) {
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      stmt.tables.push(this.schemaObject())
+    }
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseCheckTableStatement(stmt: model.CheckTableStatement, start: number) {
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      stmt.tables.push(this.schemaObject())
+    }
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseChecksumTableStatement(stmt: model.ChecksumTableStatement, start: number) {
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      stmt.tables.push(this.schemaObject())
+    }
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseOptimizeTableStatement(stmt: model.OptimizeTableStatement, start: number) {
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      stmt.tables.push(this.schemaObject())
+    }
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseRepairTableStatement(stmt: model.RepairTableStatement, start: number) {
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      stmt.tables.push(this.schemaObject())
+    }
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+  
+  private parseCheckIndexStatement(stmt: model.CheckIndexStatement, start: number) {
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      stmt.indexes.push(this.schemaObject())
+    }
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseCacheIndexStatement(stmt: model.CacheIndexStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseInstallPluginStatement(stmt: model.InstallPluginStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseInstallComponentStatement(stmt: model.InstallComponentStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseUninstallPluginStatement(stmt: model.UninstallPluginStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseUninstallComponentStatement(stmt: model.UninstallComponentStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseBinlogStatement(stmt: model.BinlogStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseFlushStatement(stmt: model.FlushStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseKillStatement(stmt: model.KillStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseRestartStatement(stmt: model.RestartStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseShutdownStatement(stmt: model.ShutdownStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseCloneStatement(stmt: model.CloneStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseLoadDataStatement(stmt: model.LoadDataStatement, start: number) {
+    if (this.consumeIf(Keyword.LOW_PRIORITY)) {
+      stmt.concurrency = model.Concurrency.LOW_PRIORITY
+    } else if (this.consumeIf(Keyword.CONCURRENT)) {
+      stmt.concurrency = model.Concurrency.CONCURRENT
+    }
+    if (this.consumeIf(Keyword.LOCAL)) {
+      stmt.local = true
+    }
+    this.consume(Keyword.INFILE)
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseLoadXmlStatement(stmt: model.LoadXmlStatement, start: number) {
+    if (this.consumeIf(Keyword.LOW_PRIORITY)) {
+      stmt.concurrency = model.Concurrency.LOW_PRIORITY
+    } else if (this.consumeIf(Keyword.CONCURRENT)) {
+      stmt.concurrency = model.Concurrency.CONCURRENT
+    }
+    if (this.consumeIf(Keyword.LOCAL)) {
+      stmt.local = true
+    }
+    this.consume(Keyword.INFILE)
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseLoadIndexIntoCacheStatement(stmt: model.LoadIndexIntoCacheStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseExplainStatement(stmt: model.ExplainStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseSetResourceGroupStatement(stmt: model.SetResourceGroupStatement, start: number) {
+    stmt.name = this.identifier()
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseSetDefaultRoleStatement(stmt: model.SetDefaultRoleStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseSetRoleStatement(stmt: model.SetRoleStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseSetPasswordStatement(stmt: model.SetPasswordStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseSetCharacterSetStatement(stmt: model.SetCharacterSetStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseSetNamesStatement(stmt: model.SetNamesStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseSetTransactionStatement(stmt: model.SetTransactionStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseSetStatement(stmt: model.SetStatement, start: number) {
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      const va = new model.VariableAssignment()
+      if (this.consumeIf(Keyword.GLOBAL)) {
+        va.type = model.VariableType.GLOBAL
+        va.name = this.identifier()
+      } else if (this.consumeIf(Keyword.SESSION) || this.consumeIf(Keyword.LOCAL)) {
+        va.type = model.VariableType.SESSION
+        va.name = this.identifier()
+      } else if (this.consumeIf(Keyword.VAR_GLOBAL)) {
+        va.type = model.VariableType.GLOBAL
+        this.consume(TokenType.Dot)
+        va.name = this.identifier()
+      } else if (this.consumeIf(Keyword.VAR_SESSION) || this.consumeIf(Keyword.VAR_LOCAL)) {
+        va.type = model.VariableType.SESSION
+        this.consume(TokenType.Dot)
+        va.name = this.identifier()
+      } else if (this.consumeIf(TokenType.SessionVariable)) {
+        const name = this.token(-1).text.substring(2)
+        va.type = model.VariableType.SESSION
+        va.name = /^['"`]/.test(name) ? dequote(name) : lcase(name)
+      } else if (this.consumeIf(TokenType.UserDefinedVariable)) {
+        const name = this.token(-1).text.substring(1)
+        va.type = model.VariableType.USER_DEFINED
+        va.name = /^['"`]/.test(name) ? dequote(name) : lcase(name)
+      } else {
+        throw this.createParseError()
+      }
+      if (this.consumeIf(Keyword.OPE_EQ) || this.consumeIf(Keyword.OPE_COLON_EQ)) {
+        va.value = this.expression()
+      } else {
+        throw this.createParseError()
+      }
+      stmt.variableAssignments.push(va)
+
+      if (va.type !== model.VariableType.USER_DEFINED && va.name === "sql_mode") {
+        if (va.value.length === 1 && (
+          va.value[0].type === TokenType.String ||
+          (!this.sqlMode.has("ANSI_QUOTE") && va.value[0].type === TokenType.QuotedValue)
+        )) {
+          this.setSqlMode(dequote(va.value[0].text))
+        }
+      }
+    }
+  }
+
+  private parseCallStatement(stmt: model.CallStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseUseStatement(stmt: model.UseStatement, start: number) {
+    stmt.schemaName = this.identifier()
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseInsertStatement(stmt: model.InsertStatement, start: number) {
+    if (this.consumeIf(Keyword.LOW_PRIORITY)) {
+      stmt.concurrency = model.Concurrency.LOW_PRIORITY
+    } else if (this.consumeIf(Keyword.DELAYED)) {
+      stmt.concurrency = model.Concurrency.DELAYED
+    } else if (this.consumeIf(Keyword.HIGH_PRIORITY)) {
+      stmt.concurrency = model.Concurrency.HIGH_PRIORITY
+    }
+    if (this.consumeIf(Keyword.IGNORE)) {
+      stmt.conflictAction = model.ConflictAction.IGNORE
+    }
+    this.consumeIf(Keyword.INTO)
+    stmt.table = this.schemaObject()
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseUpdateStatement(stmt: model.UpdateStatement, start: number) {
+    if (this.consumeIf(Keyword.LOW_PRIORITY)) {
+      stmt.concurrency = model.Concurrency.LOW_PRIORITY
+    }
+    if (this.consumeIf(Keyword.IGNORE)) {
+      stmt.conflictAction = model.ConflictAction.IGNORE
+    }
+    stmt.table = this.schemaObject()
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseReplaceStatement(stmt: model.ReplaceStatement, start: number) {
+    if (this.consumeIf(Keyword.LOW_PRIORITY)) {
+      stmt.concurrency = model.Concurrency.LOW_PRIORITY
+    } else if (this.consumeIf(Keyword.DELAYED)) {
+      stmt.concurrency = model.Concurrency.DELAYED
+    }
+    if (this.consumeIf(Keyword.IGNORE)) {
+      stmt.conflictAction = model.ConflictAction.IGNORE
+    }
+    this.consumeIf(Keyword.INTO)
+    stmt.table = this.schemaObject()
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseDeleteStatement(stmt: model.DeleteStatement, start: number) {
+    if (this.consumeIf(Keyword.LOW_PRIORITY)) {
+      stmt.concurrency = model.Concurrency.LOW_PRIORITY
+    } else if (this.consumeIf(Keyword.DELAYED)) {
+      stmt.concurrency = model.Concurrency.DELAYED
+    } else if (this.consumeIf(Keyword.HIGH_PRIORITY)) {
+      stmt.concurrency = model.Concurrency.HIGH_PRIORITY
+    }
+    if (this.consumeIf(Keyword.QUICK)) {
+      stmt.quick = true
+    }
+    if (this.consumeIf(Keyword.IGNORE)) {
+      stmt.conflictAction = model.ConflictAction.IGNORE
+    }
+    this.consumeIf(Keyword.FROM)
+    stmt.table = this.schemaObject()
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseTableStatement(stmt: model.TableStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseDoStatement(stmt: model.DoStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseHandlerStatement(stmt: model.HandlerStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseShowStatement(stmt: model.ShowStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseHelpStatement(stmt: model.HelpStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.Delimiter)) {
+      this.consume()
+    }
+  }
+
+  private parseSelectStatement(stmt: model.SelectStatement, start: number) {
+    this.selectClause()
+  }
+
+  viewAlgorithm() {
+    this.consume(Keyword.ALGORITHM, Keyword.OPE_EQ)
+    if (this.consumeIf(Keyword.UNDEFINED)) {
+      return model.Algortihm.UNDEFINED
+    } else if (this.consumeIf(Keyword.MERGE)) {
+      return model.Algortihm.MERGE
+    } else if (this.consumeIf(Keyword.TEMPTABLE)) {
+      return model.Algortihm.TEMPTABLE
+    } else {
+      throw this.createParseError()
+    }
+  }
+
+  sqlSecurity() {
+    this.consume(Keyword.SQL, Keyword.SECURITY)
+    if (this.consumeIf(Keyword.DEFINER)) {
+      return model.SqlSecurity.DEFINER
+    } else if (this.consumeIf(Keyword.INVOKER)) {
+      return model.SqlSecurity.INVOKER
+    } else {
+      throw this.createParseError()
+    }
   }
 
   tableOptions() {
@@ -3134,7 +3713,7 @@ export class MysqlParser extends Parser {
     this.consume(Keyword.SELECT)
     let depth = 0
     while (this.token() &&
-      !this.peekIf(TokenType.SemiColon) &&
+      !this.peekIf(TokenType.Delimiter) &&
       (depth == 0 && !this.peekIf(TokenType.RightParen)) &&
       (depth == 0 && !this.peekIf(Keyword.WITH))
     ) {

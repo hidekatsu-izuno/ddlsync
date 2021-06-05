@@ -402,6 +402,7 @@ export class CreateIndexStatement extends Statement {
   schemaName?: string
   name = ""
   orReplace = false
+  ifNotExists = false
   type?: IndexType
   algorithm?: IndexAlgorithm
   table = new SchemaObject()
@@ -420,6 +421,7 @@ export class CreateViewStatement extends Statement {
   schemaName?: string
   name = ""
   orReplace = false
+  ifNotExists = false
   algorithm?: Algortihm
   definer?: UserRole
   sqlSecurity?: SqlSecurity
@@ -450,6 +452,7 @@ export class CreatePackageStatement extends Statement {
   schemaName?: string
   name = ""
   orReplace = false
+  ifNotExists = false
   definer?: UserRole
   comment?: string
   sqlSecurity = SqlSecurity.DEFINER
@@ -464,6 +467,7 @@ export class CreatePackageBodyStatement extends Statement {
   schemaName?: string
   name = ""
   orReplace = false
+  ifNotExists = false
   definer?: UserRole
   comment?: string
   sqlSecurity = SqlSecurity.DEFINER
@@ -488,7 +492,7 @@ export class CreateProcedureStatement extends Statement {
 }
 
 export class AlterProcedureStatement extends Statement {
-  prcedure = new SchemaObject()
+  procedure = new SchemaObject()
   definer?: UserRole
 }
 
@@ -603,10 +607,10 @@ export class CommitStatement extends Statement {
 export class RollbackStatement extends Statement {
 }
 
-export class LockTableStatement extends Statement {
+export class LockTablesStatement extends Statement {
 }
 
-export class UnlockTableStatement extends Statement {
+export class UnlockTablesStatement extends Statement {
 }
 
 export class XaStartStatement extends Statement {
@@ -742,12 +746,12 @@ export class DeleteStatement extends Statement {
   conflictAction?: ConflictAction
 }
 
-export class LoadDataInfileStatement extends Statement {
+export class LoadDataStatement extends Statement {
   concurrency?: Concurrency
   local = false
 }
 
-export class LoadXmlInfileStatement extends Statement {
+export class LoadXmlStatement extends Statement {
   concurrency?: Concurrency
   local = false
 }
