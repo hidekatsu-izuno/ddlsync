@@ -386,32 +386,41 @@ export class Sqlite3Parser extends Parser {
       ) {
         stmt = new model.CreateTableStatement()
         stmt.temporary = true
+        this.praseCreateTableStatement(stmt, start)
       } else if (this.consumeIf(Keyword.VIRTUAL, Keyword.TABLE)) {
         stmt = new model.CreateTableStatement()
         stmt.virtual = true
+        this.praseCreateTableStatement(stmt, start)
       } else if (this.consumeIf(Keyword.TABLE)) {
         stmt = new model.CreateTableStatement()
+        this.praseCreateTableStatement(stmt, start)
       } else if (
         this.consumeIf(Keyword.TEMPORARY, Keyword.VIEW) ||
         this.consumeIf(Keyword.TEMP, Keyword.VIEW)
       ) {
         stmt = new model.CreateViewStatement()
         stmt.temporary = true
+        this.parseCreateViewStatement(stmt, start)
       } else if (this.consumeIf(Keyword.VIEW)) {
         stmt = new model.CreateViewStatement()
+        this.parseCreateViewStatement(stmt, start)
       } else if (
         this.consumeIf(Keyword.TEMPORARY, Keyword.TRIGGER) ||
         this.consumeIf(Keyword.TEMP, Keyword.TRIGGER)
       ) {
         stmt = new model.CreateTriggerStatement()
         stmt.temporary = true
+        this.praseCreateTriggerStatement(stmt, start)
       } else if (this.consumeIf(Keyword.TRIGGER)) {
         stmt = new model.CreateTriggerStatement()
+        this.praseCreateTriggerStatement(stmt, start)
       } else if (this.consumeIf(Keyword.UNIQUE, Keyword.INDEX)) {
         stmt = new model.CreateIndexStatement()
         stmt.type = model.IndexType.UNIQUE
+        this.praseCreateIndexStatement(stmt, start)
       } else if (this.consumeIf(Keyword.INDEX)) {
         stmt = new model.CreateIndexStatement()
+        this.praseCreateIndexStatement(stmt, start)
       } else if (
         this.consumeIf(Keyword.TEMPORARY) ||
         this.consumeIf(Keyword.TEMP) ||
@@ -419,257 +428,48 @@ export class Sqlite3Parser extends Parser {
         this.consumeIf(Keyword.UNIQUE)
       ) {
         throw this.createParseError()
-      } else {
-        throw this.createParseError()
-      }
-
-      if (this.consumeIf(Keyword.IF)) {
-        stmt.markers.set("ifNotExistsStart", this.pos - start - 1)
-        this.consume(Keyword.NOT, Keyword.EXISTS)
-        stmt.ifNotExists = true
-        stmt.markers.set("ifNotExistsEnd", this.pos - start)
-      }
-
-      stmt.markers.set("nameStart", this.pos - start)
-      stmt.name = this.identifier()
-      if (this.consumeIf(TokenType.Dot)) {
-        stmt.schemaName = stmt.name
-        stmt.markers.set("nameStart", this.pos - start)
-        stmt.name = this.identifier()
-      }
-      stmt.markers.set("nameEnd", this.pos - start)
-
-      if (stmt instanceof model.CreateTableStatement) {
-        if (stmt.virtual) {
-          this.consume(Keyword.USING)
-          stmt.moduleName = this.identifier()
-          stmt.moduleArgs = []
-          if (this.consumeIf(TokenType.LeftParen)) {
-            for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-              stmt.moduleArgs.push(this.moduleArg())
-            }
-            this.consume(TokenType.RightParen)
-          }
-        } else if (this.consumeIf(TokenType.LeftParen)) {
-          stmt.columns = []
-          stmt.constraints = []
-
-          stmt.columns.push(this.tableColumn())
-          while (this.consumeIf(TokenType.Comma)) {
-            if (
-              !this.peekIf(Keyword.CONSTRAINT) &&
-              !this.peekIf(Keyword.PRIMARY) &&
-              !this.peekIf(Keyword.NOT) &&
-              !this.peekIf(Keyword.NULL) &&
-              !this.peekIf(Keyword.UNIQUE) &&
-              !this.peekIf(Keyword.CHECK) &&
-              !this.peekIf(Keyword.DEFAULT) &&
-              !this.peekIf(Keyword.COLLATE) &&
-              !this.peekIf(Keyword.REFERENCES) &&
-              !this.peekIf(Keyword.GENERATED) &&
-              !this.peekIf(Keyword.AS)
-            ) {
-              stmt.columns.push(this.tableColumn())
-            } else {
-              stmt.constraints.push(this.tableConstraint())
-              while (this.consumeIf(TokenType.Comma)) {
-                stmt.constraints.push(this.tableConstraint())
-              }
-              break
-            }
-          }
-
-          this.consume(TokenType.RightParen)
-          while (this.token() && !this.peekIf(TokenType.SemiColon)) {
-            if (this.consumeIf(Keyword.WITHOUT)) {
-              if (this.consume(Keyword.ROWID)) {
-                stmt.withoutRowid = true
-              }
-            } else {
-              this.consume()
-            }
-          }
-        } else if (this.consumeIf(Keyword.AS)) {
-          stmt.asSelect = true
-          stmt.markers.set("selectStart", this.pos - start)
-          this.selectClause()
-          stmt.markers.set("selectEnd", this.pos - start)
-        } else {
-          throw this.createParseError()
-        }
-      } else if (stmt instanceof model.CreateViewStatement) {
-        this.consume(Keyword.AS)
-        if (this.consumeIf(TokenType.LeftParen)) {
-          stmt.columns = []
-          for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-            stmt.columns.push(this.identifier())
-          }
-          this.consume(TokenType.RightParen)
-        }
-        stmt.markers.set("selectStart", this.pos - start)
-        this.selectClause()
-        stmt.markers.set("selectEnd", this.pos - start)
-      } else if (stmt instanceof model.CreateTriggerStatement) {
-        while (this.token() && !this.peekIf(TokenType.SemiColon)) {
-          if (this.consumeIf(Keyword.BEGIN)) {
-            while (this.token() && !this.peekIf(Keyword.END)) {
-              this.consume()
-            }
-          } else {
-            this.consume()
-          }
-        }
-      } else if (stmt instanceof model.CreateIndexStatement) {
-        this.consume(Keyword.ON)
-        stmt.table.name = this.identifier()
-        this.consume(TokenType.LeftParen)
-        for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-          stmt.columns.push(this.indexColumn(stmt.type === model.IndexType.UNIQUE))
-        }
-        this.consume(TokenType.RightParen)
-        if (this.consumeIf(Keyword.WHERE)) {
-          while (this.token() && !this.peekIf(TokenType.SemiColon)) {
-            this.consume()
-          }
-        }
       }
     } else if (this.consumeIf(Keyword.ALTER)) {
-      this.consume(Keyword.TABLE)
-      stmt = new model.AlterTableStatement()
-
-      stmt.table.name = this.identifier()
-      if (this.consumeIf(TokenType.Dot)) {
-        stmt.table.schemaName = stmt.table.name
-        stmt.table.name = this.identifier()
-      }
-
-      if (this.consumeIf(Keyword.RENAME)) {
-        if (this.consumeIf(Keyword.TO)) {
-          const alterTableAction = new model.RenameTableAction()
-          alterTableAction.newName = this.identifier()
-          stmt.action = alterTableAction
-        } else {
-          this.consumeIf(Keyword.COLUMN)
-          const alterTableAction = new model.RenameColumnAction()
-          alterTableAction.name = this.identifier()
-          this.consume(Keyword.TO)
-          alterTableAction.newName = this.identifier()
-          stmt.action = alterTableAction
-        }
-      } else if (this.consumeIf(Keyword.ADD)) {
-        this.consumeIf(Keyword.COLUMN)
-        const alterTableAction = new model.AddColumnAction()
-        alterTableAction.newColumn = this.tableColumn()
-        stmt.action = alterTableAction
-      } else if (this.consumeIf(Keyword.DROP)) {
-        this.consumeIf(Keyword.COLUMN)
-        const alterTableAction = new model.DropColumnAction()
-        alterTableAction.name = this.identifier()
-        stmt.action = alterTableAction
-      } else {
-        throw this.createParseError()
+      if (this.consumeIf(Keyword.TABLE)) {
+        stmt = new model.AlterTableStatement()
+        this.praseAlterTableStatement(stmt, start)
       }
     } else if (this.consumeIf(Keyword.DROP)) {
       if (this.consumeIf(Keyword.TABLE)) {
         stmt = new model.DropTableStatement()
-        if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.EXISTS)
-          stmt.ifExists = true
-        }
-
-        stmt.table.name = this.identifier()
-        if (this.consumeIf(TokenType.Dot)) {
-          stmt.table.schemaName = stmt.table.name
-          stmt.table.name = this.identifier()
-        }
-      } else if (this.consumeIf(Keyword.INDEX)) {
-        stmt = new model.DropIndexStatement()
-        if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.EXISTS)
-          stmt.ifExists = true
-        }
-
-        stmt.index.name = this.identifier()
-        if (this.consumeIf(TokenType.Dot)) {
-          stmt.index.schemaName = stmt.index.name
-          stmt.index.name = this.identifier()
-        }
+        this.praseDropTableStatement(stmt, start)
       } else if (this.consumeIf(Keyword.VIEW)) {
         stmt = new model.DropViewStatement()
-        if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.EXISTS)
-          stmt.ifExists = true
-        }
-
-        stmt.view.name = this.identifier()
-        if (this.consumeIf(TokenType.Dot)) {
-          stmt.view.schemaName = stmt.view.name
-          stmt.view.name = this.identifier()
-        }
+        this.praseDropViewStatement(stmt, start)
       } else if (this.consumeIf(Keyword.TRIGGER)) {
         stmt = new model.DropTriggerStatement()
-        if (this.consumeIf(Keyword.IF)) {
-          this.consume(Keyword.EXISTS)
-          stmt.ifExists = true
-        }
-
-        stmt.trigger.name = this.identifier()
-        if (this.consumeIf(TokenType.Dot)) {
-          stmt.trigger.schemaName = stmt.trigger.name
-          stmt.trigger.name = this.identifier()
-        }
-      } else {
-        throw this.createParseError()
+        this.praseDropTriggerStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.INDEX)) {
+        stmt = new model.DropIndexStatement()
+        this.praseDropIndexStatement(stmt, start)
       }
     } else if (this.consumeIf(Keyword.ATTACH)) {
-      this.consumeIf(Keyword.DATABASE)
-      stmt = new model.AttachDatabaseStatement()
-      stmt.expr = this.expression()
-      this.consume(Keyword.AS)
-      stmt.name = this.identifier()
+      if (this.consumeIf(Keyword.DATABASE)) {
+        stmt = new model.AttachDatabaseStatement()
+        this.praseAttachDatabaseStatement(stmt, start)
+      }
     } else if (this.consumeIf(Keyword.DETACH)) {
-      this.consumeIf(Keyword.DATABASE)
-      stmt = new model.DetachDatabaseStatement()
-      stmt.name = this.identifier()
+      if (this.consumeIf(Keyword.DATABASE)) {
+        stmt = new model.DetachDatabaseStatement()
+        this.praseDetachDatabaseStatement(stmt, start)
+      }
     } else if (this.consumeIf(Keyword.ANALYZE)) {
       stmt = new model.AnalyzeStatement()
-      stmt.name = this.identifier()
-      if (this.consumeIf(TokenType.Dot)) {
-        stmt.schemaName = stmt.name
-        stmt.name = this.identifier()
-      }
+      this.praseAnalyzeStatement(stmt, start)
     } else if (this.consumeIf(Keyword.REINDEX)) {
       stmt = new model.ReindexStatement()
-      stmt.name = this.identifier()
-      if (this.consumeIf(TokenType.Dot)) {
-        stmt.schemaName = stmt.name
-        stmt.name = this.identifier()
-      }
+      this.praseReindexStatement(stmt, start)
     } else if (this.consumeIf(Keyword.VACUUM)) {
       stmt = new model.VacuumStatement()
-      if (
-        this.peekIf(TokenType.QuotedIdentifier) ||
-        this.peekIf(TokenType.Identifier) ||
-        this.peekIf(TokenType.QuotedValue)
-      ) {
-        stmt.schemaName = this.identifier()
-      }
-      if (this.consumeIf(Keyword.TO)) {
-        stmt.fileName = this.stringValue()
-      }
+      this.praseVacuumStatement(stmt, start)
     } else if (this.consumeIf(Keyword.PRAGMA)) {
       stmt = new model.PragmaStatement()
-      stmt.name = this.identifier()
-      if (this.consumeIf(TokenType.Dot)) {
-        stmt.schemaName = stmt.name
-        stmt.name = this.identifier()
-      }
-      if (this.consumeIf(Keyword.OPE_EQ)) {
-        stmt.value = this.pragmaValue()
-      } else if (this.consumeIf(TokenType.LeftParen)) {
-        stmt.value = this.pragmaValue()
-        this.consume(TokenType.RightParen)
-      }
+      this.prasePragmaStatement(stmt, start)
     } else if (this.consumeIf(Keyword.BEGIN)) {
       stmt = new model.BeginTransactionStatement()
       if (this.consumeIf(Keyword.DEFERRED)) {
@@ -680,73 +480,49 @@ export class Sqlite3Parser extends Parser {
         stmt.transactionBehavior = model.TransactionBehavior.EXCLUSIVE
       }
       this.consumeIf(Keyword.TRANSACTION)
+      this.praseBeginTransactionStatement(stmt, start)
     } else if (this.consumeIf(Keyword.SAVEPOINT)) {
       stmt = new model.SavepointStatement()
-      stmt.name = this.identifier()
+      this.praseSavepointStatement(stmt, start)
     } else if (this.consumeIf(Keyword.RELEASE)) {
-      stmt = new model.ReleaseSavepointStatement()
       this.consumeIf(Keyword.SAVEPOINT)
-      stmt.savepointName = this.identifier()
+      stmt = new model.ReleaseSavepointStatement()
+      this.praseReleaseSavepointStatement(stmt, start)
     } else if (this.consumeIf(Keyword.COMMIT) || this.consumeIf(Keyword.END)) {
       this.consumeIf(Keyword.TRANSACTION)
       stmt = new model.CommitTransactionStatement()
+      this.praseCommitTransactionStatement(stmt, start)
     } else if (this.consumeIf(Keyword.ROLLBACK)) {
       this.consumeIf(Keyword.TRANSACTION)
       stmt = new model.RollbackTransactionStatement()
-      if (this.consumeIf(Keyword.TO)) {
-        this.consumeIf(Keyword.SAVEPOINT)
-        stmt.savepointName = this.identifier()
-      }
+      this.praseRollbackTransactionStatement(stmt, start)
     } else {
       if (this.peekIf(Keyword.WITH)) {
         this.withClause()
       }
-      if (this.peekIf(Keyword.INSERT) || this.peekIf(Keyword.REPLACE)) {
+      if (this.consumeIf(Keyword.INSERT)) {
         stmt = new model.InsertStatement()
-        if (this.consumeIf(Keyword.REPLACE)) {
-          stmt.conflictAction = model.ConflictAction.REPLACE
-        } else {
-          this.consume(Keyword.INSERT)
-          if (this.consumeIf(Keyword.OR)) {
-            stmt.conflictAction = this.conflictAction()
-          }
+        if (this.consumeIf(Keyword.OR)) {
+          stmt.conflictAction = this.conflictAction()
         }
-        this.consume(Keyword.INTO)
-        stmt.table.name = this.identifier()
-        if (this.consumeIf(TokenType.Dot)) {
-          stmt.table.schemaName = stmt.table.name
-          stmt.table.name = this.identifier()
-        }
-        while (this.token() && !this.peekIf(TokenType.SemiColon)) {
-          this.consume()
-        }
+        this.praseInsertStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.REPLACE)) {
+        stmt = new model.InsertStatement()
+        stmt.conflictAction = model.ConflictAction.REPLACE
+        this.praseInsertStatement(stmt, start)
       } else if (this.consumeIf(Keyword.UPDATE)) {
         stmt = new model.UpdateStatement()
         if (this.consumeIf(Keyword.OR)) {
           stmt.conflictAction = this.conflictAction()
         }
-        stmt.table.name = this.identifier()
-        if (this.consumeIf(TokenType.Dot)) {
-          stmt.table.schemaName = stmt.table.name
-          stmt.table.name = this.identifier()
-        }
-        while (this.token() && !this.peekIf(TokenType.SemiColon)) {
-          this.consume()
-        }
+        this.praseUpdateStatement(stmt, start)
       } else if (this.consumeIf(Keyword.DELETE)) {
         this.consume(Keyword.FROM)
         stmt = new model.DeleteStatement()
-        stmt.table.name = this.identifier()
-        if (this.consumeIf(TokenType.Dot)) {
-          stmt.table.schemaName = stmt.table.name
-          stmt.table.name = this.identifier()
-        }
-        while (this.token() && !this.peekIf(TokenType.SemiColon)) {
-          this.consume()
-        }
+        this.praseDeleteStatement(stmt, start)
       } else if (this.peekIf(Keyword.SELECT)) {
         stmt = new model.SelectStatement()
-        this.selectClause()
+        this.praseSelectStatement(stmt, start)
       }
     }
 
@@ -767,7 +543,369 @@ export class Sqlite3Parser extends Parser {
     return stmt
   }
 
-  selectClause() {
+  private praseCreateTableStatement(stmt: model.CreateTableStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      stmt.markers.set("ifNotExistsStart", this.pos - start - 1)
+      this.consume(Keyword.NOT, Keyword.EXISTS)
+      stmt.ifNotExists = true
+      stmt.markers.set("ifNotExistsEnd", this.pos - start)
+    }
+
+    stmt.markers.set("nameStart", this.pos - start)
+    stmt.name = this.identifier()
+    if (this.consumeIf(TokenType.Dot)) {
+      stmt.schemaName = stmt.name
+      stmt.markers.set("nameStart", this.pos - start)
+      stmt.name = this.identifier()
+    }
+    stmt.markers.set("nameEnd", this.pos - start)
+
+    if (stmt.virtual) {
+      this.consume(Keyword.USING)
+      stmt.moduleName = this.identifier()
+      stmt.moduleArgs = []
+      if (this.consumeIf(TokenType.LeftParen)) {
+        for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+          stmt.moduleArgs.push(this.moduleArg())
+        }
+        this.consume(TokenType.RightParen)
+      }
+    } else if (this.consumeIf(TokenType.LeftParen)) {
+      stmt.columns = []
+      stmt.constraints = []
+
+      stmt.columns.push(this.tableColumn())
+      while (this.consumeIf(TokenType.Comma)) {
+        if (
+          !this.peekIf(Keyword.CONSTRAINT) &&
+          !this.peekIf(Keyword.PRIMARY) &&
+          !this.peekIf(Keyword.NOT) &&
+          !this.peekIf(Keyword.NULL) &&
+          !this.peekIf(Keyword.UNIQUE) &&
+          !this.peekIf(Keyword.CHECK) &&
+          !this.peekIf(Keyword.DEFAULT) &&
+          !this.peekIf(Keyword.COLLATE) &&
+          !this.peekIf(Keyword.REFERENCES) &&
+          !this.peekIf(Keyword.GENERATED) &&
+          !this.peekIf(Keyword.AS)
+        ) {
+          stmt.columns.push(this.tableColumn())
+        } else {
+          stmt.constraints.push(this.tableConstraint())
+          while (this.consumeIf(TokenType.Comma)) {
+            stmt.constraints.push(this.tableConstraint())
+          }
+          break
+        }
+      }
+
+      this.consume(TokenType.RightParen)
+      while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+        if (this.consumeIf(Keyword.WITHOUT)) {
+          if (this.consume(Keyword.ROWID)) {
+            stmt.withoutRowid = true
+          }
+        } else {
+          this.consume()
+        }
+      }
+    } else if (this.consumeIf(Keyword.AS)) {
+      stmt.asSelect = true
+      stmt.markers.set("selectStart", this.pos - start)
+      this.selectClause()
+      stmt.markers.set("selectEnd", this.pos - start)
+    } else {
+      throw this.createParseError()
+    }
+  }
+
+  private parseCreateViewStatement(stmt: model.CreateViewStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      stmt.markers.set("ifNotExistsStart", this.pos - start - 1)
+      this.consume(Keyword.NOT, Keyword.EXISTS)
+      stmt.ifNotExists = true
+      stmt.markers.set("ifNotExistsEnd", this.pos - start)
+    }
+
+    stmt.markers.set("nameStart", this.pos - start)
+    stmt.name = this.identifier()
+    if (this.consumeIf(TokenType.Dot)) {
+      stmt.schemaName = stmt.name
+      stmt.markers.set("nameStart", this.pos - start)
+      stmt.name = this.identifier()
+    }
+    stmt.markers.set("nameEnd", this.pos - start)
+
+    this.consume(Keyword.AS)
+    if (this.consumeIf(TokenType.LeftParen)) {
+      stmt.columns = []
+      for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+        stmt.columns.push(this.identifier())
+      }
+      this.consume(TokenType.RightParen)
+    }
+    stmt.markers.set("selectStart", this.pos - start)
+    this.selectClause()
+    stmt.markers.set("selectEnd", this.pos - start)
+  }
+
+  private praseCreateTriggerStatement(stmt: model.CreateTriggerStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      stmt.markers.set("ifNotExistsStart", this.pos - start - 1)
+      this.consume(Keyword.NOT, Keyword.EXISTS)
+      stmt.ifNotExists = true
+      stmt.markers.set("ifNotExistsEnd", this.pos - start)
+    }
+
+    stmt.markers.set("nameStart", this.pos - start)
+    stmt.name = this.identifier()
+    if (this.consumeIf(TokenType.Dot)) {
+      stmt.schemaName = stmt.name
+      stmt.markers.set("nameStart", this.pos - start)
+      stmt.name = this.identifier()
+    }
+    stmt.markers.set("nameEnd", this.pos - start)
+
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      if (this.consumeIf(Keyword.BEGIN)) {
+        while (this.token() && !this.peekIf(Keyword.END)) {
+          this.consume()
+        }
+      } else {
+        this.consume()
+      }
+    }
+  }
+
+  private praseCreateIndexStatement(stmt: model.CreateIndexStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      stmt.markers.set("ifNotExistsStart", this.pos - start - 1)
+      this.consume(Keyword.NOT, Keyword.EXISTS)
+      stmt.ifNotExists = true
+      stmt.markers.set("ifNotExistsEnd", this.pos - start)
+    }
+
+    stmt.markers.set("nameStart", this.pos - start)
+    stmt.name = this.identifier()
+    if (this.consumeIf(TokenType.Dot)) {
+      stmt.schemaName = stmt.name
+      stmt.markers.set("nameStart", this.pos - start)
+      stmt.name = this.identifier()
+    }
+    stmt.markers.set("nameEnd", this.pos - start)
+
+    this.consume(Keyword.ON)
+    stmt.table.name = this.identifier()
+    this.consume(TokenType.LeftParen)
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      stmt.columns.push(this.indexColumn(stmt.type === model.IndexType.UNIQUE))
+    }
+    this.consume(TokenType.RightParen)
+    if (this.consumeIf(Keyword.WHERE)) {
+      while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+        this.consume()
+      }
+    }
+  }
+
+  private praseAlterTableStatement(stmt: model.AlterTableStatement, start: number) {
+    stmt.table.name = this.identifier()
+    if (this.consumeIf(TokenType.Dot)) {
+      stmt.table.schemaName = stmt.table.name
+      stmt.table.name = this.identifier()
+    }
+
+    if (this.consumeIf(Keyword.RENAME)) {
+      if (this.consumeIf(Keyword.TO)) {
+        const alterTableAction = new model.RenameTableAction()
+        alterTableAction.newName = this.identifier()
+        stmt.action = alterTableAction
+      } else {
+        this.consumeIf(Keyword.COLUMN)
+        const alterTableAction = new model.RenameColumnAction()
+        alterTableAction.name = this.identifier()
+        this.consume(Keyword.TO)
+        alterTableAction.newName = this.identifier()
+        stmt.action = alterTableAction
+      }
+    } else if (this.consumeIf(Keyword.ADD)) {
+      this.consumeIf(Keyword.COLUMN)
+      const alterTableAction = new model.AddColumnAction()
+      alterTableAction.newColumn = this.tableColumn()
+      stmt.action = alterTableAction
+    } else if (this.consumeIf(Keyword.DROP)) {
+      this.consumeIf(Keyword.COLUMN)
+      const alterTableAction = new model.DropColumnAction()
+      alterTableAction.name = this.identifier()
+      stmt.action = alterTableAction
+    } else {
+      throw this.createParseError()
+    }
+  }
+
+  private praseDropTableStatement(stmt: model.DropTableStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+
+    stmt.table.name = this.identifier()
+    if (this.consumeIf(TokenType.Dot)) {
+      stmt.table.schemaName = stmt.table.name
+      stmt.table.name = this.identifier()
+    }
+  }
+
+  private praseDropViewStatement(stmt: model.DropViewStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+
+    stmt.view.name = this.identifier()
+    if (this.consumeIf(TokenType.Dot)) {
+      stmt.view.schemaName = stmt.view.name
+      stmt.view.name = this.identifier()
+    }
+  }
+
+  private praseDropTriggerStatement(stmt: model.DropTriggerStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+
+    stmt.trigger.name = this.identifier()
+    if (this.consumeIf(TokenType.Dot)) {
+      stmt.trigger.schemaName = stmt.trigger.name
+      stmt.trigger.name = this.identifier()
+    }
+  }
+
+  private praseDropIndexStatement(stmt: model.DropIndexStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+
+    stmt.index.name = this.identifier()
+    if (this.consumeIf(TokenType.Dot)) {
+      stmt.index.schemaName = stmt.index.name
+      stmt.index.name = this.identifier()
+    }
+  }
+
+  private praseAttachDatabaseStatement(stmt: model.AttachDatabaseStatement, start: number) {
+    stmt.expr = this.expression()
+    this.consume(Keyword.AS)
+    stmt.name = this.identifier()
+  }
+
+  private praseDetachDatabaseStatement(stmt: model.DetachDatabaseStatement, start: number) {
+    stmt.name = this.identifier()
+  }
+
+  private praseAnalyzeStatement(stmt: model.AnalyzeStatement, start: number) {
+    stmt.name = this.identifier()
+    if (this.consumeIf(TokenType.Dot)) {
+      stmt.schemaName = stmt.name
+      stmt.name = this.identifier()
+    }
+  }
+
+  private praseReindexStatement(stmt: model.ReindexStatement, start: number) {
+    stmt.name = this.identifier()
+    if (this.consumeIf(TokenType.Dot)) {
+      stmt.schemaName = stmt.name
+      stmt.name = this.identifier()
+    }
+  }
+
+  private praseVacuumStatement(stmt: model.VacuumStatement, start: number) {
+    if (this.token() && !this.peekIf(Keyword.TO)) {
+      stmt.schemaName = this.identifier()
+    }
+    if (this.consumeIf(Keyword.TO)) {
+      stmt.fileName = this.stringValue()
+    }
+  }
+
+  private prasePragmaStatement(stmt: model.PragmaStatement, start: number) {
+    stmt.name = this.identifier()
+    if (this.consumeIf(TokenType.Dot)) {
+      stmt.schemaName = stmt.name
+      stmt.name = this.identifier()
+    }
+    if (this.consumeIf(Keyword.OPE_EQ)) {
+      stmt.value = this.pragmaValue()
+    } else if (this.consumeIf(TokenType.LeftParen)) {
+      stmt.value = this.pragmaValue()
+      this.consume(TokenType.RightParen)
+    }
+  }
+
+  private praseBeginTransactionStatement(stmt: model.BeginTransactionStatement, start: number) {
+    // do nothing
+  }
+
+  private praseSavepointStatement(stmt: model.SavepointStatement, start: number) {
+    stmt.name = this.identifier()
+  }
+
+  private praseReleaseSavepointStatement(stmt: model.ReleaseSavepointStatement, start: number) {
+    stmt.savepointName = this.identifier()
+  }
+
+  private praseCommitTransactionStatement(stmt: model.CommitTransactionStatement, start: number) {
+    // do nothing
+  }
+
+  private praseRollbackTransactionStatement(stmt: model.RollbackTransactionStatement, start: number) {
+    if (this.consumeIf(Keyword.TO)) {
+      this.consumeIf(Keyword.SAVEPOINT)
+      stmt.savepointName = this.identifier()
+    }
+  }
+
+  private praseInsertStatement(stmt: model.InsertStatement, start: number) {
+    this.consume(Keyword.INTO)
+    stmt.table.name = this.identifier()
+    if (this.consumeIf(TokenType.Dot)) {
+      stmt.table.schemaName = stmt.table.name
+      stmt.table.name = this.identifier()
+    }
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
+  }
+
+  private praseUpdateStatement(stmt: model.UpdateStatement, start: number) {
+    stmt.table.name = this.identifier()
+    if (this.consumeIf(TokenType.Dot)) {
+      stmt.table.schemaName = stmt.table.name
+      stmt.table.name = this.identifier()
+    }
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
+  }
+
+  private praseDeleteStatement(stmt: model.DeleteStatement, start: number) {
+    stmt.table.name = this.identifier()
+    if (this.consumeIf(TokenType.Dot)) {
+      stmt.table.schemaName = stmt.table.name
+      stmt.table.name = this.identifier()
+    }
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
+  }
+
+  private praseSelectStatement(stmt: model.SelectStatement, start: number) {
+    this.selectClause()
+  }
+
+  private selectClause() {
     if (this.peekIf(Keyword.WITH)) {
       this.withClause()
     }
@@ -787,7 +925,7 @@ export class Sqlite3Parser extends Parser {
     }
   }
 
-  withClause() {
+  private withClause() {
     const start = this.pos
     this.consume(Keyword.WITH)
     this.consumeIf(Keyword.RECURSIVE)
@@ -812,7 +950,7 @@ export class Sqlite3Parser extends Parser {
     return this.tokens.slice(start, this.pos)
   }
 
-  tableColumn() {
+  private tableColumn() {
     const column = new model.TableColumn()
     column.name = this.identifier()
     if (
@@ -835,7 +973,7 @@ export class Sqlite3Parser extends Parser {
     return column
   }
 
-  columnConstraint() {
+  private columnConstraint() {
     let constraint, name;
     if (this.consumeIf(Keyword.CONSTRAINT)) {
       name = this.identifier()
@@ -947,7 +1085,7 @@ export class Sqlite3Parser extends Parser {
     return constraint
   }
 
-  tableConstraint() {
+  private tableConstraint() {
     let constraint, name;
     if (this.consumeIf(Keyword.CONSTRAINT)) {
       name = this.identifier()
@@ -1002,7 +1140,7 @@ export class Sqlite3Parser extends Parser {
     return constraint
   }
 
-  dataType() {
+  private dataType() {
     const dataType = new model.DataType()
 
     const typeNames = []
@@ -1026,7 +1164,7 @@ export class Sqlite3Parser extends Parser {
     return dataType
   }
 
-  conflictAction() {
+  private conflictAction() {
     if (this.consumeIf(Keyword.ROLLBACK)) {
       return model.ConflictAction.ROLLBACK
     } else if (this.consumeIf(Keyword.ABORT)) {
@@ -1042,7 +1180,7 @@ export class Sqlite3Parser extends Parser {
     }
   }
 
-  moduleArg() {
+  private moduleArg() {
     let tokens: Token[] = []
     while (this.token() &&
       !this.peekIf(TokenType.Comma) &&
@@ -1059,7 +1197,7 @@ export class Sqlite3Parser extends Parser {
     return tokens.map(token => token.text).join();
   }
 
-  indexColumn(unique = false) {
+  private indexColumn(unique = false) {
     const column = new model.IndexColumn()
     const start = this.pos
     const tokens = this.expression()
@@ -1077,7 +1215,7 @@ export class Sqlite3Parser extends Parser {
     return column
   }
 
-  pragmaValue() {
+  private pragmaValue() {
     const start = this.pos
     if (this.consumeIf(Keyword.OPE_PLUS) || this.consumeIf(Keyword.OPE_MINUS)) {
       this.consume(TokenType.Number)
@@ -1090,7 +1228,7 @@ export class Sqlite3Parser extends Parser {
     return this.tokens.slice(start, this.pos)
   }
 
-  identifier() {
+  private identifier() {
     let text
     if (this.consumeIf(TokenType.QuotedIdentifier)) {
       text = dequote(this.token(-1).text)
@@ -1106,7 +1244,7 @@ export class Sqlite3Parser extends Parser {
     return text
   }
 
-  stringValue() {
+  private stringValue() {
     let text
     if (this.consumeIf(TokenType.String)) {
       text = dequote(this.token(-1).text)
@@ -1118,7 +1256,7 @@ export class Sqlite3Parser extends Parser {
     return text
   }
 
-  numberValue() {
+  private numberValue() {
     let text
     if (this.consumeIf(Keyword.OPE_PLUS) || this.consumeIf(Keyword.OPE_MINUS)) {
       text = this.token(-1).text
@@ -1131,7 +1269,7 @@ export class Sqlite3Parser extends Parser {
     return new Decimal(text).toString()
   }
 
-  expression() {
+  private expression() {
     const start = this.pos
     let depth = 0
     while (this.token() &&
