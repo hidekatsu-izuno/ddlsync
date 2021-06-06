@@ -633,6 +633,149 @@ export class AbortStatement extends Statement {
 
 }
 
+export class DiscardStatement extends Statement {
+
+}
+
+export class AnalyzeStatement extends Statement {
+
+}
+
+export class ExplainStatement extends Statement {
+
+}
+
+export class ClusterStatement extends Statement {
+
+}
+
+export class ReindexStatement extends Statement {
+
+}
+
+export class VacuumStatement extends Statement {
+
+}
+
+export class LoadStatement extends Statement {
+
+}
+
+export class ImportForeigntatement extends Statement {
+
+}
+
+export class CopyStatement extends Statement {
+
+}
+
+export class CheckpointStatement extends Statement {
+
+}
+
+export class RefreshMaterializedViewStatement extends Statement {
+
+}
+
+export class PrepareTransactionStatement extends Statement {
+
+}
+
+export class PrepareStatement extends Statement {
+
+}
+
+export class ExecuteStatement extends Statement {
+
+}
+
+export class DeallocateStatement extends Statement {
+
+}
+
+export class DeclareStatement extends Statement {
+
+}
+
+export class FetchStatement extends Statement {
+
+}
+
+export class MoveStatement extends Statement {
+
+}
+
+export class CloseStatement extends Statement {
+
+}
+
+export class ListenStatement extends Statement {
+
+}
+
+export class NotifyStatement extends Statement {
+
+}
+
+export class UnlistenStatement extends Statement {
+
+}
+
+export class SetConstraintStatement extends Statement {
+
+}
+
+export class SetRoleStatement extends Statement {
+
+}
+
+export class SetSessionAuthorizationStatement extends Statement {
+
+}
+
+export class SetTransactionStatement extends Statement {
+
+}
+
+export class SetStatement extends Statement {
+
+}
+
+export class ResetStatement extends Statement {
+
+}
+
+export class ShowStatement extends Statement {
+
+}
+
+export class CallStatement extends Statement {
+
+}
+
+export class DoStatement extends Statement {
+
+}
+
+export class ValuesStatement extends Statement {
+
+}
+
+export class InsertStatement extends Statement {
+
+}
+
+export class UpdateStatement extends Statement {
+
+}
+
+export class DeleteStatement extends Statement {
+
+}
+
+export class SelectStatement extends Statement {
+
+}
 
 export enum IndexType {
   UNIQUE = "UNIQUE"

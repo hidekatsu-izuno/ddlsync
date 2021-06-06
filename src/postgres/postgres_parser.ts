@@ -7,7 +7,7 @@ import {
   ParseError,
   AggregateParseError,
 } from "../parser"
-import { ucase } from "../util/functions"
+import { lcase, ucase } from "../util/functions"
 import * as model from "./postgres_models"
 
 export class TokenType implements ITokenType {
@@ -865,62 +865,95 @@ export class PostgresParser extends Parser {
       } else if (this.consumeIf(Keyword.ABORT)) {
         stmt = new model.AbortStatement()
       } else if (this.consumeIf(Keyword.DISCARD)) {
-        // TODO
+        stmt = new model.DiscardStatement()
       } else if (this.consumeIf(Keyword.ANALYZE)) {
+        stmt = new model.AnalyzeStatement()
       } else if (this.consumeIf(Keyword.EXPLAIN)) {
+        stmt = new model.ExplainStatement()
       } else if (this.consumeIf(Keyword.CLUSTER)) {
+        stmt = new model.ClusterStatement()
       } else if (this.consumeIf(Keyword.REINDEX)) {
+        stmt = new model.ReindexStatement()
       } else if (this.consumeIf(Keyword.VACUUM)) {
+        stmt = new model.VacuumStatement()
       } else if (this.consumeIf(Keyword.LOAD)) {
+        stmt = new model.LoadStatement()
       } else if (this.consumeIf(Keyword.IMPORT)) {
-        if (this.consumeIf(Keyword.FOREIGN)) {
-          this.consume(Keyword.SCHEMA)
-        }
+        this.consume(Keyword.FOREIGN, Keyword.SCHEMA)
+        stmt = new model.ImportForeigntatement()
       } else if (this.consumeIf(Keyword.COPY)) {
+        stmt = new model.CopyStatement()
       } else if (this.consumeIf(Keyword.CHECKPOINT)) {
+        stmt = new model.CheckpointStatement()
       } else if (this.consumeIf(Keyword.REFRESH)) {
         this.consume(Keyword.MATERIALIZED, Keyword.VIEW)
+        stmt = new model.RefreshMaterializedViewStatement()
       } else if (this.consumeIf(Keyword.PREPARE)) {
         if (this.consumeIf(Keyword.TRANSACTION)) {
+          stmt = new model.PrepareTransactionStatement()
         } else {
-
+          stmt = new model.PrepareStatement()
         }
       } else if (this.consumeIf(Keyword.EXECUTE)) {
+        stmt = new model.ExecuteStatement()
       } else if (this.consumeIf(Keyword.DEALLOCATE)) {
+        stmt = new model.DeallocateStatement()
       } else if (this.consumeIf(Keyword.DECLARE)) {
+        stmt = new model.DeclareStatement()
       } else if (this.consumeIf(Keyword.FETCH)) {
+        stmt = new model.FetchStatement()
       } else if (this.consumeIf(Keyword.MOVE)) {
+        stmt = new model.MoveStatement()
       } else if (this.consumeIf(Keyword.CLOSE)) {
+        stmt = new model.CloseStatement()
       } else if (this.consumeIf(Keyword.LISTEN)) {
+        stmt = new model.ListenStatement()
       } else if (this.consumeIf(Keyword.NOTIFY)) {
+        stmt = new model.NotifyStatement()
       } else if (this.consumeIf(Keyword.UNLISTEN)) {
+        stmt = new model.UnlistenStatement()
       } else if (this.consumeIf(Keyword.SET)) {
         if (this.consumeIf(Keyword.CONSTRAINT)) {
-
+          stmt = new model.SetConstraintStatement()
         } else if (this.consumeIf(Keyword.ROLE)) {
+          stmt = new model.SetRoleStatement()
         } else if (this.consumeIf(Keyword.SESSION)) {
           this.consume(Keyword.AUTHORIZATION)
+          stmt = new model.SetSessionAuthorizationStatement()
         } else if (this.consumeIf(Keyword.TRANSACTION)) {
-
+          stmt = new model.SetTransactionStatement()
         } else {
-
+          stmt = new model.SetStatement()
         }
       } else if (this.consumeIf(Keyword.RESET)) {
+        stmt = new model.ResetStatement()
       } else if (this.consumeIf(Keyword.SHOW)) {
+        stmt = new model.ShowStatement()
       } else if (this.consumeIf(Keyword.CALL)) {
+        stmt = new model.CallStatement()
       } else if (this.consumeIf(Keyword.DO)) {
+        stmt = new model.DoStatement()
       } else if (this.consumeIf(Keyword.VALUES)) {
+        stmt = new model.ValuesStatement()
       } else if (this.consumeIf(Keyword.INSERT)) {
+        stmt = new model.InsertStatement()
       } else if (this.consumeIf(Keyword.UPDATE)) {
+        stmt = new model.UpdateStatement()
       } else if (this.consumeIf(Keyword.DELETE)) {
-      } else if (this.peekIf(Keyword.WITH)) {
-        if (this.consumeIf(Keyword.INSERT)) {
-        } else if (this.consumeIf(Keyword.UPDATE)) {
-        } else if (this.consumeIf(Keyword.DELETE)) {
-        } else if (this.peekIf(Keyword.SELECT)) {
+        stmt = new model.DeleteStatement()
+      } else {
+        if (this.peekIf(Keyword.WITH)) {
+          this.withClause()
         }
-      } else if (this.peekIf(Keyword.SELECT)) {
-        //TODO
+        if (this.consumeIf(Keyword.INSERT)) {
+          stmt = new model.InsertStatement()
+        } else if (this.consumeIf(Keyword.UPDATE)) {
+          stmt = new model.UpdateStatement()
+        } else if (this.consumeIf(Keyword.DELETE)) {
+          stmt = new model.DeleteStatement()
+        } else if (this.peekIf(Keyword.SELECT)) {
+          stmt = new model.SelectStatement()
+        }
       }
     }
 
@@ -935,4 +968,95 @@ export class PostgresParser extends Parser {
 
     return stmt
   }
+
+  selectClause() {
+    if (this.peekIf(Keyword.WITH)) {
+      this.withClause()
+    }
+    this.consume(Keyword.SELECT)
+    let depth = 0
+    while (this.token() &&
+      !this.peekIf(TokenType.SemiColon) &&
+      (depth == 0 && !this.peekIf(TokenType.RightParen)) &&
+      (depth == 0 && !this.peekIf(Keyword.WITH))
+    ) {
+      if (this.consumeIf(TokenType.LeftParen)) {
+        depth++
+      } else if (this.consumeIf(TokenType.RightParen)) {
+        depth--
+      } else {
+        this.consume()
+      }
+    }
+  }
+
+  withClause() {
+    const start = this.pos
+    this.consume(Keyword.WITH)
+    this.consumeIf(Keyword.RECURSIVE)
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      this.identifier()
+      if (this.consumeIf(TokenType.LeftParen)) {
+        for (let j = 0; j === 0 || this.consumeIf(TokenType.Comma); j++) {
+          this.identifier()
+        }
+        this.consume(TokenType.RightParen)
+      }
+      this.consume(Keyword.AS)
+      this.consume(TokenType.LeftParen)
+      this.selectClause()
+      this.consume(TokenType.RightParen)
+    }
+    return this.tokens.slice(start, this.pos)
+  }
+
+
+  identifier() {
+    if (this.consumeIf(TokenType.Identifier)) {
+      return lcase(this.token(-1).text)
+    } else if (this.consumeIf(TokenType.QuotedIdentifier)) {
+      return unescape(dequote(this.token(-1).text))
+    } else {
+      throw this.createParseError()
+    }
+  }
+}
+
+const ReplaceReMap: {[key: string]: RegExp} = {
+  '"': /""/g,
+  "'": /''|\\(.)/g,
+}
+
+function dequote(text: string) {
+  if (text.length >= 2) {
+    const sc = text.charAt(0)
+    const ec = text.charAt(text.length-1)
+    if (sc === ec) {
+      const re = ReplaceReMap[sc]
+      let value = text.substring(1, text.length - 1)
+      if (re) {
+        if (sc === '"') {
+          value = value.replace(re, (m, g1) => {
+            switch (m) {
+              case '""': return '"'
+              case '\\"': return '"'
+              case "\\'": return "'"
+              case "\\0": return "\0"
+              case "\\b": return "\b"
+              case "\\n": return "\n"
+              case "\\r": return "\r"
+              case "\\t": return "\t"
+              case "\\Z": return "\x1A"
+              case "\\\\": return "\\"
+              default: return g1
+            }
+          })
+        } else {
+          value = value.replace(re, sc)
+        }
+      }
+      return value
+    }
+  }
+  return text
 }
