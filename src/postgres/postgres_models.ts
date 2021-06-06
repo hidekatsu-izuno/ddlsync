@@ -565,6 +565,75 @@ export class DropIndexStatement extends Statement {
   name = ""
 }
 
+export class ReassignOwnedStatement extends Statement {
+
+}
+
+export class SecurityLabelStatement extends Statement {
+
+}
+
+export class TruncateStatement extends Statement {
+
+}
+
+export class CommentStatement extends Statement {
+
+}
+
+export class GrantStatement extends Statement {
+
+}
+
+export class RevokeStatement extends Statement {
+
+}
+
+export class LockStatement extends Statement {
+
+}
+
+export class StartTransactionStatement extends Statement {
+
+}
+
+export class BeginStatement extends Statement {
+
+}
+
+export class SavepointStatement extends Statement {
+
+}
+
+export class ReleaseSavepointStatement extends Statement {
+
+}
+
+export class CommitPreparedStatement extends Statement {
+
+}
+
+export class CommitStatement extends Statement {
+
+}
+
+export class EndStatement extends Statement {
+
+}
+
+export class RollbackPreparedStatement extends Statement {
+
+}
+
+export class RollbackStatement extends Statement {
+
+}
+
+export class AbortStatement extends Statement {
+
+}
+
+
 export enum IndexType {
   UNIQUE = "UNIQUE"
 }

@@ -823,35 +823,49 @@ export class PostgresParser extends Parser {
         }
       } else if (this.consumeIf(Keyword.REASSIGN)) {
         this.consume(Keyword.OWNED)
+        stmt = new model.ReassignOwnedStatement()
       } else if (this.consumeIf(Keyword.SECURITY)) {
         this.consume(Keyword.LABEL)
+        stmt = new model.SecurityLabelStatement()
       } else if (this.consumeIf(Keyword.TRUNCATE)) {
         this.consumeIf(Keyword.TABLE)
+        stmt = new model.TruncateStatement()
       } else if (this.consumeIf(Keyword.COMMENT)) {
+        stmt = new model.CommentStatement()
       } else if (this.consumeIf(Keyword.GRANT)) {
+        stmt = new model.GrantStatement()
       } else if (this.consumeIf(Keyword.REVOKE)) {
+        stmt = new model.RevokeStatement()
       } else if (this.consumeIf(Keyword.LOCK)) {
+        stmt = new model.LockStatement()
       } else if (this.consumeIf(Keyword.START)) {
         this.consume(Keyword.TRANSACTION)
+        stmt = new model.StartTransactionStatement()
       } else if (this.consumeIf(Keyword.BEGIN)) {
+        stmt = new model.BeginStatement()
       } else if (this.consumeIf(Keyword.SAVEPOINT)) {
+        stmt = new model.SavepointStatement()
       } else if (this.consumeIf(Keyword.RELEASE)) {
         this.consume(Keyword.SAVEPOINT)
+        stmt = new model.ReleaseSavepointStatement()
       } else if (this.consumeIf(Keyword.COMMIT)) {
         if (this.consumeIf(Keyword.PREPARED)) {
+          stmt = new model.CommitPreparedStatement()
         } else {
-
+          stmt = new model.CommitStatement()
         }
       } else if (this.consumeIf(Keyword.END)) {
+        stmt = new model.EndStatement()
       } else if (this.consumeIf(Keyword.ROLLBACK)) {
         if (this.consumeIf(Keyword.PREPARED)) {
-        } else if (this.consumeIf(Keyword.TO)) {
-          this.consumeIf(Keyword.SAVEPOINT)
+          stmt = new model.RollbackPreparedStatement()
         } else {
-
+          stmt = new model.RollbackStatement()
         }
       } else if (this.consumeIf(Keyword.ABORT)) {
+        stmt = new model.AbortStatement()
       } else if (this.consumeIf(Keyword.DISCARD)) {
+        // TODO
       } else if (this.consumeIf(Keyword.ANALYZE)) {
       } else if (this.consumeIf(Keyword.EXPLAIN)) {
       } else if (this.consumeIf(Keyword.CLUSTER)) {
