@@ -1,4 +1,4 @@
-import { Statement } from "../models"
+import { Statement, VDatabase } from "../models"
 import { Token } from "../parser"
 
 export class Interval {

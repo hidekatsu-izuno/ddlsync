@@ -1,5 +1,5 @@
 import mariadb from "mariadb"
-import { Statement } from "../models"
+import { Statement, VCollation, VDatabase, VObject, VSchema } from "../models"
 import { DdlSyncProcessor } from "../processor"
 import { MysqlParser } from "./mysql_parser"
 import * as model from "./mysql_models"
@@ -68,7 +68,11 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     vdb.schemas.set("sys", new VSchema("sys", true))
     vdb.schemas.set("information_schema", new VSchema("information_schema", true))
     vdb.schemas.set("performance_schema", new VSchema("performance_schema", true))
-    vdb.schemaName = await this.getCurrentSchemaName()
+    vdb.defaultSchemaName = await this.getCurrentSchemaName()
+
+    for (const stmt of stmts) {
+      stmt.validate(vdb)
+    }
 
     const refs = []
     for (const [i, stmt] of stmts.entries()) {
@@ -194,7 +198,7 @@ export default class MysqlProcessor extends DdlSyncProcessor {
   }
 
   private tryCreateObjectStatement(seq: number, stmt: any, vdb: VDatabase, type: string) {
-    const schemaName = stmt.schemaName || vdb.schemaName
+    const schemaName = stmt.schemaName || vdb.defaultSchemaName
     if (!schemaName) {
       throw new Error(`No database selected`)
     }
@@ -209,7 +213,7 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     }
 
     if (stmt instanceof model.CreateIndexStatement) {
-      const tableSchemaName = stmt.table.schemaName || vdb.schemaName
+      const tableSchemaName = stmt.table.schemaName || vdb.defaultSchemaName
       if (!tableSchemaName) {
         throw new Error(`No database selected`)
       }
@@ -227,7 +231,7 @@ export default class MysqlProcessor extends DdlSyncProcessor {
   }
 
   private tryAlterObjectStatement(seq: number, stmt: Statement, vdb: VDatabase, type: string) {
-    let schemaName = (stmt as any)[type].schemaName || vdb.schemaName
+    let schemaName = (stmt as any)[type].schemaName || vdb.defaultSchemaName
     if (!schemaName) {
       throw new Error(`No database selected`)
     }
@@ -265,7 +269,7 @@ export default class MysqlProcessor extends DdlSyncProcessor {
   private tryRenameTableStatement(seq: number, stmt: model.RenameTableStatement, vdb: VDatabase) {
     const results = []
     for (const pair of stmt.pairs) {
-      let schemaName = pair.table.schemaName || vdb.schemaName
+      let schemaName = pair.table.schemaName || vdb.defaultSchemaName
       if (!schemaName) {
         throw new Error(`No database selected`)
       }
@@ -304,7 +308,7 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     const targets = stmt[key || type]
     const results = []
     for (const target of (Array.isArray(targets) ? targets : [ targets ])) {
-      const schemaName = target.schemaName || vdb.schemaName
+      const schemaName = target.schemaName || vdb.defaultSchemaName
       if (!schemaName) {
         throw new Error(`No database selected`)
       }
@@ -336,7 +340,7 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     const targets = stmt[key || type]
     const results = []
     for (const target of (Array.isArray(targets) ? targets : [ targets ])) {
-      const schemaName = target.schemaName || vdb.schemaName
+      const schemaName = target.schemaName || vdb.defaultSchemaName
       if (!schemaName) {
         throw new Error(`No database selected`)
       }
@@ -357,48 +361,6 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     return Array.isArray(targets) ? results : results[0]
   }
 }
-
-class VDatabase {
-  schemaName?: string
-  schemas = new Map<string, VSchema>()
-}
-
-class VSchema {
-  private objects = new Map<string, VObject>()
-  public dropped = false
-
-  constructor(
-    public name: string,
-    public system = false,
-  ) {
-  }
-
-  add(name: string, obj: VObject) {
-    this.objects.set(name, obj)
-    return obj
-  }
-
-  get(name: string) {
-    return this.objects.get(name)
-  }
-
-  [Symbol.iterator]() {
-    return this.objects.values()
-  }
-}
-
-class VObject {
-  public dropped = false
-
-  constructor(
-    public type: string,
-    public schemaName: string,
-    public name: string,
-    public tableName?: string,
-  ) {
-  }
-}
-
 
 function dquote(text: string) {
   return '"' + text.replace(/"/g, '""') + '"'

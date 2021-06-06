@@ -346,13 +346,9 @@ export class PostgresParser extends Parser {
     ) {
       try {
         if (this.peekIf(TokenType.Command)) {
-          const stmt = this.command()
-          stmt.validate()
-          root.push(stmt)
+          root.push(this.command())
         } else if (this.token() && !this.peekIf(TokenType.SemiColon)) {
-          const stmt = this.statement()
-          stmt.validate()
-          root.push(stmt)
+          root.push(this.statement())
         }
       } catch (e) {
         if (e instanceof ParseError) {

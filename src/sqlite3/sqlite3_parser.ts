@@ -292,12 +292,13 @@ export class Sqlite3Parser extends Parser {
       i++
     ) {
       try {
+        let stmt
         if (this.peekIf(TokenType.Command)) {
-          const stmt = this.command()
-          stmt.validate()
-          root.push(stmt)
+          stmt = this.command()
         } else if (this.token() && !this.peekIf(TokenType.SemiColon)) {
-          const stmt = this.statement()
+          stmt = this.statement()
+        }
+        if (stmt) {
           stmt.validate()
           root.push(stmt)
         }

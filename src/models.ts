@@ -9,6 +9,10 @@ export abstract class Statement {
 
   }
 
+  process(vdb: VDatabase) {
+
+  }
+
   summary() {
     let text = ""
     for (const token of this.tokens) {
@@ -23,3 +27,54 @@ export abstract class Statement {
     return text
   }
 }
+
+
+export class VDatabase {
+  defaultSchemaName?: string
+  schemas = new Map<string, VSchema>()
+  collations = new Map<string, VCollation>()
+}
+
+export class VSchema {
+  private objects = new Map<string, VObject>()
+  public dropped = false
+
+  constructor(
+    public name: string,
+    public system = false,
+  ) {
+  }
+
+  add(name: string, obj: VObject) {
+    this.objects.set(name, obj)
+    return obj
+  }
+
+  get(name: string) {
+    return this.objects.get(name)
+  }
+
+  [Symbol.iterator]() {
+    return this.objects.values()
+  }
+}
+
+export class VCollation {
+  constructor(
+    public name: string,
+  ) {
+  }
+}
+
+export class VObject {
+  public dropped = false
+
+  constructor(
+    public type: string,
+    public schemaName: string,
+    public name: string,
+    public tableName?: string,
+  ) {
+  }
+}
+

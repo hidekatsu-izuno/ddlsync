@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from "path"
 import sqlite3 from "better-sqlite3"
-import { Statement } from "../models"
+import { Statement, VCollation, VDatabase, VObject, VSchema } from "../models"
 import { Token } from "../parser"
 import { DdlSyncProcessor } from "../processor"
 import * as model from "./sqlite3_models";
@@ -40,8 +40,14 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     const vdb = new VDatabase()
     vdb.schemas.set("main", new VSchema("main", true))
     vdb.schemas.set("temp", new VSchema("temp", true))
+    vdb.defaultSchemaName = "main"
+
     for (const row of await this.con.prepare("PRAGMA collation_list").iterate()) {
       vdb.collations.set(ucase(row.name), new VCollation(row.name))
+    }
+
+    for (const stmt of stmts) {
+      stmt.process(vdb)
     }
 
     const refs = []
@@ -597,54 +603,6 @@ enum QueryType {
   DEFINE,
   UPDATE,
   SELECT,
-}
-
-class VDatabase {
-  schemas = new Map<string, VSchema>()
-  collations = new Map<string, VCollation>()
-}
-
-class VSchema {
-  private objects = new Map<string, VObject>()
-  public dropped = false
-
-  constructor(
-    public name: string,
-    public system = false,
-  ) {
-  }
-
-  add(name: string, obj: VObject) {
-    this.objects.set(name, obj)
-    return obj
-  }
-
-  get(name: string) {
-    return this.objects.get(name)
-  }
-
-  [Symbol.iterator]() {
-    return this.objects.values()
-  }
-}
-
-class VCollation {
-  constructor(
-    public name: string,
-  ) {
-  }
-}
-
-class VObject {
-  public dropped = false
-
-  constructor(
-    public type: string,
-    public schemaName: string,
-    public name: string,
-    public tableName?: string,
-  ) {
-  }
 }
 
 function dquote(text: string) {

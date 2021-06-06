@@ -789,12 +789,13 @@ export class MysqlParser extends Parser {
       i++
     ) {
       try {
+        let stmt
         if (this.peekIf(TokenType.Command)) {
-          const stmt = this.command()
-          stmt.validate()
-          root.push(stmt)
+          stmt = this.command()
         } else if (this.token() && !this.peekIf(TokenType.Delimiter)) {
-          const stmt = this.statement()
+          stmt = this.statement()
+        }
+        if (stmt) {
           stmt.validate()
           root.push(stmt)
         }
@@ -2363,7 +2364,7 @@ export class MysqlParser extends Parser {
       this.consume(Keyword.NOT, Keyword.EXISTS)
       stmt.ifNotExists = true
     }
-    
+
     const obj = this.schemaObject()
     stmt.schemaName = obj.schemaName
     stmt.name = obj.name
@@ -2396,7 +2397,7 @@ export class MysqlParser extends Parser {
       this.consume(Keyword.NOT, Keyword.EXISTS)
       stmt.ifNotExists = true
     }
-    
+
     const obj = this.schemaObject()
     stmt.schemaName = obj.schemaName
     stmt.name = obj.name
@@ -2483,7 +2484,7 @@ export class MysqlParser extends Parser {
       this.consume(Keyword.NOT, Keyword.EXISTS)
       stmt.ifNotExists = true
     }
-    
+
     const obj = this.schemaObject()
     stmt.schemaName = obj.schemaName
     stmt.name = obj.name
@@ -2537,7 +2538,7 @@ export class MysqlParser extends Parser {
       this.consume(Keyword.NOT, Keyword.EXISTS)
       stmt.ifNotExists = true
     }
-    
+
     const obj = this.schemaObject()
     stmt.schemaName = obj.schemaName
     stmt.name = obj.name
@@ -3118,7 +3119,7 @@ export class MysqlParser extends Parser {
       this.consume()
     }
   }
-  
+
   private parseCheckIndexStatement(stmt: model.CheckIndexStatement, start: number) {
     for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
       stmt.indexes.push(this.schemaObject())
