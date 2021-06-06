@@ -9,7 +9,7 @@ export abstract class Statement {
 
   }
 
-  process(vdb: VDatabase) {
+  process(vdb: VDatabase): any {
 
   }
 
@@ -31,8 +31,33 @@ export abstract class Statement {
 
 export class VDatabase {
   defaultSchemaName?: string
-  schemas = new Map<string, VSchema>()
-  collations = new Map<string, VCollation>()
+  private schemas = new Map<string, VSchema>()
+  private collations = new Map<string, VCollation>()
+
+  constructor(
+    public comparator = ((key: string) => key)
+  ) {
+  }
+
+  addSchema(name: string, system = false) {
+    const schema = new VSchema(this, name, system)
+    this.schemas.set(this.comparator(name), schema)
+    return schema
+  }
+
+  getSchema(name: string) {
+    return this.schemas.get(this.comparator(name))
+  }
+
+  addCollation(name: string) {
+    const collation = new VCollation(name)
+    this.collations.set(this.comparator(name), collation)
+    return collation
+  }
+
+  getCollation(name: string) {
+    return this.collations.get(this.comparator(name))
+  }
 }
 
 export class VSchema {
@@ -40,18 +65,20 @@ export class VSchema {
   public dropped = false
 
   constructor(
+    private vdb: VDatabase,
     public name: string,
     public system = false,
   ) {
   }
 
-  add(name: string, obj: VObject) {
-    this.objects.set(name, obj)
-    return obj
+  addObject(type: string, name: string, tableName?: string) {
+    const vobj = new VObject(this, type, name, tableName)
+    this.objects.set(this.vdb.comparator(name), vobj)
+    return vobj
   }
 
-  get(name: string) {
-    return this.objects.get(name)
+  getObject(name: string) {
+    return this.objects.get(this.vdb.comparator(name))
   }
 
   [Symbol.iterator]() {
@@ -70,11 +97,15 @@ export class VObject {
   public dropped = false
 
   constructor(
+    private vschema: VSchema,
     public type: string,
-    public schemaName: string,
     public name: string,
     public tableName?: string,
   ) {
+  }
+
+  get schemaName() {
+    return this.vschema.name
   }
 }
 

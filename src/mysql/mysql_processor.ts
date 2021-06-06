@@ -64,17 +64,17 @@ export default class MysqlProcessor extends DdlSyncProcessor {
 
   protected async run(stmts: Statement[], options: { [key: string]: any }) {
     const vdb = new VDatabase()
-    vdb.schemas.set("mysql", new VSchema("mysql", true))
-    vdb.schemas.set("sys", new VSchema("sys", true))
-    vdb.schemas.set("information_schema", new VSchema("information_schema", true))
-    vdb.schemas.set("performance_schema", new VSchema("performance_schema", true))
+    vdb.addSchema("mysql", true)
+    vdb.addSchema("sys", true)
+    vdb.addSchema("information_schema", true)
+    vdb.addSchema("performance_schema", true)
     vdb.defaultSchemaName = await this.getCurrentSchemaName()
 
-    for (const stmt of stmts) {
-      stmt.validate(vdb)
+    const refs = []
+    for (const [i, stmt] of stmts.entries()) {
+      refs[i] = stmt.process(vdb)
     }
 
-    const refs = []
     for (const [i, stmt] of stmts.entries()) {
       switch (stmt.constructor) {
         case model.CreateDatabaseStatement:
@@ -174,18 +174,15 @@ export default class MysqlProcessor extends DdlSyncProcessor {
   }
 
   private tryCreateDatabaseStatement(seq: number, stmt: any, vdb: VDatabase) {
-    let schema = vdb.schemas.get(stmt.name)
+    let schema = vdb.getSchema(stmt.name)
     if (schema && !schema.dropped) {
       throw new Error(`database ${stmt.name} is already in use`)
     }
-
-    const vschema = new VSchema(stmt.name)
-    vdb.schemas.set(stmt.name, vschema)
-    return vschema
+    return vdb.addSchema(stmt.name)
   }
 
   private tryDropDatabaseStatement(seq: number, stmt: any, vdb: VDatabase) {
-    const schema = vdb.schemas.get(stmt.name)
+    const schema = vdb.getSchema(stmt.name)
     if (!schema || schema.dropped) {
       throw new Error(`no such database: ${stmt.name}`)
     }
@@ -202,12 +199,12 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     if (!schemaName) {
       throw new Error(`No database selected`)
     }
-    const schema = vdb.schemas.get(schemaName)
+    const schema = vdb.getSchema(schemaName)
     if (!schema) {
       throw new Error(`unknown database ${schemaName}`)
     }
 
-    let object = schema.get(stmt.name)
+    let object = schema.getObject(stmt.name)
     if (object && !object.dropped) {
       throw new Error(`${object.type} ${stmt.name} already exists`)
     }
@@ -217,17 +214,17 @@ export default class MysqlProcessor extends DdlSyncProcessor {
       if (!tableSchemaName) {
         throw new Error(`No database selected`)
       }
-      const tableSchema = vdb.schemas.get(tableSchemaName)
+      const tableSchema = vdb.getSchema(tableSchemaName)
       if (!tableSchema) {
         throw new Error(`unknown database ${tableSchemaName}`)
       }
-      const table = tableSchema.get(stmt.table.name)
+      const table = tableSchema.getObject(stmt.table.name)
       if (!table || table.dropped || table.type !== "table") {
         throw new Error(`no such table: ${tableSchemaName}.${stmt.table.name}`)
       }
     }
 
-    return schema.add(stmt.name, new VObject(type, schema.name, stmt.name, stmt.tableName))
+    return schema.addObject(type, stmt.name, stmt.tableName)
   }
 
   private tryAlterObjectStatement(seq: number, stmt: Statement, vdb: VDatabase, type: string) {
@@ -236,12 +233,12 @@ export default class MysqlProcessor extends DdlSyncProcessor {
       throw new Error(`No database selected`)
     }
 
-    const schema = vdb.schemas.get(schemaName)
+    const schema = vdb.getSchema(schemaName)
     if (!schema) {
       throw new Error(`unknown database ${schemaName}`)
     }
 
-    let obj = schema.get((stmt as any)[type].name)
+    let obj = schema.getObject((stmt as any)[type].name)
     if (!obj || obj.dropped) {
       throw new Error(`no such table: ${schemaName}.${(stmt as any)[type].name}`)
     } else if (obj.type !== "table") {
@@ -251,15 +248,15 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     const newObject = (stmt as any)[`new${ucamel(type)}`]
     if (newObject) {
       obj.dropped = true
-      const newSchema = newObject.schemaName ? vdb.schemas.get(newObject.schemaName) : schema
+      const newSchema = newObject.schemaName ? vdb.getSchema(newObject.schemaName) : schema
       if (!newSchema) {
         throw new Error(`unknown database ${newSchema}`)
       }
-      newSchema.add(newObject.name, new VObject(type, newSchema.name, newObject.name))
+      newSchema.addObject(type, newObject.name)
       for (const aObj of schema) {
         if (aObj.type === "index" && aObj.tableName === aObj.name) {
           aObj.dropped = true
-          schema.add(aObj.name, new VObject("index", newSchema.name, aObj.name, newObject.name))
+          schema.addObject("index", aObj.name, newObject.name)
         }
       }
     }
@@ -274,12 +271,12 @@ export default class MysqlProcessor extends DdlSyncProcessor {
         throw new Error(`No database selected`)
       }
 
-      const schema = vdb.schemas.get(schemaName)
+      const schema = vdb.getSchema(schemaName)
       if (!schema) {
         throw new Error(`unknown database ${schemaName}`)
       }
 
-      let obj = schema.get(pair.table.name)
+      let obj = schema.getObject(pair.table.name)
       if (!obj || obj.dropped) {
         throw new Error(`no such table: ${schemaName}.${pair.table.name}`)
       } else if (obj.type !== "table" && obj.type !== "view") {
@@ -287,16 +284,16 @@ export default class MysqlProcessor extends DdlSyncProcessor {
       }
 
       obj.dropped = true
-      const newSchema = pair.newTable.schemaName ? vdb.schemas.get(pair.newTable.schemaName) : schema
+      const newSchema = pair.newTable.schemaName ? vdb.getSchema(pair.newTable.schemaName) : schema
       if (!newSchema) {
         throw new Error(`unknown database ${newSchema}`)
       }
 
-      obj = newSchema.add(pair.newTable.name, new VObject(obj.type, newSchema.name, pair.newTable.name))
+      obj = newSchema.addObject(obj.type, pair.newTable.name)
       for (const aObj of schema) {
         if (aObj.type === "index" && aObj.tableName === aObj.name) {
           aObj.dropped = true
-          schema.add(aObj.name, new VObject("index", newSchema.name, aObj.name, pair.newTable.name))
+          schema.addObject("index", aObj.name, pair.newTable.name)
         }
       }
       results.push(obj)
@@ -313,12 +310,12 @@ export default class MysqlProcessor extends DdlSyncProcessor {
         throw new Error(`No database selected`)
       }
 
-      const schema = vdb.schemas.get(schemaName)
+      const schema = vdb.getSchema(schemaName)
       if (!schema) {
         throw new Error(`unknown database ${schemaName}`)
       }
 
-      let obj = schema.get(target.name)
+      let obj = schema.getObject(target.name)
       if (!obj || obj.dropped) {
         if (!stmt.ifExists) {
           throw new Error(`no such ${type}: ${schemaName}.${stmt.name}`)
@@ -328,7 +325,7 @@ export default class MysqlProcessor extends DdlSyncProcessor {
       }
 
       if (!obj) {
-        obj = schema.add(type, new VObject(type, schema.name, stmt.name))
+        obj = schema.addObject(type, stmt.name)
       }
       obj.dropped = true
       results.push(obj)
@@ -345,12 +342,12 @@ export default class MysqlProcessor extends DdlSyncProcessor {
         throw new Error(`No database selected`)
       }
 
-      const schema = vdb.schemas.get(schemaName)
+      const schema = vdb.getSchema(schemaName)
       if (!schema) {
         throw new Error(`unknown database ${schemaName}`)
       }
 
-      const obj = schema.get(target.name)
+      const obj = schema.getObject(target.name)
       if (!obj || obj.dropped) {
         throw new Error(`no such ${type}: ${schemaName}.${target.name}`)
       } else if (obj.type !== type) {

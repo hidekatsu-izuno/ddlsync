@@ -37,20 +37,20 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
   }
 
   protected async run(stmts: Statement[], options: { [key: string]: any }) {
-    const vdb = new VDatabase()
-    vdb.schemas.set("main", new VSchema("main", true))
-    vdb.schemas.set("temp", new VSchema("temp", true))
+    const vdb = new VDatabase(lcase)
+    vdb.addSchema("main", true)
+    vdb.addSchema("temp", true)
     vdb.defaultSchemaName = "main"
 
     for (const row of await this.con.prepare("PRAGMA collation_list").iterate()) {
-      vdb.collations.set(ucase(row.name), new VCollation(row.name))
-    }
-
-    for (const stmt of stmts) {
-      stmt.process(vdb)
+      vdb.addCollation(row.name)
     }
 
     const refs = []
+    for (const [i, stmt] of stmts.entries()) {
+      // refs[i] = stmt.process(vdb)
+    }
+
     for (const [i, stmt] of stmts.entries()) {
       switch (stmt.constructor) {
         case model.AttachDatabaseStatement:
@@ -123,21 +123,18 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
   }
 
   private tryAttachDatabaseStatement(seq: number, stmt: model.AttachDatabaseStatement, vdb: VDatabase) {
-    let schema = vdb.schemas.get(lcase(stmt.name))
+    let schema = vdb.getSchema(stmt.name)
     if (schema) {
       if (schema.dropped) {
         throw new Error(`multiple attach for same database name is not supported: ${stmt.name}`)
       }
       throw new Error(`database ${stmt.name} is already in use`)
     }
-
-    const vschema = new VSchema(stmt.name)
-    vdb.schemas.set(lcase(stmt.name), vschema)
-    return vschema
+    return vdb.addSchema(stmt.name)
   }
 
   private tryDetachDatabaseStatement(seq: number, stmt: model.DetachDatabaseStatement, vdb: VDatabase) {
-    const schema = vdb.schemas.get(lcase(stmt.name))
+    const schema = vdb.getSchema(stmt.name)
     if (!schema || schema.dropped) {
       throw new Error(`no such database: ${stmt.name}`)
     }
@@ -155,46 +152,46 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     let schemaName = stmt.schemaName
     if (!schemaName) {
       if (type === "index") {
-        const tempObject = vdb.schemas.get("temp")?.get(stmt.name)
+        const tempObject = vdb.getSchema("temp")?.getObject(stmt.name)
         schemaName = tempObject && !tempObject.dropped ? "temp" : "main"
       } else {
         schemaName = stmt.temporary ? "temp" : "main"
       }
     }
 
-    const schema = vdb.schemas.get(lcase(schemaName))
+    const schema = vdb.getSchema(schemaName)
     if (!schema) {
       throw new Error(`unknown database ${schemaName}`)
     }
 
-    let object = schema.get(lcase(stmt.name))
+    let object = schema.getObject(stmt.name)
     if (object && !object.dropped) {
       throw new Error(`${object.type} ${stmt.name} already exists`)
     }
 
     if (type === "index") {
-      const table = schema.get(lcase(stmt.tableName))
+      const table = schema.getObject(stmt.tableName)
       if (!table || table.dropped || table.type !== "table") {
         throw new Error(`no such table: ${schemaName}.${stmt.tableName}`)
       }
     }
 
-    return schema.add(lcase(stmt.name), new VObject(type, schema.name, stmt.name, stmt.tableName))
+    return schema.addObject(type, stmt.name, stmt.tableName)
   }
 
   private tryAlterTableStatement(seq: number, stmt: model.AlterTableStatement, vdb: VDatabase) {
     let schemaName = stmt.table.schemaName
     if (!schemaName) {
-      const tempObject = vdb.schemas.get("temp")?.get(lcase(stmt.table.name))
+      const tempObject = vdb.getSchema("temp")?.getObject(stmt.table.name)
       schemaName = tempObject && !tempObject.dropped ? "temp" : "main"
     }
 
-    const schema = vdb.schemas.get(lcase(schemaName))
+    const schema = vdb.getSchema(schemaName)
     if (!schema) {
       throw new Error(`unknown database ${schemaName}`)
     }
 
-    let obj = schema.get(lcase(stmt.table.name))
+    let obj = schema.getObject(stmt.table.name)
     if (!obj || obj.dropped) {
       throw new Error(`no such table: ${schemaName}.${stmt.table.name}`)
     } else if (obj.type !== "table") {
@@ -203,11 +200,11 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
 
     if (stmt.action instanceof model.RenameTableAction) {
       obj.dropped = true
-      schema.add(lcase(stmt.action.newName), new VObject("table", schema.name, stmt.action.newName))
+      schema.addObject("table", stmt.action.newName)
       for (const aObj of schema) {
         if (aObj.type === "index" && aObj.tableName && lcase(aObj.tableName) === lcase(aObj.name)) {
           aObj.dropped = true
-          schema.add(lcase(aObj.name), new VObject("index", schema.name, aObj.name, stmt.action.newName))
+          schema.addObject("index", aObj.name, stmt.action.newName)
         }
       }
     }
@@ -219,16 +216,16 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     const type = lcase(stmt.constructor.name.replace(/^Drop([a-zA-Z0-9]+)Statement$/, "$1"))
     let schemaName = stmt[type].schemaName
     if (!schemaName) {
-      const tempObject = vdb.schemas.get("temp")?.get(lcase(stmt[type].name))
+      const tempObject = vdb.getSchema("temp")?.getObject(stmt[type].name)
       schemaName = tempObject && !tempObject.dropped ? "temp" : "main"
     }
 
-    const schema = vdb.schemas.get(lcase(schemaName))
+    const schema = vdb.getSchema(schemaName)
     if (!schema) {
       throw new Error(`unknown database ${schemaName}`)
     }
 
-    let obj = schema.get(lcase(stmt.name))
+    let obj = schema.getObject(stmt.name)
     if (!obj || obj.dropped) {
       if (!stmt.ifExists) {
         throw new Error(`no such ${type}: ${schemaName}.${stmt.name}`)
@@ -238,7 +235,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     }
 
     if (!obj) {
-      obj = schema.add(lcase(stmt.name), new VObject(type, schema.name, stmt.name))
+      obj = schema.addObject(type, stmt.name)
       obj.dropped = true
     }
 
@@ -255,7 +252,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
 
   private tryVacuumStatement(seq: number, stmt: model.VacuumStatement, vdb: VDatabase) {
     if (stmt.schemaName) {
-      const schema = vdb.schemas.get(lcase(stmt.schemaName))
+      const schema = vdb.getSchema(stmt.schemaName)
       if (!schema) {
         throw new Error(`unknown database ${stmt.schemaName}`)
       }
@@ -266,18 +263,18 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
   private tryReindexStatement(seq: number, stmt: model.ReindexStatement, vdb: VDatabase) {
     let schemaName = stmt.schemaName
     if (!schemaName) {
-      const tempObject = vdb.schemas.get("temp")?.get(lcase(stmt.name))
+      const tempObject = vdb.getSchema("temp")?.getObject(stmt.name)
       schemaName = tempObject && !tempObject.dropped ? "temp" : "main"
     }
 
-    const schema = vdb.schemas.get(lcase(schemaName))
+    const schema = vdb.getSchema(schemaName)
     if (!schema) {
       throw new Error(`unknown database ${schemaName}`)
     }
 
-    const obj = schema.get(lcase(stmt.name))
+    const obj = schema.getObject(stmt.name)
     if (!obj || obj.dropped || !(obj.type === "table" || obj.type === "index")) {
-      let collation = vdb.collations.get(ucase(stmt.name))
+      let collation = vdb.getCollation(stmt.name)
       if (!collation) {
         throw new Error(`no such target: ${schemaName}.${stmt.name}`)
       }
@@ -289,16 +286,16 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
   private tryManipulateObjectStatement(seq: number, stmt: any, vdb: VDatabase, type: string) {
     let schemaName = stmt.schemaName
     if (!schemaName) {
-      const tempObject = vdb.schemas.get("temp")?.get(lcase(stmt.name))
+      const tempObject = vdb.getSchema("temp")?.getObject(stmt.name)
       schemaName = tempObject && !tempObject.dropped ? "temp" : "main"
     }
 
-    const schema = vdb.schemas.get(lcase(schemaName))
+    const schema = vdb.getSchema(schemaName)
     if (!schema) {
       throw new Error(`unknown database ${schemaName}`)
     }
 
-    const obj = schema.get(lcase(stmt.name))
+    const obj = schema.getObject(stmt.name)
     if (!obj || obj.dropped || obj.type !== type) {
       throw new Error(`no such ${type}: ${schemaName}.${stmt.name}`)
     }

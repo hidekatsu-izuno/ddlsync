@@ -1,5 +1,6 @@
-import { Statement, VDatabase } from "../models"
+import { Statement, VDatabase, VSchema } from "../models"
 import { Token } from "../parser"
+import { lcase } from "../util/functions"
 
 export abstract class Constraint {
   name?: string
@@ -13,10 +14,16 @@ export class CommandStatement extends Statement {
 export class AttachDatabaseStatement extends Statement {
   name = ""
   expr = new Array<Token>()
+
+  process(vdb: VDatabase) {
+  }
 }
 
 export class DetachDatabaseStatement extends Statement {
   name = ""
+
+  process(vdb: VDatabase) {
+  }
 }
 
 export class SchemaObject {
@@ -59,6 +66,9 @@ export class CreateTableStatement extends Statement {
     if (this.withoutRowid && pkeyCount === 0) {
       throw new Error(`PRIMARY KEY missing on table ${this.name}`)
     }
+  }
+
+  process(vdb: VDatabase) {
   }
 }
 
