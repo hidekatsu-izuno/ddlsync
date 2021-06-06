@@ -71,8 +71,8 @@ export class VSchema {
   ) {
   }
 
-  addObject(type: string, name: string, tableName?: string) {
-    const vobj = new VObject(this, type, name, tableName)
+  addObject(type: string, name: string, target?: VObject) {
+    const vobj = new VObject(this, type, name, target)
     this.objects.set(this.vdb.comparator(name), vobj)
     return vobj
   }
@@ -100,7 +100,7 @@ export class VObject {
     private vschema: VSchema,
     public type: string,
     public name: string,
-    public tableName?: string,
+    public target?: VObject,
   ) {
   }
 

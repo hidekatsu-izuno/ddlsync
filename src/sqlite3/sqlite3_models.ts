@@ -16,6 +16,14 @@ export class AttachDatabaseStatement extends Statement {
   expr = new Array<Token>()
 
   process(vdb: VDatabase) {
+    let schema = vdb.getSchema(this.name)
+    if (schema) {
+      if (schema.dropped) {
+        throw new Error(`multiple attach for same database name is not supported: ${this.name}`)
+      }
+      throw new Error(`database ${this.name} is already in use`)
+    }
+    return vdb.addSchema(this.name)
   }
 }
 
@@ -23,6 +31,15 @@ export class DetachDatabaseStatement extends Statement {
   name = ""
 
   process(vdb: VDatabase) {
+    const schema = vdb.getSchema(this.name)
+    if (!schema || schema.dropped) {
+      throw new Error(`no such database: ${this.name}`)
+    }
+    if (schema.system) {
+      throw new Error(`cannot detach database ${this.name}`)
+    }
+    schema.dropped = true
+    return schema
   }
 }
 
@@ -69,6 +86,7 @@ export class CreateTableStatement extends Statement {
   }
 
   process(vdb: VDatabase) {
+    processCreateStatement(vdb, "table", this)
   }
 }
 
@@ -95,11 +113,47 @@ export class DropColumnAction extends AlterTableAction {
 export class AlterTableStatement extends Statement {
   table = new SchemaObject()
   action: AlterTableAction = new RenameTableAction()
+
+  process(vdb: VDatabase) {
+    let schemaName = this.table.schemaName
+    if (!schemaName) {
+      const tempObject = vdb.getSchema("temp")?.getObject(this.table.name)
+      schemaName = tempObject && !tempObject.dropped ? "temp" : "main"
+    }
+
+    const schema = vdb.getSchema(schemaName)
+    if (!schema) {
+      throw new Error(`unknown database ${schemaName}`)
+    }
+
+    let table = schema.getObject(this.table.name)
+    if (!table || table.dropped) {
+      throw new Error(`no such table: ${schemaName}.${this.table.name}`)
+    } else if (table.type !== "table") {
+      throw new Error(`no such table: ${schemaName}.${this.table.name}`)
+    }
+
+    if (this.action instanceof RenameTableAction) {
+      table.dropped = true
+      const newTable = schema.addObject("table", this.action.newName)
+      for (const aObj of schema) {
+        if (aObj.type === "index" && aObj.target === table) {
+          aObj.dropped = true
+          schema.addObject("index", aObj.name, newTable)
+        }
+      }
+    }
+    return table
+  }
 }
 
 export class DropTableStatement extends Statement {
   table = new SchemaObject()
   ifExists = false
+
+  process(vdb: VDatabase) {
+    processDropStatement(vdb, "table", this)
+  }
 }
 
 export class CreateViewStatement extends Statement {
@@ -114,11 +168,19 @@ export class CreateViewStatement extends Statement {
       throw new Error("temporary table name must be unqualified")
     }
   }
+
+  process(vdb: VDatabase) {
+    processCreateStatement(vdb, "view", this)
+  }
 }
 
 export class DropViewStatement extends Statement {
   view = new SchemaObject()
   ifExists = false
+
+  process(vdb: VDatabase) {
+    processDropStatement(vdb, "view", this)
+  }
 }
 
 export class CreateTriggerStatement extends Statement {
@@ -132,11 +194,19 @@ export class CreateTriggerStatement extends Statement {
       throw new Error("temporary table name must be unqualified")
     }
   }
+
+  process(vdb: VDatabase) {
+    processCreateStatement(vdb, "trigger", this)
+  }
 }
 
 export class DropTriggerStatement extends Statement {
   trigger = new SchemaObject()
   ifExists = false
+
+  process(vdb: VDatabase) {
+    processDropStatement(vdb, "trigger", this)
+  }
 }
 
 export class CreateIndexStatement extends Statement {
@@ -146,6 +216,31 @@ export class CreateIndexStatement extends Statement {
   type?: IndexType
   ifNotExists = false
   columns = new Array<IndexColumn>()
+
+  process(vdb: VDatabase) {
+    let schemaName = this.schemaName
+    if (!schemaName) {
+      const tempObject = vdb.getSchema("temp")?.getObject(this.name)
+      schemaName = tempObject && !tempObject.dropped ? "temp" : "main"
+    }
+
+    const schema = vdb.getSchema(schemaName)
+    if (!schema) {
+      throw new Error(`unknown database ${schemaName}`)
+    }
+
+    let object = schema.getObject(this.name)
+    if (object && !object.dropped) {
+      throw new Error(`${object.type} ${this.name} already exists`)
+    }
+
+    const table = schema.getObject(this.table.name)
+    if (!table || table.dropped || table.type !== "table") {
+      throw new Error(`no such table: ${schemaName}.${this.table.name}`)
+    }
+
+    return schema.addObject("index", this.name, table)
+  }
 }
 
 export class DropIndexStatement extends Statement {
@@ -156,16 +251,53 @@ export class DropIndexStatement extends Statement {
 export class ReindexStatement extends Statement {
   schemaName?: string
   name = ""
+
+  process(vdb: VDatabase) {
+    let schemaName = this.schemaName
+    if (!schemaName) {
+      const tempObject = vdb.getSchema("temp")?.getObject(this.name)
+      schemaName = tempObject && !tempObject.dropped ? "temp" : "main"
+    }
+
+    const schema = vdb.getSchema(schemaName)
+    if (!schema) {
+      throw new Error(`unknown database ${schemaName}`)
+    }
+
+    const obj = schema.getObject(this.name)
+    if (!obj || obj.dropped || !(obj.type === "table" || obj.type === "index")) {
+      let collation = vdb.getCollation(this.name)
+      if (!collation) {
+        throw new Error(`no such target: ${schemaName}.${this.name}`)
+      }
+      return collation
+    }
+    return obj
+  }
 }
 
 export class VacuumStatement extends Statement {
   schemaName?: string
   fileName?: string
+
+  process(vdb: VDatabase) {
+    if (this.schemaName) {
+      const schema = vdb.getSchema(this.schemaName)
+      if (!schema) {
+        throw new Error(`unknown database ${this.schemaName}`)
+      }
+      return schema
+    }
+  }
 }
 
 export class AnalyzeStatement extends Statement {
   schemaName?: string
   name = ""
+
+  process(vdb: VDatabase) {
+    processObject(vdb, "table", this)
+  }
 }
 
 export class ExplainStatement extends Statement {
@@ -206,15 +338,27 @@ export class PragmaStatement extends Statement {
 export class InsertStatement extends Statement {
   table = new SchemaObject()
   conflictAction = ConflictAction.ABORT
+
+  process(vdb: VDatabase) {
+    processObject(vdb, "table", this)
+  }
 }
 
 export class UpdateStatement extends Statement {
   table = new SchemaObject()
   conflictAction = ConflictAction.ABORT
+
+  process(vdb: VDatabase) {
+    processObject(vdb, "table", this)
+  }
 }
 
 export class DeleteStatement extends Statement {
   table = new SchemaObject()
+
+  process(vdb: VDatabase) {
+    processObject(vdb, "table", this)
+  }
 }
 
 export class SelectStatement extends Statement {
@@ -322,4 +466,79 @@ export enum TransactionBehavior {
   DEFERRED = "DEFERRED",
   IMMEDIATE = "IMMEDIATE",
   EXCLUSIVE = "EXCLUSIVE",
+}
+
+function processCreateStatement(vdb: VDatabase, type: string, stmt: any) {
+  const schemaName = stmt.schemaName || (stmt.temporary ? "temp" : "main")
+  const schema = vdb.getSchema(schemaName)
+  if (!schema) {
+    throw new Error(`unknown database ${schemaName}`)
+  }
+
+  const object = schema.getObject(stmt.name)
+  if (object && !object.dropped) {
+    throw new Error(`${object.type} ${stmt.name} already exists`)
+  }
+
+  return schema.addObject(type, stmt.name)
+}
+
+function processDropStatement(vdb: VDatabase, type: string, stmt: any) {
+  const target = stmt[type]
+
+  let schemaName = target.schemaName
+  if (!schemaName) {
+    const tempObject = vdb.getSchema("temp")?.getObject(target.name)
+    schemaName = tempObject && !tempObject.dropped ? "temp" : "main"
+  }
+
+  const schema = vdb.getSchema(schemaName)
+  if (!schema) {
+    throw new Error(`unknown database ${schemaName}`)
+  }
+
+  let obj = schema.getObject(target.name)
+  if (!obj || obj.dropped) {
+    if (!stmt.ifExists) {
+      throw new Error(`no such ${type}: ${schemaName}.${target.name}`)
+    }
+  } else if (obj.type !== type) {
+    throw new Error(`no such ${type}: ${schemaName}.${target.name}`)
+  }
+
+  if (type === "table") {
+    for (const item of schema) {
+      if (item.target === obj) {
+        item.dropped = true
+      }
+    }
+  }
+
+  if (!obj) {
+    obj = schema.addObject(type, target.name)
+    obj.dropped = true
+  }
+
+  return obj
+}
+
+function processObject(vdb: VDatabase, type: string, stmt: any) {
+  const target = stmt[type]
+
+  let schemaName = target.schemaName
+  if (!schemaName) {
+    const tempObject = vdb.getSchema("temp")?.getObject(target.name)
+    schemaName = tempObject && !tempObject.dropped ? "temp" : "main"
+  }
+
+  const schema = vdb.getSchema(schemaName)
+  if (!schema) {
+    throw new Error(`unknown database ${schemaName}`)
+  }
+
+  const obj = schema.getObject(target.name)
+  if (!obj || obj.dropped || obj.type !== type) {
+    throw new Error(`no such ${type}: ${schemaName}.${target.name}`)
+  }
+  return obj
 }
