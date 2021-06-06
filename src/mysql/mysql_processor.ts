@@ -77,12 +77,6 @@ export default class MysqlProcessor extends DdlSyncProcessor {
 
     for (const [i, stmt] of stmts.entries()) {
       switch (stmt.constructor) {
-        case model.CreateDatabaseStatement:
-          refs[i] = this.tryCreateDatabaseStatement(i, stmt as model.CreateDatabaseStatement, vdb)
-          break
-        case model.DropDatabaseStatement:
-          refs[i] = this.tryDropDatabaseStatement(i, stmt as model.DropDatabaseStatement, vdb)
-          break
         case model.CreateTableStatement:
           refs[i] = this.tryCreateObjectStatement(i, stmt, vdb, "table")
           break
@@ -173,27 +167,6 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     return result[0]?.schemaName
   }
 
-  private tryCreateDatabaseStatement(seq: number, stmt: any, vdb: VDatabase) {
-    let schema = vdb.getSchema(stmt.name)
-    if (schema && !schema.dropped) {
-      throw new Error(`database ${stmt.name} is already in use`)
-    }
-    return vdb.addSchema(stmt.name)
-  }
-
-  private tryDropDatabaseStatement(seq: number, stmt: any, vdb: VDatabase) {
-    const schema = vdb.getSchema(stmt.name)
-    if (!schema || schema.dropped) {
-      throw new Error(`no such database: ${stmt.name}`)
-    }
-    if (schema.system) {
-      throw new Error(`cannot drop system database ${stmt.name}`)
-    }
-
-    schema.dropped = true
-    return schema
-  }
-
   private tryCreateObjectStatement(seq: number, stmt: any, vdb: VDatabase, type: string) {
     const schemaName = stmt.schemaName || vdb.defaultSchemaName
     if (!schemaName) {
@@ -254,9 +227,9 @@ export default class MysqlProcessor extends DdlSyncProcessor {
       }
       newSchema.addObject(type, newObject.name)
       for (const aObj of schema) {
-        if (aObj.type === "index" && aObj.tableName === aObj.name) {
+        if (aObj.type === "index" && aObj.target === obj) {
           aObj.dropped = true
-          schema.addObject("index", aObj.name, newObject.name)
+          schema.addObject("index", aObj.name, newObject)
         }
       }
     }
@@ -289,11 +262,11 @@ export default class MysqlProcessor extends DdlSyncProcessor {
         throw new Error(`unknown database ${newSchema}`)
       }
 
-      obj = newSchema.addObject(obj.type, pair.newTable.name)
+      let newObject = newSchema.addObject(obj.type, pair.newTable.name)
       for (const aObj of schema) {
-        if (aObj.type === "index" && aObj.tableName === aObj.name) {
+        if (aObj.type === "index" && aObj.target === newObject) {
           aObj.dropped = true
-          schema.addObject("index", aObj.name, pair.newTable.name)
+          schema.addObject("index", aObj.name, newObject)
         }
       }
       results.push(obj)

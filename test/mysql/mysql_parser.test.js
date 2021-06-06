@@ -54,14 +54,14 @@ describe("test mysql_parser", () => {
 
   test.each([
     ["DROP DATABASE x",
-      { name: "x" }],
+      { schemaName: "x" }],
     ["DROP SCHEMA x",
-      { name: "x" }],
+      { schemaName: "x" }],
   ])("drop database %#", (input, expected) => {
     const result = new MysqlParser(input, {}).root()
     expect(result.length).toBe(1)
     expect(result[0]).toBeInstanceOf(model.DropDatabaseStatement)
-    expect(result[0].name).toBe(expected.name)
+    expect(result[0].schemaName).toBe(expected.schemaName)
   })
 
   test.each([

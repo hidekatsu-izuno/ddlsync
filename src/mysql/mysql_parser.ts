@@ -2629,21 +2629,21 @@ export class MysqlParser extends Parser {
   }
 
   private parseAlterDatabaseStatement(stmt: model.AlterDatabaseStatement, start: number) {
-    stmt.name = this.identifier()
+    stmt.schemaName = this.identifier()
     while (this.token() && !this.peekIf(TokenType.Delimiter)) {
       this.consume()
     }
   }
 
   private parseAlterServerStatement(stmt: model.AlterServerStatement, start: number) {
-    stmt.name = this.identifier()
+    stmt.serverName = this.identifier()
     while (this.token() && !this.peekIf(TokenType.Delimiter)) {
       this.consume()
     }
   }
 
   private parseAlterResourceGroupStatement(stmt: model.AlterResourceGroupStatement, start: number) {
-    stmt.name = this.identifier()
+    stmt.resourceGroupName = this.identifier()
     while (this.token() && !this.peekIf(TokenType.Delimiter)) {
       this.consume()
     }
@@ -2765,7 +2765,7 @@ export class MysqlParser extends Parser {
       this.consume(Keyword.EXISTS)
       stmt.ifExists = true
     }
-    stmt.name = this.identifier()
+    stmt.schemaName = this.identifier()
   }
 
   private parseDropServerStatement(stmt: model.DropServerStatement, start: number) {
@@ -2773,11 +2773,11 @@ export class MysqlParser extends Parser {
       this.consume(Keyword.EXISTS)
       stmt.ifExists = true
     }
-    stmt.name = this.identifier()
+    stmt.serverName = this.identifier()
   }
 
   private parseDropResourceGroupStatement(stmt: model.DropResourceGroupStatement, start: number) {
-    stmt.name = this.identifier()
+    stmt.resourceGroupName = this.identifier()
     if (this.consumeIf(Keyword.FORCE)) {
       stmt.force = true
     }
@@ -3238,7 +3238,7 @@ export class MysqlParser extends Parser {
   }
 
   private parseSetResourceGroupStatement(stmt: model.SetResourceGroupStatement, start: number) {
-    stmt.name = this.identifier()
+    stmt.resourceGroupName = this.identifier()
     while (this.token() && !this.peekIf(TokenType.Delimiter)) {
       this.consume()
     }

@@ -45,15 +45,43 @@ export class CreateDatabaseStatement extends Statement {
   characterSet?: string
   collate?: string
   encryption?: string
+
+  process(vdb: VDatabase) {
+    const schema = vdb.getSchema(this.name)
+    if (schema && !schema.dropped) {
+      throw new Error(`database ${this.name} is already in use`)
+    }
+    return vdb.addSchema(this.name)
+  }
 }
 
 export class AlterDatabaseStatement extends Statement {
-  name = ""
+  schemaName = ""
+
+  process(vdb: VDatabase) {
+    const schema = vdb.getSchema(this.schemaName)
+    if (!schema || schema.dropped) {
+      throw new Error(`no such database: ${this.schemaName}`)
+    }
+    return schema
+  }
 }
 
 export class DropDatabaseStatement extends Statement {
-  name = ""
+  schemaName = ""
   ifExists = false
+
+  process(vdb: VDatabase) {
+    const schema = vdb.getSchema(this.schemaName)
+    if (!schema || schema.dropped) {
+      throw new Error(`no such database: ${this.schemaName}`)
+    }
+    if (schema.system) {
+      throw new Error(`cannot drop system database ${this.schemaName}`)
+    }
+    schema.dropped = true
+    return schema
+  }
 }
 
 export class CreateServerStatement extends Statement {
@@ -76,11 +104,11 @@ export class CreateServerStatement extends Statement {
 }
 
 export class AlterServerStatement extends Statement {
-  name = ""
+  serverName = ""
 }
 
 export class DropServerStatement extends Statement {
-  name = ""
+  serverName = ""
   ifExists = false
 }
 
@@ -94,15 +122,15 @@ export class CreateResourceGroupStatement extends Statement {
 }
 
 export class AlterResourceGroupStatement extends Statement {
-  name = ""
+  resourceGroupName = ""
 }
 
 export class SetResourceGroupStatement extends Statement {
-  name = ""
+  resourceGroupName = ""
 }
 
 export class DropResourceGroupStatement extends Statement {
-  name = ""
+  resourceGroupName = ""
   force = false
 }
 
