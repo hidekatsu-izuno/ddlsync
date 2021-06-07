@@ -740,38 +740,90 @@ export class MysqlParser extends Parser {
     options: { [key: string]: any } = {},
   ) {
     super(input, new MysqlLexer(options), options)
-
-    if (options.sqlMode) {
-      this.setSqlMode(options.sqlMode)
-    } else {
-      this.sqlMode.add("ONLY_FULL_GROUP_BY")
-      this.sqlMode.add("STRICT_TRANS_TABLES")
-      this.sqlMode.add("NO_ZERO_IN_DATE")
-      this.sqlMode.add("NO_ZERO_DATE")
-      this.sqlMode.add("ERROR_FOR_DIVISION_BY_ZERO")
-      this.sqlMode.add("NO_ENGINE_SUBSTITUTION")
-    }
+    this.setSqlMode(options.sqlMode)
   }
 
   private setSqlMode(text: string) {
     this.sqlMode.clear()
-    for (let mode of text.split(/,/g)) {
-      mode = ucase(mode)
-      if (mode === "ANSI") {
-        this.sqlMode.add("REAL_AS_FLOAT")
-        this.sqlMode.add("PIPES_AS_CONCAT")
-        this.sqlMode.add("ANSI_QUOTES")
-        this.sqlMode.add("IGNORE_SPACE")
-        this.sqlMode.add("ONLY_FULL_GROUP_BY")
-      } else if (mode === "TRADITIONAL") {
+    if (text) {
+      for (let mode of text.split(/,/g)) {
+        mode = ucase(mode)
+        if (mode === "ANSI") {
+          this.sqlMode.add("REAL_AS_FLOAT")
+          this.sqlMode.add("PIPES_AS_CONCAT")
+          this.sqlMode.add("ANSI_QUOTES")
+          this.sqlMode.add("IGNORE_SPACE")
+          if (this.options.variant === "mysql") {
+            if (!this.options.version || semver.gte(this.options.version, "8.0.0")) {
+              this.sqlMode.add("ONLY_FULL_GROUP_BY")
+            }
+          }
+        } else if (mode === "TRADITIONAL") {
+          this.sqlMode.add("STRICT_TRANS_TABLES")
+          this.sqlMode.add("STRICT_ALL_TABLES")
+          this.sqlMode.add("NO_ZERO_IN_DATE")
+          this.sqlMode.add("NO_ZERO_DATE")
+          this.sqlMode.add("ERROR_FOR_DIVISION_BY_ZERO")
+          this.sqlMode.add("NO_ENGINE_SUBSTITUTION")
+        } else {
+          if (this.options.variant === "mariadb" || semver.lt(this.options.version, "8.0.0")) {
+            if (mode === "DB2" || mode === "MAXDB" || mode === "MSSQL" || mode === "ORACLE" || mode === "POSTGRESQL") {
+              if (mode === "DB2") {
+                this.sqlMode.add("DB2")
+              } else if (mode === "MAXDB") {
+                this.sqlMode.add("MAXDB")
+                this.sqlMode.add("NO_AUTO_CREATE_USER")
+              } else if (mode === "ORACLE") {
+                this.sqlMode.add("NO_AUTO_CREATE_USER")
+                this.sqlMode.add("SIMULTANEOUS_ASSIGNMENT")
+              } else if (mode === "POSTGRESQL") {
+                this.sqlMode.add("POSTGRESQL")
+              }
+              this.sqlMode.add("PIPES_AS_CONCAT")
+              this.sqlMode.add("ANSI_QUOTES")
+              this.sqlMode.add("IGNORE_SPACE")
+              this.sqlMode.add("NO_KEY_OPTIONS")
+              this.sqlMode.add("NO_TABLE_OPTIONS")
+              this.sqlMode.add("NO_FIELD_OPTIONS")
+            } else if (mode === "MYSQL323" || mode === "MYSQL40") {
+              this.sqlMode.add("NO_FIELD_OPTIONS")
+              this.sqlMode.add("HIGH_NOT_PRECEDENCE")
+            } else {
+              this.sqlMode.add(mode)
+            }
+          } else {
+            this.sqlMode.add(mode)
+          }
+        }
+      }
+    } else if (this.options.variant === "mariadb") {
+      if (!this.options.version || semver.gte(this.options.version, "10.2.4")) {
         this.sqlMode.add("STRICT_TRANS_TABLES")
-        this.sqlMode.add("STRICT_ALL_TABLES")
+        this.sqlMode.add("NO_AUTO_CREATE_USER")
+        this.sqlMode.add("ERROR_FOR_DIVISION_BY_ZERO")
+        this.sqlMode.add("NO_ENGINE_SUBSTITUTION")
+      } else if (semver.gte(this.options.version, "10.1.7")) {
+        this.sqlMode.add("NO_AUTO_CREATE_USER")
+        this.sqlMode.add("NO_ENGINE_SUBSTITUTION")
+      }
+    } else {
+      if (!this.options.version || semver.gte(this.options.version, "8.0.0")) {
+        this.sqlMode.add("ONLY_FULL_GROUP_BY")
+        this.sqlMode.add("STRICT_TRANS_TABLES")
         this.sqlMode.add("NO_ZERO_IN_DATE")
         this.sqlMode.add("NO_ZERO_DATE")
         this.sqlMode.add("ERROR_FOR_DIVISION_BY_ZERO")
         this.sqlMode.add("NO_ENGINE_SUBSTITUTION")
-      } else {
-        this.sqlMode.add(mode)
+      } else if (semver.gte(this.options.version, "5.7.0")) {
+        this.sqlMode.add("ONLY_FULL_GROUP_BY")
+        this.sqlMode.add("STRICT_TRANS_TABLES")
+        this.sqlMode.add("NO_ZERO_IN_DATE")
+        this.sqlMode.add("NO_ZERO_DATE")
+        this.sqlMode.add("ERROR_FOR_DIVISION_BY_ZERO")
+        this.sqlMode.add("NO_AUTO_CREATE_USER")
+        this.sqlMode.add("NO_ENGINE_SUBSTITUTION")
+      } else if (semver.gte(this.options.version, "5.6.6")) {
+        this.sqlMode.add("NO_ENGINE_SUBSTITUTION")
       }
     }
   }

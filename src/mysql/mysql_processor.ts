@@ -29,7 +29,7 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     const versions = await this.con.query("SELECT version() AS v") as any[]
     if (versions.length) {
       const vparts = (versions[0].v || "").split("-")
-      options.package = /mariadb/i.test(vparts[1]) ? "mariadb" : "mysql"
+      options.variant = /mariadb/i.test(vparts[1]) ? "mariadb" : "mysql"
       options.version = vparts[0]
     }
 
