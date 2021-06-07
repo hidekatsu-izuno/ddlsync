@@ -903,6 +903,9 @@ export class Sqlite3Parser extends Parser {
   }
 
   private praseSelectStatement(stmt: model.SelectStatement, start: number) {
+    if (this.peekIf(Keyword.WITH)) {
+      throw this.createParseError()
+    }
     this.selectClause()
   }
 

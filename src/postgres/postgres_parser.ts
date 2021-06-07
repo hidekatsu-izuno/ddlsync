@@ -1053,86 +1053,120 @@ export class PostgresParser extends Parser {
         this.parseDiscardStatement(stmt, start)
       } else if (this.consumeIf(Keyword.ANALYZE)) {
         stmt = new model.AnalyzeStatement()
-        /**@todo */
+        this.parseAnalyzeStatement(stmt, start)
       } else if (this.consumeIf(Keyword.EXPLAIN)) {
         stmt = new model.ExplainStatement()
+        this.parseExplainStatement(stmt, start)
       } else if (this.consumeIf(Keyword.CLUSTER)) {
         stmt = new model.ClusterStatement()
+        this.parseClusterStatement(stmt, start)
       } else if (this.consumeIf(Keyword.REINDEX)) {
         stmt = new model.ReindexStatement()
+        this.parseReindexStatement(stmt, start)
       } else if (this.consumeIf(Keyword.VACUUM)) {
         stmt = new model.VacuumStatement()
+        this.parseVacuumStatement(stmt, start)
       } else if (this.consumeIf(Keyword.LOAD)) {
         stmt = new model.LoadStatement()
+        this.parseLoadStatement(stmt, start)
       } else if (this.consumeIf(Keyword.IMPORT)) {
         this.consume(Keyword.FOREIGN, Keyword.SCHEMA)
-        stmt = new model.ImportForeigntatement()
+        stmt = new model.ImportForeignSchemaStatement()
+        this.parseImportForeignSchemaStatement(stmt, start)
       } else if (this.consumeIf(Keyword.COPY)) {
         stmt = new model.CopyStatement()
+        this.parseCopyStatement(stmt, start)
       } else if (this.consumeIf(Keyword.CHECKPOINT)) {
         stmt = new model.CheckpointStatement()
+        this.parseCheckpointStatement(stmt, start)
       } else if (this.consumeIf(Keyword.REFRESH)) {
         this.consume(Keyword.MATERIALIZED, Keyword.VIEW)
         stmt = new model.RefreshMaterializedViewStatement()
+        this.parseRefreshMaterializedViewStatement(stmt, start)
       } else if (this.consumeIf(Keyword.PREPARE)) {
         if (this.consumeIf(Keyword.TRANSACTION)) {
           stmt = new model.PrepareTransactionStatement()
+          this.parsePrepareTransactionStatement(stmt, start)
         } else {
           stmt = new model.PrepareStatement()
+          this.parsePrepareStatement(stmt, start)
         }
       } else if (this.consumeIf(Keyword.EXECUTE)) {
         stmt = new model.ExecuteStatement()
+        this.parseExecuteStatement(stmt, start)
       } else if (this.consumeIf(Keyword.DEALLOCATE)) {
         stmt = new model.DeallocateStatement()
+        this.parseDeallocateStatement(stmt, start)
       } else if (this.consumeIf(Keyword.DECLARE)) {
         stmt = new model.DeclareStatement()
+        this.parseDeclareStatement(stmt, start)
       } else if (this.consumeIf(Keyword.FETCH)) {
         stmt = new model.FetchStatement()
+        this.parseFetchStatement(stmt, start)
       } else if (this.consumeIf(Keyword.MOVE)) {
         stmt = new model.MoveStatement()
+        this.parseMoveStatement(stmt, start)
       } else if (this.consumeIf(Keyword.CLOSE)) {
         stmt = new model.CloseStatement()
+        this.parseCloseStatement(stmt, start)
       } else if (this.consumeIf(Keyword.LISTEN)) {
         stmt = new model.ListenStatement()
+        this.parseListenStatement(stmt, start)
       } else if (this.consumeIf(Keyword.NOTIFY)) {
         stmt = new model.NotifyStatement()
+        this.parseNotifyStatement(stmt, start)
       } else if (this.consumeIf(Keyword.UNLISTEN)) {
         stmt = new model.UnlistenStatement()
+        this.parseUnlistenStatement(stmt, start)
       } else if (this.consumeIf(Keyword.SET)) {
         if (this.consumeIf(Keyword.CONSTRAINT)) {
           stmt = new model.SetConstraintStatement()
+          this.parseSetConstraintStatement(stmt, start)
         } else if (this.consumeIf(Keyword.ROLE)) {
           stmt = new model.SetRoleStatement()
+          this.parseSetRoleStatement(stmt, start)
         } else if (this.consumeIf(Keyword.SESSION)) {
           this.consume(Keyword.AUTHORIZATION)
           stmt = new model.SetSessionAuthorizationStatement()
+          this.parseSetSessionAuthorizationStatement(stmt, start)
         } else if (this.consumeIf(Keyword.TRANSACTION)) {
           stmt = new model.SetTransactionStatement()
+          this.parseSetTransactionStatement(stmt, start)
         } else {
           stmt = new model.SetStatement()
+          this.parseSetStatement(stmt, start)
         }
       } else if (this.consumeIf(Keyword.RESET)) {
         stmt = new model.ResetStatement()
+        this.parseResetStatement(stmt, start)
       } else if (this.consumeIf(Keyword.SHOW)) {
         stmt = new model.ShowStatement()
+        this.parseShowStatement(stmt, start)
       } else if (this.consumeIf(Keyword.CALL)) {
         stmt = new model.CallStatement()
+        this.parseCallStatement(stmt, start)
       } else if (this.consumeIf(Keyword.DO)) {
         stmt = new model.DoStatement()
+        this.parseDoStatement(stmt, start)
       } else if (this.consumeIf(Keyword.VALUES)) {
         stmt = new model.ValuesStatement()
+        this.parseValuesStatement(stmt, start)
       } else {
         if (this.peekIf(Keyword.WITH)) {
           this.withClause()
         }
         if (this.consumeIf(Keyword.INSERT)) {
           stmt = new model.InsertStatement()
+          this.parseInsertStatement(stmt, start)
         } else if (this.consumeIf(Keyword.UPDATE)) {
           stmt = new model.UpdateStatement()
+          this.parseUpdateStatement(stmt, start)
         } else if (this.consumeIf(Keyword.DELETE)) {
           stmt = new model.DeleteStatement()
+          this.parseDeleteStatement(stmt, start)
         } else if (this.peekIf(Keyword.SELECT)) {
           stmt = new model.SelectStatement()
+          this.parseSelectStatement(stmt, start)
         }
       }
     }
@@ -1695,6 +1729,149 @@ export class PostgresParser extends Parser {
 
   private parseDiscardStatement(stmt: model.DiscardStatement, start: number) {
 
+  }
+
+  private parseAnalyzeStatement(stmt: model.AnalyzeStatement, start: number) {
+
+  }
+
+  private parseExplainStatement(stmt: model.ExplainStatement, start: number) {
+
+  }
+
+  private parseClusterStatement(stmt: model.ClusterStatement, start: number) {
+
+  }
+
+  private parseReindexStatement(stmt: model.ReindexStatement, start: number) {
+
+  }
+
+  private parseVacuumStatement(stmt: model.VacuumStatement, start: number) {
+
+  }
+
+  private parseLoadStatement(stmt: model.LoadStatement, start: number) {
+
+  }
+
+  private parseImportForeignSchemaStatement(stmt: model.ImportForeignSchemaStatement, start: number) {
+
+  }
+
+  private parseCopyStatement(stmt: model.CopyStatement, start: number) {
+
+  }
+
+  private parseCheckpointStatement(stmt: model.CheckpointStatement, start: number) {
+
+  }
+
+  private parseRefreshMaterializedViewStatement(stmt: model.RefreshMaterializedViewStatement, start: number) {
+
+  }
+
+  private parsePrepareTransactionStatement(stmt: model.PrepareTransactionStatement, start: number) {
+
+  }
+
+  private parsePrepareStatement(stmt: model.PrepareStatement, start: number) {
+
+  }
+
+  private parseExecuteStatement(stmt: model.ExecuteStatement, start: number) {
+
+  }
+
+  private parseDeallocateStatement(stmt: model.DeallocateStatement, start: number) {
+
+  }
+
+  private parseDeclareStatement(stmt: model.DeclareStatement, start: number) {
+
+  }
+
+  private parseFetchStatement(stmt: model.FetchStatement, start: number) {
+
+  }
+
+  private parseMoveStatement(stmt: model.MoveStatement, start: number) {
+
+  }
+
+  private parseCloseStatement(stmt: model.CloseStatement, start: number) {
+
+  }
+
+  private parseListenStatement(stmt: model.ListenStatement, start: number) {
+
+  }
+
+  private parseNotifyStatement(stmt: model.NotifyStatement, start: number) {
+
+  }
+
+  private parseUnlistenStatement(stmt: model.UnlistenStatement, start: number) {
+
+  }
+
+  private parseSetConstraintStatement(stmt: model.SetConstraintStatement, start: number) {
+
+  }
+
+  private parseSetRoleStatement(stmt: model.SetRoleStatement, start: number) {
+
+  }
+
+  private parseSetSessionAuthorizationStatement(stmt: model.SetSessionAuthorizationStatement, start: number) {
+
+  }
+
+  private parseSetTransactionStatement(stmt: model.SetTransactionStatement, start: number) {
+
+  }
+
+  private parseSetStatement(stmt: model.SetStatement, start: number) {
+
+  }
+
+  private parseResetStatement(stmt: model.ResetStatement, start: number) {
+
+  }
+
+  private parseShowStatement(stmt: model.ShowStatement, start: number) {
+
+  }
+
+  private parseCallStatement(stmt: model.CallStatement, start: number) {
+
+  }
+
+  private parseDoStatement(stmt: model.DoStatement, start: number) {
+
+  }
+
+  private parseValuesStatement(stmt: model.ValuesStatement, start: number) {
+
+  }
+
+  private parseInsertStatement(stmt: model.InsertStatement, start: number) {
+
+  }
+
+  private parseUpdateStatement(stmt: model.UpdateStatement, start: number) {
+
+  }
+
+  private parseDeleteStatement(stmt: model.DeleteStatement, start: number) {
+
+  }
+
+  private parseSelectStatement(stmt: model.SelectStatement, start: number) {
+    if (this.peekIf(Keyword.WITH)) {
+      throw this.createParseError()
+    }
+    this.selectClause()
   }
 
   private selectClause() {

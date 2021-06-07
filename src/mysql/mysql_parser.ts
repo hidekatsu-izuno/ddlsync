@@ -3455,6 +3455,9 @@ export class MysqlParser extends Parser {
   }
 
   private parseSelectStatement(stmt: model.SelectStatement, start: number) {
+    if (this.peekIf(Keyword.WITH)) {
+      throw this.createParseError()
+    }
     this.selectClause()
   }
 

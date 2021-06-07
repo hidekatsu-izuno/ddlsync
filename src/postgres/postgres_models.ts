@@ -663,7 +663,7 @@ export class LoadStatement extends Statement {
 
 }
 
-export class ImportForeigntatement extends Statement {
+export class ImportForeignSchemaStatement extends Statement {
 
 }
 
