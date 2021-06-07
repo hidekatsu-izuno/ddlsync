@@ -314,6 +314,7 @@ export class DropStatisticsClassStatement extends Statement {
 export class CreateTableStatement extends Statement {
   schemaName?: string
   name = ""
+  orReplace = false
   temporary = false
   unlogged = false
 }
@@ -346,6 +347,7 @@ export class DropForeignTableStatement extends Statement {
 export class CreateSequenceStatement extends Statement {
   schemaName?: string
   name = ""
+  orReplace = false
   temporary = false
 }
 

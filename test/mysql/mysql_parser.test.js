@@ -81,10 +81,12 @@ describe("test mysql_parser", () => {
     const result = new MysqlParser(input, {}).root()
     expect(result.length).toBe(1)
     expect(result[0]).toBeInstanceOf(model.CreateTableStatement)
+    expect(result[0].schemaName).toBe(expected.schemaName)
+    expect(result[0].orReplace).toBe(expected.orReplace || false)
+    expect(result[0].name).toBe(expected.name)
     expect(result[0].ifNotExists).toBe(expected.ifNotExists || false)
     expect(result[0].temporary).toBe(expected.temporary || false)
     expect(result[0].asSelect).toBe(expected.asSelect || false)
-    expect(result[0].name).toBe(expected.name)
     expect(result[0].columns?.length).toBe(expected.columns?.length)
     for (let i = 0; i < 3; i++) {
       expect(result[0].columns?.[i]?.name).toBe(expected.columns?.[i]?.name)
@@ -104,6 +106,44 @@ describe("test mysql_parser", () => {
     for (let i = 0; i < 3; i++) {
       expect(result[0].tables?.[i]?.schemaName).toBe(expected.tables?.[i]?.schemaName)
       expect(result[0].tables?.[i]?.name).toBe(expected.tables?.[i]?.name)
+    }
+    expect(result[0].ifExists).toBe(expected.ifExists || false)
+  })
+
+  test.each([
+    ["CREATE SEQUENCE x",
+      { name: "x" }],
+    ["CREATE OR REPLACE SEQUENCE x",
+      { name: "x", orReplace: true }],
+    ["CREATE SEQUENCE IF NOT EXISTS x",
+      { name: "x", ifNotExists: true }],
+    ["CREATE SEQUENCE x INCREMENT = 1",
+      { name: "x", increment: "1" }],
+    ["CREATE SEQUENCE x INCREMENT BY 1",
+      { name: "x", increment: "1" }],
+    ["CREATE SEQUENCE x INCREMENT 1",
+      { name: "x", increment: "1" }],
+  ])("create sequence %#", (input, expected) => {
+    const result = new MysqlParser(input, {}).root()
+    expect(result.length).toBe(1)
+    expect(result[0]).toBeInstanceOf(model.CreateSequenceStatement)
+    expect(result[0].schemaName).toBe(expected.schemaName)
+    expect(result[0].name).toBe(expected.name)
+    expect(result[0].orReplace).toBe(expected.orReplace || false)
+    expect(result[0].ifNotExists).toBe(expected.ifNotExists || false)
+    expect(result[0].columns?.length).toBe(expected.columns?.length)
+  })
+
+  test.each([
+    ["DROP SEQUENCE x", { sequences: [{ name: "x" }] }],
+    ["DROP SEQUENCE IF EXISTS main.x, y", { sequences: [{ schemaName: "main", name: "x" }, { name: "y" }], ifExists: true }],
+  ])("drop sequence %#", (input, expected) => {
+    const result = new MysqlParser(input, {}).root()
+    expect(result.length).toBe(1)
+    expect(result[0]).toBeInstanceOf(model.DropSequenceStatement)
+    for (let i = 0; i < 3; i++) {
+      expect(result[0].sequences?.[i]?.schemaName).toBe(expected.sequences?.[i]?.schemaName)
+      expect(result[0].sequences?.[i]?.name).toBe(expected.sequences?.[i]?.name)
     }
     expect(result[0].ifExists).toBe(expected.ifExists || false)
   })

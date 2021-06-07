@@ -7,6 +7,7 @@ import {
   ParseError,
   AggregateParseError,
 } from "../parser"
+import { CreateTriggerStatement } from "../sqlite3/sqlite3_models"
 import { lcase, ucase } from "../util/functions"
 import * as model from "./postgres_models"
 
@@ -420,16 +421,21 @@ export class PostgresParser extends Parser {
     if (this.consumeIf(Keyword.CREATE)) {
       if (this.consumeIf(Keyword.DATABASE)) {
         stmt = new model.CreateDatabaseStatement()
+        this.parseCreateDatabaseStatement(stmt, start)
       } else if (this.consumeIf(Keyword.ACCESS)) {
         this.consume(Keyword.METHOD)
         stmt = new model.CreateAccessMethodStatement()
+        this.parseCreateAccessMethodStatement(stmt, start)
       } else if (this.consumeIf(Keyword.CAST)) {
         stmt = new model.CreateCastStatement()
+        this.parseCreateCastStatement(stmt, start)
       } else if (this.consumeIf(Keyword.EVENT)) {
         this.consume(Keyword.TRIGGER)
         stmt = new model.CreateEventTriggerStatement()
+        this.parseCreateEventTriggerStatement(stmt, start)
       } else if (this.consumeIf(Keyword.EXTENSION)) {
         stmt = new model.CreateExtensionStatement()
+        this.parseCreateExtensionStatement(stmt, start)
       } else if (this.consumeIf(Keyword.TRUSTED)) {
         stmt = new model.CreateLanguageStatement()
         stmt.trusted = true
@@ -437,54 +443,75 @@ export class PostgresParser extends Parser {
           stmt.procedural = true
         }
         this.consume(Keyword.LANGUAGE)
+        this.parseCreateLanguageStatement(stmt, start)
       } else if (this.consumeIf(Keyword.PROCEDURAL)) {
         this.consume(Keyword.LANGUAGE)
         stmt = new model.CreateLanguageStatement()
         stmt.procedural = true
+        this.parseCreateLanguageStatement(stmt, start)
       } else if (this.consumeIf(Keyword.LANGUAGE)) {
         stmt = new model.CreateLanguageStatement()
+        this.parseCreateLanguageStatement(stmt, start)
       } else if (this.consumeIf(Keyword.TRANSFORM)) {
         stmt = new model.CreateTransformStatement()
+        this.parseCreateTransformStatement(stmt, start)
       } else if (this.consumeIf(Keyword.PUBLICATION)) {
         stmt = new model.CreatePublicationStatement()
+        this.parseCreatePublicationStatement(stmt, start)
       } else if (this.consumeIf(Keyword.SUBSCRIPTION)) {
         stmt = new model.CreateSubscriptionStatement()
+        this.parseCreateSubscriptionStatement(stmt, start)
       } else if (this.consumeIf(Keyword.SERVER)) {
         stmt = new model.CreateServerStatement()
+        this.parseCreateServerStatement(stmt, start)
       } else if (this.consumeIf(Keyword.TABLESPACE)) {
         stmt = new model.CreateTablespaceStatement()
+        this.parseCreateTablespaceStatement(stmt, start)
       } else if (this.consumeIf(Keyword.TYPE)) {
         stmt = new model.CreateTypeStatement()
+        this.parseCreateTypeStatement(stmt, start)
       } else if (this.consumeIf(Keyword.GROUP) || this.consumeIf(Keyword.ROLE)) {
         stmt = new model.CreateRoleStatement()
+        this.parseCreateRoleStatement(stmt, start)
       } else if (this.consumeIf(Keyword.USER)) {
         if (this.consumeIf(Keyword.MAPPING)) {
           stmt = new model.CreateUserMappingStatement()
+          this.parseCreateUserMappingStatement(stmt, start)
         } else {
           stmt = new model.CreateRoleStatement()
           stmt.login = true
+          this.parseCreateRoleStatement(stmt, start)
         }
       } else if (this.consumeIf(Keyword.SCHEMA)) {
         stmt = new model.CreateSchemaStatement()
+        this.parseCreateSchemaStatement(stmt, start)
       } else if (this.consumeIf(Keyword.COLLATION)) {
         stmt = new model.CreateCollationStatement()
+        this.parseCreateCollationStatement(stmt, start)
       } else if (this.consumeIf(Keyword.DEFAULT, Keyword.CONVERSION)) {
         stmt = new model.CreateConversionStatement()
         stmt.default = true
+        this.parseCreateConversionStatement(stmt, start)
       } else if (this.consumeIf(Keyword.CONVERSION)) {
         stmt = new model.CreateConversionStatement()
+        this.parseCreateConversionStatement(stmt, start)
       } else if (this.consumeIf(Keyword.DOMAIN)) {
         stmt = new model.CreateDomainStatement()
+        this.parseCreateDomainStatement(stmt, start)
       } else if (this.consumeIf(Keyword.OPERATOR)) {
         if (this.consumeIf(Keyword.CLASS)) {
           stmt = new model.CreateOperatorClassStatement()
+          this.parseCreateOperatorClassStatement(stmt, start)
         } else if (this.consumeIf(Keyword.FAMILY)) {
           stmt = new model.CreateOperatorFamilyStatement()
+          this.parseCreateOperatorFamilyStatement(stmt, start)
         } else {
           stmt = new model.CreateOperatorStatement()
+          this.parseCreateOperatorStatement(stmt, start)
         }
       } else if (this.consumeIf(Keyword.STATISTICS)) {
         stmt = new model.CreateStatisticsClassStatement()
+        this.parseCreateStatisticsClassStatement(stmt, start)
       } else if (this.consumeIf(Keyword.GLOBAL) || this.consumeIf(Keyword.LOCAL)) {
         stmt = new model.CreateTableStatement()
         if (this.consumeIf(Keyword.TEMPORARY) || this.consumeIf(Keyword.TEMP)) {
@@ -494,33 +521,69 @@ export class PostgresParser extends Parser {
           stmt.unlogged = true
         }
         this.consume(Keyword.TABLE)
+        this.parseCreateTableStatement(stmt, start)
       } else if (this.consumeIf(Keyword.OR)) {
         this.consume(Keyword.REPLACE)
-        if (this.consumeIf(Keyword.LANGUAGE)) {
+        if (this.consumeIf(Keyword.TEMPORARY) || this.consumeIf(Keyword.TEMP)) {
+          if (this.consumeIf(Keyword.TABLE)) {
+            stmt = new model.CreateTableStatement()
+            stmt.orReplace = true
+            stmt.temporary = true
+            this.parseCreateTableStatement(stmt, start)
+          } else if (this.consumeIf(Keyword.SEQUENCE)) {
+            stmt = new model.CreateSequenceStatement()
+            stmt.orReplace = true
+            stmt.temporary = true
+            this.parseCreateSequenceStatement(stmt, start)
+          } else if (this.consumeIf(Keyword.RECURSIVE, Keyword.VIEW)) {
+            stmt = new model.CreateViewStatement()
+            stmt.orReplace = true
+            stmt.temporary = true
+            stmt.recursive = true
+            this.parseCreateViewStatement(stmt, start)
+          } else if (this.consumeIf(Keyword.VIEW)) {
+            stmt = new model.CreateViewStatement()
+            stmt.orReplace = true
+            stmt.temporary = true
+            this.parseCreateViewStatement(stmt, start)
+          }
+        } else if (this.consumeIf(Keyword.LANGUAGE)) {
           stmt = new model.CreateLanguageStatement()
           stmt.orReplace = true
+          this.parseCreateLanguageStatement(stmt, start)
         } else if (this.consumeIf(Keyword.TRANSFORM)) {
           stmt = new model.CreateTransformStatement()
           stmt.orReplace = true
+          this.parseCreateTransformStatement(stmt, start)
+        } else if (this.consumeIf(Keyword.SEQUENCE)) {
+          stmt = new model.CreateSequenceStatement()
+          stmt.orReplace = true
+          this.parseCreateSequenceStatement(stmt, start)
         } else if (this.consumeIf(Keyword.RECURSIVE, Keyword.VIEW)) {
           stmt = new model.CreateViewStatement()
           stmt.orReplace = true
           stmt.recursive = true
+          this.parseCreateViewStatement(stmt, start)
         } else if (this.consumeIf(Keyword.VIEW)) {
           stmt = new model.CreateViewStatement()
           stmt.orReplace = true
+          this.parseCreateViewStatement(stmt, start)
         } else if (this.consumeIf(Keyword.PROCEDURE)) {
           stmt = new model.CreateProcedureStatement()
           stmt.orReplace = true
+          this.parseCreateProcedureStatement(stmt, start)
         } else if (this.consumeIf(Keyword.FUNCTION)) {
           stmt = new model.CreateFunctionStatement()
           stmt.orReplace = true
+          this.parseCreateFunctionStatement(stmt, start)
         } else if (this.consumeIf(Keyword.AGGREGATE)) {
           stmt = new model.CreateAggregateStatement()
           stmt.orReplace = true
+          this.parseCreateAggregateStatement(stmt, start)
         } else if (this.consumeIf(Keyword.RULE)) {
           stmt = new model.CreateRuleStatement()
           stmt.orReplace = true
+          this.parseCreateRuleStatement(stmt, start)
         } else {
           this.consumeIf(Keyword.RECURSIVE)
           throw this.createParseError()
@@ -530,16 +593,20 @@ export class PostgresParser extends Parser {
           stmt = new model.CreateTableStatement()
           stmt.temporary = true
           stmt.unlogged = true
+          this.parseCreateTableStatement(stmt, start)
         } else if (this.consumeIf(Keyword.TABLE)) {
           stmt = new model.CreateTableStatement()
           stmt.temporary = true
+          this.parseCreateTableStatement(stmt, start)
         } else if (this.consumeIf(Keyword.SEQUENCE)) {
           stmt = new model.CreateSequenceStatement()
           stmt.temporary = true
+          this.parseCreateSequenceStatement(stmt, start)
         } else if (this.consumeIf(Keyword.RECURSIVE, Keyword.VIEW)) {
           stmt = new model.CreateViewStatement()
           stmt.temporary = true
           stmt.recursive = true
+          this.parseCreateViewStatement(stmt, start)
         } else if (this.consumeIf(Keyword.VIEW)) {
           stmt = new model.CreateViewStatement()
           stmt.temporary = true
@@ -552,54 +619,75 @@ export class PostgresParser extends Parser {
         if (this.consumeIf(Keyword.DATA)) {
           this.consume(Keyword.WRAPPER)
           stmt = new model.CreateForeignDataWrapperStatement()
+          this.parseCreateForeignDataWrapperStatement(stmt, start)
         } else if (this.consumeIf(Keyword.TABLE)) {
           stmt = new model.CreateForeignTableStatement()
+          this.parseCreateForeignTableStatement(stmt, start)
         }
       } else if (this.consumeIf(Keyword.UNLOGGED, Keyword.TABLE)) {
         stmt = new model.CreateTableStatement()
         stmt.unlogged = true
+        this.parseCreateTableStatement(stmt, start)
       } else if (this.consumeIf(Keyword.TABLE)) {
         stmt = new model.CreateTableStatement()
+        this.parseCreateTableStatement(stmt, start)
       } else if (this.consumeIf(Keyword.SEQUENCE)) {
         stmt = new model.CreateSequenceStatement()
+        this.parseCreateSequenceStatement(stmt, start)
       } else if (this.consumeIf(Keyword.RECURSIVE, Keyword.VIEW)) {
         stmt = new model.CreateViewStatement()
         stmt.recursive = true
+        this.parseCreateViewStatement(stmt, start)
       } else if (this.consumeIf(Keyword.VIEW)) {
         stmt = new model.CreateViewStatement()
+        this.parseCreateViewStatement(stmt, start)
       } else if (this.consumeIf(Keyword.MATERIALIZED)) {
         stmt = new model.CreateMaterializedViewStatement()
+        this.parseCreateMaterializedViewStatement(stmt, start)
       } else if (this.consumeIf(Keyword.PROCEDURE)) {
         stmt = new model.CreateProcedureStatement()
+        this.parseCreateProcedureStatement(stmt, start)
       } else if (this.consumeIf(Keyword.FUNCTION)) {
         stmt = new model.CreateFunctionStatement()
+        this.parseCreateFunctionStatement(stmt, start)
       } else if (this.consumeIf(Keyword.AGGREGATE)) {
         stmt = new model.CreateAggregateStatement()
+        this.parseCreateAggregateStatement(stmt, start)
       } else if (this.consumeIf(Keyword.CONSTRAINT, Keyword.TRIGGER)) {
         stmt = new model.CreateTriggerStatement()
         stmt.constraint = true
+        this.parseCreateTriggerStatement(stmt, start)
       } else if (this.consumeIf(Keyword.TRIGGER)) {
         stmt = new model.CreateTriggerStatement()
+        this.parseCreateTriggerStatement(stmt, start)
       } else if (this.consumeIf(Keyword.TEXT)) {
         this.consume(Keyword.SEARCH)
         if (this.consumeIf(Keyword.CONFIGURATION)) {
           stmt = new model.CreateTextSearchConfigurationStatement()
+          this.parseCreateTextSearchConfigurationStatement(stmt, start)
         } else if (this.consumeIf(Keyword.DICTIONARY)) {
           stmt = new model.CreateTextSearchDictionaryStatement()
+          this.parseCreateTextSearchDictionaryStatement(stmt, start)
         } else if (this.consumeIf(Keyword.PARSER)) {
           stmt = new model.CreateTextSearchParserStatement()
+          this.parseCreateTextSearchParserStatement(stmt, start)
         } else if (this.consumeIf(Keyword.TEMPLATE)) {
           stmt = new model.CreateTextSearchTemplateStatement()
+          this.parseCreateTextSearchTemplateStatement(stmt, start)
         }
       } else if (this.consumeIf(Keyword.POLICY)) {
         stmt = new model.CreatePolicyStatement()
+        this.parseCreatePolicyStatement(stmt, start)
       } else if (this.consumeIf(Keyword.RULE)) {
         stmt = new model.CreateRuleStatement()
+        this.parseCreateRuleStatement(stmt, start)
       } else if (this.consumeIf(Keyword.UNIQUE, Keyword.INDEX)) {
         stmt = new model.CreateIndexStatement()
+        this.parseCreateIndexStatement(stmt, start)
         stmt.type = model.IndexType.UNIQUE
       } else if (this.consumeIf(Keyword.INDEX)) {
         stmt = new model.CreateIndexStatement()
+        this.parseCreateIndexStatement(stmt, start)
       } else if (
         this.consumeIf(Keyword.DEFAULT) ||
         this.consumeIf(Keyword.TEMPORARY) ||
@@ -614,104 +702,145 @@ export class PostgresParser extends Parser {
     } else if (this.consumeIf(Keyword.ALTER)) {
       if (this.consumeIf(Keyword.SYSTEM)) {
         stmt = new model.AlterSystemStatement()
+        this.parseAlterSystemStatement(stmt, start)
       } else if (this.consumeIf(Keyword.DATABASE)) {
         stmt = new model.AlterDatabaseStatement()
+        this.parseAlterDatabaseStatement(stmt, start)
       } else if (this.consumeIf(Keyword.EVENT)) {
         this.consume(Keyword.TRIGGER)
         stmt = new model.AlterEventTriggerStatement()
+        this.parseAlterEventTriggerStatement(stmt, start)
       } else if (this.consumeIf(Keyword.EXTENSION)) {
         stmt = new model.AlterExtensionStatement()
+        this.parseAlterExtensionStatement(stmt, start)
       } else if (this.consumeIf(Keyword.PROCEDURAL)) {
         this.consume(Keyword.LANGUAGE)
         stmt = new model.AlterLanguageStatement()
         stmt.procedural = true
+        this.parseAlterLanguageStatement(stmt, start)
       } else if (this.consumeIf(Keyword.LANGUAGE)) {
         stmt = new model.AlterLanguageStatement()
+        this.parseAlterLanguageStatement(stmt, start)
       } else if (this.consumeIf(Keyword.PUBLICATION)) {
         stmt = new model.AlterPublicationStatement()
+        this.parseAlterPublicationStatement(stmt, start)
       } else if (this.consumeIf(Keyword.SUBSCRIPTION)) {
         stmt = new model.AlterSubscriptionStatement()
+        this.parseAlterSubscriptionStatement(stmt, start)
       } else if (this.consumeIf(Keyword.SERVER)) {
         stmt = new model.AlterServerStatement()
+        this.parseAlterServerStatement(stmt, start)
       } else if (this.consumeIf(Keyword.TABLESPACE)) {
         stmt = new model.AlterTablespaceStatement()
+        this.parseAlterTablespaceStatement(stmt, start)
       } else if (this.consumeIf(Keyword.TYPE)) {
         stmt = new model.AlterTypeStatement()
+        this.parseAlterTypeStatement(stmt, start)
       } else if (this.consumeIf(Keyword.GROUP) || this.consumeIf(Keyword.ROLE)) {
         stmt = new model.AlterRoleStatement()
+        this.parseAlterRoleStatement(stmt, start)
       } else if (this.consumeIf(Keyword.USER)) {
         if (this.consumeIf(Keyword.MAPPING)) {
           stmt = new model.AlterUserMappingStatement()
+          this.parseAlterUserMappingStatement(stmt, start)
         } else {
           stmt = new model.AlterRoleStatement()
           stmt.login = true
+          this.parseAlterRoleStatement(stmt, start)
         }
       } else if (this.consumeIf(Keyword.LARGE)) {
         this.consume(Keyword.OBJECT)
         stmt = new model.AlterLargeObjectStatement()
+        this.parseAlterLargeObjectStatement(stmt, start)
       } else if (this.consumeIf(Keyword.SCHEMA)) {
         stmt = new model.AlterSchemaStatement()
+        this.parseAlterSchemaStatement(stmt, start)
       } else if (this.consumeIf(Keyword.COLLATION)) {
         stmt = new model.AlterCollationStatement()
+        this.parseAlterCollationStatement(stmt, start)
       } else if (this.consumeIf(Keyword.DEFAULT, Keyword.PRIVILEGES)) {
         stmt = new model.AlterDefaultPrivilegesStatement()
+        this.parseAlterDefaultPrivilegesStatement(stmt, start)
       } else if (this.consumeIf(Keyword.CONVERSION)) {
         stmt = new model.AlterConversionStatement()
+        this.parseAlterConversionStatement(stmt, start)
       } else if (this.consumeIf(Keyword.DOMAIN)) {
         stmt = new model.AlterDomainStatement()
+        this.parseAlterDomainStatement(stmt, start)
       } else if (this.consumeIf(Keyword.OPERATOR)) {
         if (this.consumeIf(Keyword.CLASS)) {
           stmt = new model.AlterOperatorClassStatement()
+          this.parseAlterOperatorClassStatement(stmt, start)
         } else if (this.consumeIf(Keyword.FAMILY)) {
           stmt = new model.AlterOperatorFamilyStatement()
+          this.parseAlterOperatorFamilyStatement(stmt, start)
         } else {
           stmt = new model.AlterOperatorStatement()
+          this.parseAlterOperatorStatement(stmt, start)
         }
       } else if (this.consumeIf(Keyword.STATISTICS)) {
         stmt = new model.AlterStatisticsClassStatement()
+        this.parseAlterStatisticsClassStatement(stmt, start)
       } else if (this.consumeIf(Keyword.FOREIGN)) {
         if (this.consumeIf(Keyword.DATA)) {
           this.consume(Keyword.WRAPPER)
           stmt = new model.AlterForeignDataWrapperStatement()
+          this.parseAlterForeignDataWrapperStatement(stmt, start)
         } else if (this.consumeIf(Keyword.TABLE)) {
           stmt = new model.AlterForeignTableStatement()
+          this.parseAlterForeignTableStatement(stmt, start)
         }
       } else if (this.consumeIf(Keyword.TABLE)) {
         stmt = new model.AlterTableStatement()
+        this.parseAlterTableStatement(stmt, start)
       } else if (this.consumeIf(Keyword.SEQUENCE)) {
         stmt = new model.AlterSequenceStatement()
-
+        this.parseAlterSequenceStatement(stmt, start)
       } else if (this.consumeIf(Keyword.VIEW)) {
         stmt = new model.AlterViewStatement()
+        this.parseAlterViewStatement(stmt, start)
       } else if (this.consumeIf(Keyword.MATERIALIZED)) {
         stmt = new model.AlterMaterializedViewStatement()
+        this.parseAlterMaterializedViewStatement(stmt, start)
       } else if (this.consumeIf(Keyword.PROCEDURE)) {
         stmt = new model.AlterProcedureStatement()
+        this.parseAlterProcedureStatement(stmt, start)
       } else if (this.consumeIf(Keyword.FUNCTION)) {
         stmt = new model.AlterFunctionStatement()
+        this.parseAlterFunctionStatement(stmt, start)
       } else if (this.consumeIf(Keyword.AGGREGATE)) {
         stmt = new model.AlterAggregateStatement()
+        this.parseAlterAggregateStatement(stmt, start)
       } else if (this.consumeIf(Keyword.TRIGGER)) {
         stmt = new model.AlterTriggerStatement()
+        this.parseAlterTriggerStatement(stmt, start)
       } else if (this.consumeIf(Keyword.ROUTINE)) {
         stmt = new model.AlterRoutineStatement()
+        this.parseAlterRoutineStatement(stmt, start)
       } else if (this.consumeIf(Keyword.TEXT)) {
         this.consume(Keyword.SEARCH)
         if (this.consumeIf(Keyword.CONFIGURATION)) {
           stmt = new model.AlterTextSearchConfigurationStatement()
+          this.parseAlterTextSearchConfigurationStatement(stmt, start)
         } else if (this.consumeIf(Keyword.DICTIONARY)) {
           stmt = new model.AlterTextSearchDictionaryStatement()
+          this.parseAlterTextSearchDictionaryStatement(stmt, start)
         } else if (this.consumeIf(Keyword.PARSER)) {
           stmt = new model.AlterTextSearchParserStatement()
+          this.parseAlterTextSearchParserStatement(stmt, start)
         } else if (this.consumeIf(Keyword.TEMPLATE)) {
           stmt = new model.AlterTextSearchTemplateStatement()
+          this.parseAlterTextSearchTemplateStatement(stmt, start)
         }
       } else if (this.consumeIf(Keyword.POLICY)) {
         stmt = new model.AlterPolicyStatement()
+        this.parseAlterPolicyStatement(stmt, start)
       } else if (this.consumeIf(Keyword.RULE)) {
         stmt = new model.AlterRuleStatement()
+        this.parseAlterRuleStatement(stmt, start)
       } else if (this.consumeIf(Keyword.INDEX)) {
         stmt = new model.AlterIndexStatement()
+        this.parseAlterIndexStatement(stmt, start)
       } else if (
         this.consumeIf(Keyword.DEFAULT)
       ) {
@@ -720,150 +849,211 @@ export class PostgresParser extends Parser {
     } else if (this.consumeIf(Keyword.DROP)) {
       if (this.consumeIf(Keyword.OWNED)) {
         stmt = new model.DropOwnedStatement()
+        this.parseDropOwnedStatement(stmt, start)
       } else if (this.consumeIf(Keyword.DATABASE)) {
         stmt = new model.DropDatabaseStatement()
+        this.parseDropDatabaseStatement(stmt, start)
       } else if (this.consumeIf(Keyword.ACCESS)) {
         this.consume(Keyword.METHOD)
         stmt = new model.DropAccessMethodStatement()
+        this.parseDropAccessMethodStatement(stmt, start)
       } else if (this.consumeIf(Keyword.CAST)) {
         stmt = new model.DropCastStatement()
+        this.parseDropCastStatement(stmt, start)
       } else if (this.consumeIf(Keyword.EVENT)) {
         this.consume(Keyword.TRIGGER)
         stmt = new model.DropEventTriggerStatement()
+        this.parseDropEventTriggerStatement(stmt, start)
       } else if (this.consumeIf(Keyword.EXTENSION)) {
         stmt = new model.DropExtensionStatement()
+        this.parseDropExtensionStatement(stmt, start)
       } else if (this.consumeIf(Keyword.PROCEDURAL)) {
         this.consume(Keyword.LANGUAGE)
         stmt = new model.DropLanguageStatement()
         stmt.procedural = true
+        this.parseDropLanguageStatement(stmt, start)
       } else if (this.consumeIf(Keyword.LANGUAGE)) {
         stmt = new model.DropLanguageStatement()
+        this.parseDropLanguageStatement(stmt, start)
       } else if (this.consumeIf(Keyword.TRANSFORM)) {
         stmt = new model.DropTransformStatement()
+        this.parseDropTransformStatement(stmt, start)
       } else if (this.consumeIf(Keyword.PUBLICATION)) {
         stmt = new model.DropPublicationStatement()
+        this.parseDropPublicationStatement(stmt, start)
       } else if (this.consumeIf(Keyword.SUBSCRIPTION)) {
         stmt = new model.DropSubscriptionStatement()
+        this.parseDropSubscriptionStatement(stmt, start)
       } else if (this.consumeIf(Keyword.SERVER)) {
         stmt = new model.DropServerStatement()
+        this.parseDropServerStatement(stmt, start)
       } else if (this.consumeIf(Keyword.TABLESPACE)) {
         stmt = new model.DropTablespaceStatement()
+        this.parseDropTablespaceStatement(stmt, start)
       } else if (this.consumeIf(Keyword.TYPE)) {
         stmt = new model.DropTypeStatement()
+        this.parseDropTypeStatement(stmt, start)
       } else if (this.consumeIf(Keyword.GROUP) || this.consumeIf(Keyword.ROLE)) {
         stmt = new model.DropRoleStatement()
+        this.parseDropRoleStatement(stmt, start)
       } else if (this.consumeIf(Keyword.USER)) {
         if (this.consumeIf(Keyword.MAPPING)) {
           stmt = new model.DropUserMappingStatement()
+          this.parseDropUserMappingStatement(stmt, start)
         } else {
           stmt = new model.DropRoleStatement()
           stmt.login = true
+          this.parseDropRoleStatement(stmt, start)
         }
       } else if (this.consumeIf(Keyword.SCHEMA)) {
         stmt = new model.DropSchemaStatement()
+        this.parseDropSchemaStatement(stmt, start)
       } else if (this.consumeIf(Keyword.COLLATION)) {
         stmt = new model.DropCollationStatement()
+        this.parseDropCollationStatement(stmt, start)
       } else if (this.consumeIf(Keyword.CONVERSION)) {
         stmt = new model.DropConversionStatement()
+        this.parseDropConversionStatement(stmt, start)
       } else if (this.consumeIf(Keyword.DOMAIN)) {
         stmt = new model.DropDomainStatement()
+        this.parseDropDomainStatement(stmt, start)
       } else if (this.consumeIf(Keyword.OPERATOR)) {
         if (this.consumeIf(Keyword.CLASS)) {
           stmt = new model.DropOperatorClassStatement()
+          this.parseDropOperatorClassStatement(stmt, start)
         } else if (this.consumeIf(Keyword.FAMILY)) {
           stmt = new model.DropOperatorFamilyStatement()
+          this.parseDropOperatorFamilyStatement(stmt, start)
         } else {
           stmt = new model.DropOperatorStatement()
+          this.parseDropOperatorStatement(stmt, start)
         }
       } else if (this.consumeIf(Keyword.STATISTICS)) {
         stmt = new model.DropStatisticsClassStatement()
+        this.parseDropStatisticsClassStatement(stmt, start)
       } else if (this.consumeIf(Keyword.FOREIGN)) {
         if (this.consumeIf(Keyword.DATA)) {
           this.consume(Keyword.WRAPPER)
           stmt = new model.DropForeignDataWrapperStatement()
+          this.parseDropForeignDataWrapperStatement(stmt, start)
         } else if (this.consumeIf(Keyword.TABLE)) {
           stmt = new model.DropForeignTableStatement()
+          this.parseDropForeignTableStatement(stmt, start)
         } else if (this.consumeIf(Keyword.TABLE)) {
           stmt = new model.DropTableStatement()
+          this.parseDropTableStatement(stmt, start)
         } else if (this.consumeIf(Keyword.SEQUENCE)) {
           stmt = new model.DropSequenceStatement()
+          this.parseDropSequenceStatement(stmt, start)
         } else if (this.consumeIf(Keyword.VIEW)) {
           stmt = new model.DropViewStatement()
+          this.parseDropViewStatement(stmt, start)
         } else if (this.consumeIf(Keyword.MATERIALIZED)) {
           stmt = new model.DropMaterializedViewStatement()
+          this.parseDropMaterializedViewStatement(stmt, start)
         } else if (this.consumeIf(Keyword.PROCEDURE)) {
           stmt = new model.DropProcedureStatement()
+          this.parseDropProcedureStatement(stmt, start)
         } else if (this.consumeIf(Keyword.FUNCTION)) {
           stmt = new model.DropFunctionStatement()
+          this.parseDropFunctionStatement(stmt, start)
         } else if (this.consumeIf(Keyword.AGGREGATE)) {
           stmt = new model.DropAggregateStatement()
+          this.parseDropAggregateStatement(stmt, start)
         } else if (this.consumeIf(Keyword.TRIGGER)) {
           stmt = new model.DropTriggerStatement()
+          this.parseDropTriggerStatement(stmt, start)
         } else if (this.consumeIf(Keyword.TEXT)) {
           this.consume(Keyword.SEARCH)
           if (this.consumeIf(Keyword.CONFIGURATION)) {
             stmt = new model.DropTextSearchConfigurationStatement()
+            this.parseDropTextSearchConfigurationStatement(stmt, start)
           } else if (this.consumeIf(Keyword.DICTIONARY)) {
             stmt = new model.DropTextSearchDictionaryStatement()
+            this.parseDropTextSearchDictionaryStatement(stmt, start)
           } else if (this.consumeIf(Keyword.PARSER)) {
             stmt = new model.DropTextSearchParserStatement()
+            this.parseDropTextSearchParserStatement(stmt, start)
           } else if (this.consumeIf(Keyword.TEMPLATE)) {
             stmt = new model.DropTextSearchTemplateStatement()
+            this.parseDropTextSearchTemplateStatement(stmt, start)
           }
         } else if (this.consumeIf(Keyword.POLICY)) {
           stmt = new model.DropPolicyStatement()
+          this.parseDropPolicyStatement(stmt, start)
         } else if (this.consumeIf(Keyword.RULE)) {
           stmt = new model.DropRuleStatement()
+          this.parseDropRuleStatement(stmt, start)
         } else if (this.consumeIf(Keyword.INDEX)) {
           stmt = new model.DropIndexStatement()
+          this.parseDropIndexStatement(stmt, start)
         }
       } else if (this.consumeIf(Keyword.REASSIGN)) {
         this.consume(Keyword.OWNED)
         stmt = new model.ReassignOwnedStatement()
+        this.parseReassignOwnedStatement(stmt, start)
       } else if (this.consumeIf(Keyword.SECURITY)) {
         this.consume(Keyword.LABEL)
         stmt = new model.SecurityLabelStatement()
+        this.parseSecurityLabelStatement(stmt, start)
       } else if (this.consumeIf(Keyword.TRUNCATE)) {
         this.consumeIf(Keyword.TABLE)
         stmt = new model.TruncateStatement()
+        this.parseTruncateStatement(stmt, start)
       } else if (this.consumeIf(Keyword.COMMENT)) {
         stmt = new model.CommentStatement()
+        this.parseCommentStatement(stmt, start)
       } else if (this.consumeIf(Keyword.GRANT)) {
         stmt = new model.GrantStatement()
+        this.parseGrantStatement(stmt, start)
       } else if (this.consumeIf(Keyword.REVOKE)) {
         stmt = new model.RevokeStatement()
+        this.parseRevokeStatement(stmt, start)
       } else if (this.consumeIf(Keyword.LOCK)) {
         stmt = new model.LockStatement()
+        this.parseLockStatement(stmt, start)
       } else if (this.consumeIf(Keyword.START)) {
         this.consume(Keyword.TRANSACTION)
         stmt = new model.StartTransactionStatement()
+        this.parseStartTransactionStatement(stmt, start)
       } else if (this.consumeIf(Keyword.BEGIN)) {
         stmt = new model.BeginStatement()
+        this.parseBeginStatement(stmt, start)
       } else if (this.consumeIf(Keyword.SAVEPOINT)) {
         stmt = new model.SavepointStatement()
+        this.parseSavepointStatement(stmt, start)
       } else if (this.consumeIf(Keyword.RELEASE)) {
         this.consume(Keyword.SAVEPOINT)
         stmt = new model.ReleaseSavepointStatement()
+        this.parseReleaseSavepointStatement(stmt, start)
       } else if (this.consumeIf(Keyword.COMMIT)) {
         if (this.consumeIf(Keyword.PREPARED)) {
           stmt = new model.CommitPreparedStatement()
+          this.parseCommitPreparedStatement(stmt, start)
         } else {
           stmt = new model.CommitStatement()
+          this.parseCommitStatement(stmt, start)
         }
       } else if (this.consumeIf(Keyword.END)) {
         stmt = new model.EndStatement()
+        this.parseEndStatement(stmt, start)
       } else if (this.consumeIf(Keyword.ROLLBACK)) {
         if (this.consumeIf(Keyword.PREPARED)) {
           stmt = new model.RollbackPreparedStatement()
+          this.parseRollbackPreparedStatement(stmt, start)
         } else {
           stmt = new model.RollbackStatement()
+          this.parseRollbackStatement(stmt, start)
         }
       } else if (this.consumeIf(Keyword.ABORT)) {
         stmt = new model.AbortStatement()
+        this.parseAbortStatement(stmt, start)
       } else if (this.consumeIf(Keyword.DISCARD)) {
         stmt = new model.DiscardStatement()
+        this.parseDiscardStatement(stmt, start)
       } else if (this.consumeIf(Keyword.ANALYZE)) {
         stmt = new model.AnalyzeStatement()
+        /**@todo */
       } else if (this.consumeIf(Keyword.EXPLAIN)) {
         stmt = new model.ExplainStatement()
       } else if (this.consumeIf(Keyword.CLUSTER)) {
@@ -931,12 +1121,6 @@ export class PostgresParser extends Parser {
         stmt = new model.DoStatement()
       } else if (this.consumeIf(Keyword.VALUES)) {
         stmt = new model.ValuesStatement()
-      } else if (this.consumeIf(Keyword.INSERT)) {
-        stmt = new model.InsertStatement()
-      } else if (this.consumeIf(Keyword.UPDATE)) {
-        stmt = new model.UpdateStatement()
-      } else if (this.consumeIf(Keyword.DELETE)) {
-        stmt = new model.DeleteStatement()
       } else {
         if (this.peekIf(Keyword.WITH)) {
           this.withClause()
@@ -965,7 +1149,555 @@ export class PostgresParser extends Parser {
     return stmt
   }
 
-  selectClause() {
+  private parseCreateDatabaseStatement(stmt: model.CreateDatabaseStatement, start: number) {
+
+  }
+
+  private parseCreateAccessMethodStatement(stmt: model.CreateAccessMethodStatement, start: number) {
+
+  }
+
+  private parseCreateCastStatement(stmt: model.CreateCastStatement, start: number) {
+
+  }
+
+  private parseCreateEventTriggerStatement(stmt: model.CreateEventTriggerStatement, start: number) {
+
+  }
+
+  private parseCreateExtensionStatement(stmt: model.CreateExtensionStatement, start: number) {
+
+  }
+
+  private parseCreateLanguageStatement(stmt: model.CreateLanguageStatement, start: number) {
+
+  }
+
+  private parseCreateTransformStatement(stmt: model.CreateTransformStatement, start: number) {
+
+  }
+
+  private parseCreatePublicationStatement(stmt: model.CreatePublicationStatement, start: number) {
+
+  }
+
+  private parseCreateSubscriptionStatement(stmt: model.CreateSubscriptionStatement, start: number) {
+
+  }
+
+  private parseCreateServerStatement(stmt: model.CreateServerStatement, start: number) {
+
+  }
+
+  private parseCreateTablespaceStatement(stmt: model.CreateTablespaceStatement, start: number) {
+
+  }
+
+  private parseCreateTypeStatement(stmt: model.CreateTypeStatement, start: number) {
+
+  }
+
+  private parseCreateRoleStatement(stmt: model.CreateRoleStatement, start: number) {
+
+  }
+
+  private parseCreateUserMappingStatement(stmt: model.CreateUserMappingStatement, start: number) {
+
+  }
+
+  private parseCreateSchemaStatement(stmt: model.CreateSchemaStatement, start: number) {
+
+  }
+
+  private parseCreateCollationStatement(stmt: model.CreateCollationStatement, start: number) {
+
+  }
+
+  private parseCreateConversionStatement(stmt: model.CreateConversionStatement, start: number) {
+
+  }
+
+  private parseCreateDomainStatement(stmt: model.CreateDomainStatement, start: number) {
+
+  }
+
+  private parseCreateOperatorClassStatement(stmt: model.CreateOperatorClassStatement, start: number) {
+
+  }
+
+  private parseCreateOperatorFamilyStatement(stmt: model.CreateOperatorFamilyStatement, start: number) {
+
+  }
+
+  private parseCreateOperatorStatement(stmt: model.CreateOperatorStatement, start: number) {
+
+  }
+
+  private parseCreateStatisticsClassStatement(stmt: model.CreateStatisticsClassStatement, start: number) {
+
+  }
+
+  private parseCreateTableStatement(stmt: model.CreateTableStatement, start: number) {
+
+  }
+
+  private parseCreateSequenceStatement(stmt: model.CreateSequenceStatement, start: number) {
+
+  }
+
+  private parseCreateViewStatement(stmt: model.CreateViewStatement, start: number) {
+
+  }
+
+  private parseCreateMaterializedViewStatement(stmt: model.CreateMaterializedViewStatement, start: number) {
+
+  }
+
+  private parseCreateProcedureStatement(stmt: model.CreateProcedureStatement, start: number) {
+
+  }
+
+  private parseCreateFunctionStatement(stmt: model.CreateFunctionStatement, start: number) {
+
+  }
+
+  private parseCreateAggregateStatement(stmt: model.CreateAggregateStatement, start: number) {
+
+  }
+
+  private parseCreateTriggerStatement(stmt: model.CreateTriggerStatement, start: number) {
+
+  }
+
+  private parseCreateRuleStatement(stmt: model.CreateRuleStatement, start: number) {
+
+  }
+
+  private parseCreateForeignDataWrapperStatement(stmt: model.CreateForeignDataWrapperStatement, start: number) {
+
+  }
+
+  private parseCreateForeignTableStatement(stmt: model.CreateForeignTableStatement, start: number) {
+
+  }
+
+  private parseCreateTextSearchConfigurationStatement(stmt: model.CreateTextSearchConfigurationStatement, start: number) {
+
+  }
+
+  private parseCreateTextSearchDictionaryStatement(stmt: model.CreateTextSearchDictionaryStatement, start: number) {
+
+  }
+
+  private parseCreateTextSearchParserStatement(stmt: model.CreateTextSearchParserStatement, start: number) {
+
+  }
+
+  private parseCreateTextSearchTemplateStatement(stmt: model.CreateTextSearchTemplateStatement, start: number) {
+
+  }
+
+  private parseCreatePolicyStatement(stmt: model.CreatePolicyStatement, start: number) {
+
+  }
+
+  private parseCreateIndexStatement(stmt: model.CreateIndexStatement, start: number) {
+
+  }
+
+  private parseAlterSystemStatement(stmt: model.AlterSystemStatement, start: number) {
+
+  }
+
+  private parseAlterDatabaseStatement(stmt: model.AlterDatabaseStatement, start: number) {
+
+  }
+
+  private parseAlterEventTriggerStatement(stmt: model.AlterEventTriggerStatement, start: number) {
+
+  }
+
+  private parseAlterExtensionStatement(stmt: model.AlterExtensionStatement, start: number) {
+
+  }
+
+  private parseAlterLanguageStatement(stmt: model.AlterLanguageStatement, start: number) {
+
+  }
+
+  private parseAlterPublicationStatement(stmt: model.AlterPublicationStatement, start: number) {
+
+  }
+
+  private parseAlterSubscriptionStatement(stmt: model.AlterSubscriptionStatement, start: number) {
+
+  }
+
+  private parseAlterServerStatement(stmt: model.AlterServerStatement, start: number) {
+
+  }
+
+  private parseAlterTablespaceStatement(stmt: model.AlterTablespaceStatement, start: number) {
+
+  }
+
+  private parseAlterTypeStatement(stmt: model.AlterTypeStatement, start: number) {
+
+  }
+
+  private parseAlterRoleStatement(stmt: model.AlterRoleStatement, start: number) {
+
+  }
+
+  private parseAlterUserMappingStatement(stmt: model.AlterUserMappingStatement, start: number) {
+
+  }
+
+  private parseAlterLargeObjectStatement(stmt: model.AlterLargeObjectStatement, start: number) {
+
+  }
+
+  private parseAlterSchemaStatement(stmt: model.AlterSchemaStatement, start: number) {
+
+  }
+
+  private parseAlterCollationStatement(stmt: model.AlterCollationStatement, start: number) {
+
+  }
+
+  private parseAlterDefaultPrivilegesStatement(stmt: model.AlterDefaultPrivilegesStatement, start: number) {
+
+  }
+
+  private parseAlterConversionStatement(stmt: model.AlterConversionStatement, start: number) {
+
+  }
+
+  private parseAlterDomainStatement(stmt: model.AlterDomainStatement, start: number) {
+
+  }
+
+  private parseAlterOperatorClassStatement(stmt: model.AlterOperatorClassStatement, start: number) {
+
+  }
+
+  private parseAlterOperatorFamilyStatement(stmt: model.AlterOperatorFamilyStatement, start: number) {
+
+  }
+
+  private parseAlterOperatorStatement(stmt: model.AlterOperatorStatement, start: number) {
+
+  }
+
+  private parseAlterStatisticsClassStatement(stmt: model.AlterStatisticsClassStatement, start: number) {
+
+  }
+
+  private parseAlterTableStatement(stmt: model.AlterTableStatement, start: number) {
+
+  }
+
+  private parseAlterSequenceStatement(stmt: model.AlterSequenceStatement, start: number) {
+
+  }
+
+  private parseAlterViewStatement(stmt: model.AlterViewStatement, start: number) {
+
+  }
+
+  private parseAlterMaterializedViewStatement(stmt: model.AlterMaterializedViewStatement, start: number) {
+
+  }
+
+  private parseAlterProcedureStatement(stmt: model.AlterProcedureStatement, start: number) {
+
+  }
+
+  private parseAlterFunctionStatement(stmt: model.AlterFunctionStatement, start: number) {
+
+  }
+
+  private parseAlterAggregateStatement(stmt: model.AlterAggregateStatement, start: number) {
+
+  }
+
+  private parseAlterTriggerStatement(stmt: model.AlterTriggerStatement, start: number) {
+
+  }
+
+  private parseAlterRuleStatement(stmt: model.AlterRuleStatement, start: number) {
+
+  }
+
+  private parseAlterForeignDataWrapperStatement(stmt: model.AlterForeignDataWrapperStatement, start: number) {
+
+  }
+
+  private parseAlterForeignTableStatement(stmt: model.AlterForeignTableStatement, start: number) {
+
+  }
+
+  private parseAlterRoutineStatement(stmt: model.AlterRoutineStatement, start: number) {
+
+  }
+
+  private parseAlterTextSearchConfigurationStatement(stmt: model.AlterTextSearchConfigurationStatement, start: number) {
+
+  }
+
+  private parseAlterTextSearchDictionaryStatement(stmt: model.AlterTextSearchDictionaryStatement, start: number) {
+
+  }
+
+  private parseAlterTextSearchParserStatement(stmt: model.AlterTextSearchParserStatement, start: number) {
+
+  }
+
+  private parseAlterTextSearchTemplateStatement(stmt: model.AlterTextSearchTemplateStatement, start: number) {
+
+  }
+
+  private parseAlterPolicyStatement(stmt: model.AlterPolicyStatement, start: number) {
+
+  }
+
+  private parseAlterIndexStatement(stmt: model.AlterIndexStatement, start: number) {
+
+  }
+
+  private parseDropOwnedStatement(stmt: model.DropOwnedStatement, start: number) {
+
+  }
+
+  private parseDropDatabaseStatement(stmt: model.DropDatabaseStatement, start: number) {
+
+  }
+
+  private parseDropAccessMethodStatement(stmt: model.DropAccessMethodStatement, start: number) {
+
+  }
+
+  private parseDropCastStatement(stmt: model.DropCastStatement, start: number) {
+
+  }
+
+  private parseDropEventTriggerStatement(stmt: model.DropEventTriggerStatement, start: number) {
+
+  }
+
+  private parseDropExtensionStatement(stmt: model.DropExtensionStatement, start: number) {
+
+  }
+
+  private parseDropLanguageStatement(stmt: model.DropLanguageStatement, start: number) {
+
+  }
+
+  private parseDropTransformStatement(stmt: model.DropTransformStatement, start: number) {
+
+  }
+
+  private parseDropPublicationStatement(stmt: model.DropPublicationStatement, start: number) {
+
+  }
+
+  private parseDropSubscriptionStatement(stmt: model.DropSubscriptionStatement, start: number) {
+
+  }
+
+  private parseDropServerStatement(stmt: model.DropServerStatement, start: number) {
+
+  }
+
+  private parseDropTablespaceStatement(stmt: model.DropTablespaceStatement, start: number) {
+
+  }
+
+  private parseDropTypeStatement(stmt: model.DropTypeStatement, start: number) {
+
+  }
+
+  private parseDropRoleStatement(stmt: model.DropRoleStatement, start: number) {
+
+  }
+
+  private parseDropUserMappingStatement(stmt: model.DropUserMappingStatement, start: number) {
+
+  }
+
+  private parseDropSchemaStatement(stmt: model.DropSchemaStatement, start: number) {
+
+  }
+
+  private parseDropCollationStatement(stmt: model.DropCollationStatement, start: number) {
+
+  }
+
+  private parseDropConversionStatement(stmt: model.DropConversionStatement, start: number) {
+
+  }
+
+  private parseDropDomainStatement(stmt: model.DropDomainStatement, start: number) {
+
+  }
+
+  private parseDropOperatorClassStatement(stmt: model.DropOperatorClassStatement, start: number) {
+
+  }
+
+  private parseDropOperatorFamilyStatement(stmt: model.DropOperatorFamilyStatement, start: number) {
+
+  }
+
+  private parseDropOperatorStatement(stmt: model.DropOperatorStatement, start: number) {
+
+  }
+
+  private parseDropStatisticsClassStatement(stmt: model.DropStatisticsClassStatement, start: number) {
+
+  }
+
+  private parseDropTableStatement(stmt: model.DropTableStatement, start: number) {
+
+  }
+
+  private parseDropSequenceStatement(stmt: model.DropSequenceStatement, start: number) {
+
+  }
+
+  private parseDropViewStatement(stmt: model.DropViewStatement, start: number) {
+
+  }
+
+  private parseDropMaterializedViewStatement(stmt: model.DropMaterializedViewStatement, start: number) {
+
+  }
+
+  private parseDropProcedureStatement(stmt: model.DropProcedureStatement, start: number) {
+
+  }
+
+  private parseDropFunctionStatement(stmt: model.DropFunctionStatement, start: number) {
+
+  }
+
+  private parseDropAggregateStatement(stmt: model.DropAggregateStatement, start: number) {
+
+  }
+
+  private parseDropTriggerStatement(stmt: model.DropTriggerStatement, start: number) {
+
+  }
+
+  private parseDropRuleStatement(stmt: model.DropRuleStatement, start: number) {
+
+  }
+
+  private parseDropForeignDataWrapperStatement(stmt: model.DropForeignDataWrapperStatement, start: number) {
+
+  }
+
+  private parseDropForeignTableStatement(stmt: model.DropForeignTableStatement, start: number) {
+
+  }
+
+  private parseDropTextSearchConfigurationStatement(stmt: model.DropTextSearchConfigurationStatement, start: number) {
+
+  }
+
+  private parseDropTextSearchDictionaryStatement(stmt: model.DropTextSearchDictionaryStatement, start: number) {
+
+  }
+
+  private parseDropTextSearchParserStatement(stmt: model.DropTextSearchParserStatement, start: number) {
+
+  }
+
+  private parseDropTextSearchTemplateStatement(stmt: model.DropTextSearchTemplateStatement, start: number) {
+
+  }
+
+  private parseDropPolicyStatement(stmt: model.DropPolicyStatement, start: number) {
+
+  }
+
+  private parseDropIndexStatement(stmt: model.DropIndexStatement, start: number) {
+
+  }
+
+  private parseReassignOwnedStatement(stmt: model.ReassignOwnedStatement, start: number) {
+
+  }
+
+  private parseSecurityLabelStatement(stmt: model.SecurityLabelStatement, start: number) {
+
+  }
+
+  private parseTruncateStatement(stmt: model.TruncateStatement, start: number) {
+
+  }
+
+  private parseCommentStatement(stmt: model.CommentStatement, start: number) {
+
+  }
+
+  private parseGrantStatement(stmt: model.GrantStatement, start: number) {
+
+  }
+
+  private parseRevokeStatement(stmt: model.RevokeStatement, start: number) {
+
+  }
+
+  private parseLockStatement(stmt: model.LockStatement, start: number) {
+
+  }
+
+  private parseStartTransactionStatement(stmt: model.StartTransactionStatement, start: number) {
+
+  }
+
+  private parseBeginStatement(stmt: model.BeginStatement, start: number) {
+
+  }
+
+  private parseSavepointStatement(stmt: model.SavepointStatement, start: number) {
+
+  }
+
+  private parseReleaseSavepointStatement(stmt: model.ReleaseSavepointStatement, start: number) {
+
+  }
+
+  private parseCommitPreparedStatement(stmt: model.CommitPreparedStatement, start: number) {
+
+  }
+
+  private parseCommitStatement(stmt: model.CommitStatement, start: number) {
+
+  }
+
+  private parseEndStatement(stmt: model.EndStatement, start: number) {
+
+  }
+
+  private parseRollbackPreparedStatement(stmt: model.RollbackPreparedStatement, start: number) {
+
+  }
+
+  private parseRollbackStatement(stmt: model.RollbackStatement, start: number) {
+
+  }
+
+  private parseAbortStatement(stmt: model.AbortStatement, start: number) {
+
+  }
+
+  private parseDiscardStatement(stmt: model.DiscardStatement, start: number) {
+
+  }
+
+  private selectClause() {
     if (this.peekIf(Keyword.WITH)) {
       this.withClause()
     }
@@ -986,7 +1718,7 @@ export class PostgresParser extends Parser {
     }
   }
 
-  withClause() {
+  private withClause() {
     const start = this.pos
     this.consume(Keyword.WITH)
     this.consumeIf(Keyword.RECURSIVE)
@@ -1007,7 +1739,7 @@ export class PostgresParser extends Parser {
   }
 
 
-  identifier() {
+  private identifier() {
     if (this.consumeIf(TokenType.Identifier)) {
       return lcase(this.token(-1).text)
     } else if (this.consumeIf(TokenType.QuotedIdentifier)) {

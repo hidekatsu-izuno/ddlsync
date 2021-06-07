@@ -1195,6 +1195,9 @@ export class MysqlParser extends Parser {
       } else if (this.consumeIf(Keyword.TABLE)) {
         stmt = new model.DropTableStatement()
         this.parseDropTableStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.SEQUENCE)) {
+        stmt = new model.DropSequenceStatement()
+        this.parseDropSequenceStatement(stmt, start)
       } else if (this.consumeIf(Keyword.VIEW)) {
         stmt = new model.DropViewStatement()
         this.parseDropViewStatement(stmt, start)
@@ -2840,6 +2843,16 @@ export class MysqlParser extends Parser {
     }
   }
 
+  private parseDropSequenceStatement(stmt: model.DropSequenceStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      stmt.sequences.push(this.schemaObject())
+    }
+  }
+
   private parseDropViewStatement(stmt: model.DropViewStatement, start: number) {
     if (this.consumeIf(Keyword.IF)) {
       this.consume(Keyword.EXISTS)
@@ -2904,6 +2917,10 @@ export class MysqlParser extends Parser {
   }
 
   private parseDropIndexStatement(stmt: model.DropIndexStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
     stmt.index = this.schemaObject()
     this.consumeIf(Keyword.ON)
     stmt.table = this.schemaObject()
