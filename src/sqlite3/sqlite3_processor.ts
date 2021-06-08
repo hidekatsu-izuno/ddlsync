@@ -6,37 +6,37 @@ import { Token } from "../parser"
 import { DdlSyncProcessor } from "../processor"
 import * as model from "./sqlite3_models";
 import { Sqlite3Parser, TokenType } from "./sqlite3_parser"
-import { lcase, ucase } from "../util/functions"
+import { formatDateTime, lcase, ucase } from "../util/functions"
 import { writeGzippedCsv } from "../util/io"
 
 export default class Sqlite3Processor extends DdlSyncProcessor {
-  private con
+  static create = async (config: { [key: string]: any }) => {
+    return new Sqlite3Processor(config, sqlite3(config.database || ":memory:"))
+  }
 
   constructor(
     config: { [key: string]: any },
-    dryrun: boolean,
+    private con: sqlite3.Database,
   ) {
-    super(config, dryrun)
-    this.con = sqlite3(config.database || ":memory:")
+    super(config)
   }
 
   protected async init() {
-    const options = {} as any
-
-    options.compileOptions = new Set<string>()
+    this.options.compileOptions = new Set<string>()
     for (const row of await this.con.prepare("PRAGMA compile_options").iterate()) {
-      options.compileOptions.add(row.compile_options)
+      this.options.compileOptions.add(row.compile_options)
     }
-
-    return options
   }
 
-  protected async parse(input: string, options: { [key: string]: any }) {
-    const parser = new Sqlite3Parser(input, options)
+  protected async parse(input: string, fileName: string) {
+    const parser = new Sqlite3Parser(input, {
+      ...this.options,
+      fileName
+    })
     return parser.root()
   }
 
-  protected async run(stmts: Statement[], options: { [key: string]: any }) {
+  protected async run(stmts: Statement[]) {
     const vdb = new VDatabase(lcase)
     vdb.addSchema("main", true)
     vdb.addSchema("temp", true)
@@ -66,10 +66,10 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
         case model.InsertStatement:
         case model.UpdateStatement:
         case model.DeleteStatement:
-          await this.runStatement(i, stmt, QueryType.UPDATE)
+          await this.runStatement(i, stmt, ResultType.COUNT)
           break
         case model.SelectStatement:
-          await this.runStatement(i, stmt, QueryType.SELECT)
+          await this.runStatement(i, stmt, ResultType.ROWS)
           break
         default:
           await this.runStatement(i, stmt)
@@ -83,21 +83,21 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
   }
 
   private async runCommandStatement(seq: number, stmt: model.CommandStatement) {
-    console.log(`-- skip: unknown command "${stmt.name}"`)
+    console.log(`-- skip: command "${stmt.name}" is not`)
   }
 
   private async runCreateObjectStatement(seq: number, stmt: Statement, obj: VObject) {
     if (obj.dropped) {
       console.log(`-- skip: ${obj.type} ${obj.schemaName}.${obj.name} is dropped`)
     } else if (lcase(obj.schemaName) === "temp") {
-      this.runScript(this.toSQL(stmt))
+      this.runScript(Token.concat(stmt.tokens))
     } else {
       const meta = this.getTableMetaData(obj.schemaName, obj.name)
       if (!meta) {
         // create new object if not exists
-        this.runScript(this.toSQL(stmt))
+        this.runScript(Token.concat(stmt.tokens))
       } else {
-        const oldStmt = (await (new Sqlite3Parser(meta.sql || "")).root())[0]
+        const oldStmt = new Sqlite3Parser(meta.sql || "").root()[0]
         if (!oldStmt) {
           throw new Error(`Failed to get metadata: ${obj.schemaName}.${obj.name}`)
         }
@@ -123,13 +123,13 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
               }
 
               // create new table
-              this.runScript(this.toSQL(stmt))
+              this.runScript(Token.concat(stmt.tokens))
               // restore data
               this.runScript(`INSERT INTO ${bquote(obj.schemaName)}.${bquote(obj.name)} ` +
                 `(${columnMappings.destColumns.join(", ")}) ` +
                 `SELECT ${columnMappings.srcColumns.join(", ")} ` +
                 `FROM ${bquote(obj.schemaName)}.${bquote(backupTableName)} ` +
-                `ORDER BY ${columnMappings.sortColumns.join(", ")}`, QueryType.UPDATE)
+                `ORDER BY ${columnMappings.sortColumns.join(", ")}`, ResultType.COUNT)
               if (columnMappings.compatible || this.config.backupMode === "file") {
                 // drop backup table
                 this.runScript(`DROP TABLE IF EXISTS ${bquote(obj.schemaName)}.${bquote(backupTableName)}`)
@@ -138,7 +138,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
               // drop object
               this.runScript(`DROP ${ucase(meta.type)} IF EXISTS ${bquote(obj.schemaName)}.${bquote(obj.name)}`)
               // create new object
-              this.runScript(this.toSQL(stmt))
+              this.runScript(Token.concat(stmt.tokens))
             }
           } else {
             // backup src table if object is a normal table
@@ -158,12 +158,12 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
               }
 
               // create new object
-              this.runScript(this.toSQL(stmt))
+              this.runScript(Token.concat(stmt.tokens))
             } else {
               // drop object
               this.runScript(`DROP ${ucase(meta.type)} IF EXISTS ${bquote(obj.schemaName)}.${bquote(obj.name)}`)
               // create new object
-              this.runScript(this.toSQL(stmt))
+              this.runScript(Token.concat(stmt.tokens))
             }
           }
         } else {
@@ -173,20 +173,8 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     }
   }
 
-  private async runStatement(seq: number, stmt: Statement, type: QueryType = QueryType.DEFINE) {
-    this.runScript(this.toSQL(stmt), type)
-  }
-
-  private toSQL(stmt: Statement) {
-    let tokens = stmt.tokens
-    if ((stmt as any).ifNotExists) {
-      const start = stmt.markers.get("ifNotExistsStart")
-      const end = stmt.markers.get("ifNotExistsEnd")
-      if (start != null && end != null && end - start > 0) {
-        tokens = tokens.splice(start, end - start)
-      }
-    }
-    return Token.concat(tokens)
+  private async runStatement(seq: number, stmt: Statement, type?: ResultType) {
+    this.runScript(Token.concat(stmt.tokens), type)
   }
 
   private getTableMetaData(schemaName: string, name: string) {
@@ -338,22 +326,24 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     }
   }
 
-  private runScript(script: string, type: QueryType = QueryType.DEFINE) {
+  private runScript(script: string, type?: ResultType) {
     console.log(script + ";")
-    if (!this.dryrun) {
-      const stmt = this.con.prepare(script)
-      if (type === QueryType.SELECT) {
-        let count = 0
-        for (const row of stmt.iterate()) {
-          count++
-        }
-        console.log(`-- result: ${count} records`)
-      } else if (type === QueryType.UPDATE) {
-        const result = stmt.run()
-        console.log(`-- result: ${result.changes} records`)
-      } else {
-        stmt.run()
+    if (this.config.dryrun) {
+      return
+    }
+
+    const stmt = this.con.prepare(script)
+    if (type === ResultType.ROWS) {
+      let count = 0
+      for (const row of stmt.iterate()) {
+        count++
       }
+      console.log(`-- result: ${count} records`)
+    } else if (type === ResultType.COUNT) {
+      const result = stmt.run()
+      console.log(`-- result: ${result.changes} records`)
+    } else {
+      stmt.run()
     }
   }
 
@@ -374,12 +364,16 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
 
     return backupFileName
   }
+
+  private timestamp(seq: number) {
+    return formatDateTime(this.startTime, "uuuuMMddHHmmss") + ("0000" + seq).slice(-4)
+  }
 }
 
-enum QueryType {
-  DEFINE,
-  UPDATE,
-  SELECT,
+enum ResultType {
+  NONE,
+  COUNT,
+  ROWS,
 }
 
 function dquote(text: string) {

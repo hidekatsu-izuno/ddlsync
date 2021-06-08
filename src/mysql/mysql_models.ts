@@ -45,6 +45,7 @@ export class CreateDatabaseStatement extends Statement {
   ifNotExists = false
   characterSet?: string
   collate?: string
+  comment?: string
   encryption?: string
 
   process(vdb: VDatabase) {
@@ -85,21 +86,121 @@ export class DropDatabaseStatement extends Statement {
   }
 }
 
+export class UserRole {
+  name?: string
+  expr?: Array<Token>
+  host?: string
+  authPlugin?: string
+  randowmPassword = false
+  asPassword = false
+  password?: string
+  discardOldPassword = false
+}
+
+export class CreateRoleStatement extends Statement {
+  roles = new Array<UserRole>()
+  orReplace = false
+  ifNotExists = false
+}
+
+export class SetDefaultRoleStatement extends Statement {
+}
+
+export class SetRoleStatement extends Statement {
+}
+
+export class DropRoleStatement extends Statement {
+  roles = new Array<UserRole>()
+  ifExists = false
+}
+
+export class CreateUserStatement extends Statement {
+  users = new Array<UserRole>()
+  orReplace = false
+  ifNotExists = false
+  defaultRoles = new Array<UserRole>()
+  tlsOptions = new Array<{ key: string, value: any }>()
+  resourceOptions = new Array<{ key: string, value: any }>()
+  passwordOptions = new Array<{ key: string, value: any }>()
+  lockOptions = new Array<{ key: string, value: any }>()
+  comment?: string
+  attribute?: string
+}
+
+export class AlterUserStatement extends Statement {
+  users?: Array<UserRole>
+  ifExists = false
+}
+
+export class RenameUserPair {
+  user = new UserRole()
+  newUser = new UserRole()
+}
+
+export class RenameUserStatement extends Statement {
+  pairs = new Array<RenameUserPair>()
+}
+
+export class SetPasswordStatement extends Statement {
+}
+
+export class DropUserStatement extends Statement {
+  users = new Array<UserRole>()
+  ifExists = false
+}
+
+export class CreateTablespaceStatement extends Statement {
+  name = ""
+  undo = false
+  addDataFile?: string
+  autoextendSize?: string
+  fileBlockSize?: string
+  encryption?: string
+  useLogfileGroup?: string
+  extentSize?: string
+  initialSize?: string
+  maxSize?: string
+  nodeGroup?: string
+  wait = false
+  comment?: string
+  engine?: string
+  engineAttribute?: string
+}
+
+export class AlterTablespaceStatement extends Statement {
+  name = ""
+  undo = false
+}
+
+export class DropTablespaceStatement extends Statement {
+  name = ""
+  undo = false
+}
+
 export class CreateServerStatement extends Statement {
   name = ""
   orReplace = false
-  wrapperName = ""
+  wrapper = ""
   host?: string
   database?: string
   user?: string
   password?: string
   socket?: string
   owner?: string
-  port?: string
+  port = ""
 
   validate() {
-    if (this.wrapperName !== "mysql") {
-      throw new Error(`Unsupported wrapper name: ${this.wrapperName}`)
+    if (this.wrapper === "mysql") {
+      if (!this.host && !this.socket) {
+        throw new Error(`Can't create federated table. Foreign data src error: either HOST or SOCKET must be set`)
+      }
+      if (!this.port) {
+        this.port = "3306"
+      }
+    } else {
+      if (!this.port) {
+        this.port = "0"
+      }
     }
   }
 }
@@ -117,7 +218,7 @@ export class CreateResourceGroupStatement extends Statement {
   name = ""
   orReplace = false
   type: ResourceGroupType = ResourceGroupType.SYSTEM
-  vcpu = new Array<{ min: string, max: string}>()
+  vcpu = new Array<string | { min: string, max: string }>()
   threadPriority = "0"
   disable = false
 }
@@ -156,34 +257,6 @@ export class DropLogfileGroupStatement extends Statement {
   engine = ""
 }
 
-export class CreateTablespaceStatement extends Statement {
-  name = ""
-  undo = false
-  addDataFile?: string
-  autoextendSize?: string
-  fileBlockSize?: string
-  encryption?: string
-  useLogfileGroup?: string
-  extentSize?: string
-  initialSize?: string
-  maxSize?: string
-  nodeGroup?: string
-  wait = false
-  comment?: string
-  engine?: string
-  engineAttribute?: string
-}
-
-export class AlterTablespaceStatement extends Statement {
-  name = ""
-  undo = false
-}
-
-export class DropTablespaceStatement extends Statement {
-  name = ""
-  undo = false
-}
-
 export class CreateSpatialReferenceSystemStatement extends Statement {
   srid = ""
   orReplace = false
@@ -198,70 +271,6 @@ export class CreateSpatialReferenceSystemStatement extends Statement {
 
 export class DropSpatialReferenceSystemStatement extends Statement {
   srid = ""
-  ifExists = false
-}
-
-export class UserRole {
-  name?: string
-  expr?: Array<Token>
-  host?: string
-  authPlugin?: string
-  randowmPassword = false
-  asPassword = false
-  password?: string
-  discardOldPassword = false
-}
-
-export class CreateRoleStatement extends Statement {
-  roles = new Array<UserRole>()
-  orReplace = false
-  ifNotExists = false
-}
-
-export class SetDefaultRoleStatement extends Statement {
-}
-
-export class SetRoleStatement extends Statement {
-}
-
-export class DropRoleStatement extends Statement {
-  roles = new Array<UserRole>()
-  ifExists = false
-}
-
-
-export class CreateUserStatement extends Statement {
-  users = new Array<UserRole>()
-  orReplace = false
-  ifNotExists = false
-  defaultRoles = new Array<UserRole>()
-  tlsOptions = new Array<{ key: string, value: any }>()
-  resourceOptions = new Array<{ key: string, value: any }>()
-  passwordOptions = new Array<{ key: string, value: any }>()
-  lockOptions = new Array<{ key: string, value: any }>()
-  comment?: string
-  attribute?: string
-}
-
-export class AlterUserStatement extends Statement {
-  users?: Array<UserRole>
-  ifExists = false
-}
-
-export class RenameUserPair {
-  user = new UserRole()
-  newUser = new UserRole()
-}
-
-export class RenameUserStatement extends Statement {
-  pairs = new Array<RenameUserPair>()
-}
-
-export class SetPasswordStatement extends Statement {
-}
-
-export class DropUserStatement extends Statement {
-  users = new Array<UserRole>()
   ifExists = false
 }
 

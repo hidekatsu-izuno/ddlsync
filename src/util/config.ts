@@ -14,10 +14,11 @@ export async function createDddlSyncProcessor(
   dryrun: boolean = false
 ) {
   const config = await initConfig(args, options)
+  config.dryrun = dryrun
   if (config.type === "sqlite3") {
-    return new Sqlite3Processor(config, dryrun)
+    return Sqlite3Processor.create(config)
   } else if (config.type === "mysql") {
-    return new MysqlProcessor(config, dryrun)
+    return MysqlProcessor.create(config)
   }
   throw new Error(`Unsupported database type: ${config.type}`)
 }

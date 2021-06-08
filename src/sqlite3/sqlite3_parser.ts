@@ -546,10 +546,8 @@ export class Sqlite3Parser extends Parser {
 
   private praseCreateTableStatement(stmt: model.CreateTableStatement, start: number) {
     if (this.consumeIf(Keyword.IF)) {
-      stmt.markers.set("ifNotExistsStart", this.pos - start - 1)
       this.consume(Keyword.NOT, Keyword.EXISTS)
       stmt.ifNotExists = true
-      stmt.markers.set("ifNotExistsEnd", this.pos - start)
     }
 
     stmt.markers.set("nameStart", this.pos - start)
@@ -622,10 +620,8 @@ export class Sqlite3Parser extends Parser {
 
   private parseCreateViewStatement(stmt: model.CreateViewStatement, start: number) {
     if (this.consumeIf(Keyword.IF)) {
-      stmt.markers.set("ifNotExistsStart", this.pos - start - 1)
       this.consume(Keyword.NOT, Keyword.EXISTS)
       stmt.ifNotExists = true
-      stmt.markers.set("ifNotExistsEnd", this.pos - start)
     }
 
     stmt.markers.set("nameStart", this.pos - start)
@@ -652,10 +648,8 @@ export class Sqlite3Parser extends Parser {
 
   private praseCreateTriggerStatement(stmt: model.CreateTriggerStatement, start: number) {
     if (this.consumeIf(Keyword.IF)) {
-      stmt.markers.set("ifNotExistsStart", this.pos - start - 1)
       this.consume(Keyword.NOT, Keyword.EXISTS)
       stmt.ifNotExists = true
-      stmt.markers.set("ifNotExistsEnd", this.pos - start)
     }
 
     stmt.markers.set("nameStart", this.pos - start)
@@ -680,10 +674,8 @@ export class Sqlite3Parser extends Parser {
 
   private praseCreateIndexStatement(stmt: model.CreateIndexStatement, start: number) {
     if (this.consumeIf(Keyword.IF)) {
-      stmt.markers.set("ifNotExistsStart", this.pos - start - 1)
       this.consume(Keyword.NOT, Keyword.EXISTS)
       stmt.ifNotExists = true
-      stmt.markers.set("ifNotExistsEnd", this.pos - start)
     }
 
     stmt.markers.set("nameStart", this.pos - start)

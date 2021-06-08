@@ -4,16 +4,16 @@ import { Statement } from "./models"
 import { formatDateTime } from "./util/functions"
 
 export abstract class DdlSyncProcessor {
-  private startTime = Date.now()
+  protected startTime = Date.now()
+  protected options: { [key: string]: any } = {}
 
   protected constructor(
     public config: { [key: string]: any },
-    public dryrun: boolean,
   ) {
   }
 
   async execute() {
-    const options = await this.init()
+    await this.init()
 
     const files = await fg(this.config.include, {
       ignore: this.config.exclude
@@ -22,26 +22,19 @@ export abstract class DdlSyncProcessor {
     const stmts = []
     for (const fileName of files) {
       const contents = await fs.promises.readFile(fileName, 'utf-8')
-      for (const stmt of await this.parse(contents, {
-        ...options,
-        fileName
-      })) {
+      for (const stmt of await this.parse(contents, fileName)) {
         stmts.push(stmt)
       }
     }
 
-    await this.run(stmts, options)
+    await this.run(stmts)
   }
 
-  protected abstract init(): Promise<{ [ key: string ]: any }>
+  protected abstract init(): Promise<void>
 
-  protected abstract parse(input: string, options: { [ key: string ]: any }): Promise<Statement[]>
+  protected abstract parse(input: string, fileName: string): Promise<Statement[]>
 
-  protected abstract run(stmts: Statement[], options: { [key: string]: any }): Promise<void>
+  protected abstract run(stmts: Statement[]): Promise<void>
 
   abstract destroy(): Promise<void>
-
-  protected timestamp(seq: number) {
-    return formatDateTime(this.startTime, "uuuuMMddHHmmss") + ("0000" + seq).slice(-4)
-  }
 }
