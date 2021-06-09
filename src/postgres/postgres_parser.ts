@@ -63,6 +63,7 @@ export class Keyword implements ITokenType {
   static BINARY = new Keyword("BINARY")
   static BOTH = new Keyword("BOTH", { reserved: true })
   static CALL = new Keyword("CALL")
+  static CASCADE = new Keyword("CASCADE")
   static CASE = new Keyword("CASE", { reserved: true })
   static CAST = new Keyword("CAST", { reserved: true })
   static CHECK = new Keyword("CHECK", { reserved: true })
@@ -107,6 +108,7 @@ export class Keyword implements ITokenType {
   static END = new Keyword("END", { reserved: true })
   static EVENT = new Keyword("EVENT")
   static EXCEPT = new Keyword("EXCEPT", { reserved: true })
+  static EXISTS = new Keyword("EXISTS")
   static EXECUTE = new Keyword("EXECUTE")
   static EXTENSION = new Keyword("EXTENSION")
   static EXPLAIN = new Keyword("EXPLAIN")
@@ -123,6 +125,7 @@ export class Keyword implements ITokenType {
   static GRANT = new Keyword("GRANT", { reserved: true })
   static GROUP = new Keyword("GROUP", { reserved: true })
   static HAVING = new Keyword("HAVING", { reserved: true })
+  static IF = new Keyword("IF")
   static ILIKE = new Keyword("ILIKE")
   static IMPORT = new Keyword("IMPORT")
   static IN = new Keyword("IN", { reserved: true })
@@ -185,6 +188,7 @@ export class Keyword implements ITokenType {
   static REINDEX = new Keyword("REINDEX")
   static RELEASE = new Keyword("RELEASE")
   static RESET = new Keyword("RESET")
+  static RESTRICT = new Keyword("RESTRICT")
   static RETURNING = new Keyword("RETURNING", { reserved: true })
   static REVOKE = new Keyword("REVOKE")
   static RIGHT = new Keyword("RIGHT")
@@ -510,8 +514,8 @@ export class PostgresParser extends Parser {
           this.parseCreateOperatorStatement(stmt, start)
         }
       } else if (this.consumeIf(Keyword.STATISTICS)) {
-        stmt = new model.CreateStatisticsClassStatement()
-        this.parseCreateStatisticsClassStatement(stmt, start)
+        stmt = new model.CreateStatisticsStatement()
+        this.parseCreateStatisticsStatement(stmt, start)
       } else if (this.consumeIf(Keyword.GLOBAL) || this.consumeIf(Keyword.LOCAL)) {
         stmt = new model.CreateTableStatement()
         if (this.consumeIf(Keyword.TEMPORARY) || this.consumeIf(Keyword.TEMP)) {
@@ -684,7 +688,7 @@ export class PostgresParser extends Parser {
       } else if (this.consumeIf(Keyword.UNIQUE, Keyword.INDEX)) {
         stmt = new model.CreateIndexStatement()
         this.parseCreateIndexStatement(stmt, start)
-        stmt.type = model.IndexType.UNIQUE
+        stmt.type = "UNIQUE"
       } else if (this.consumeIf(Keyword.INDEX)) {
         stmt = new model.CreateIndexStatement()
         this.parseCreateIndexStatement(stmt, start)
@@ -779,8 +783,8 @@ export class PostgresParser extends Parser {
           this.parseAlterOperatorStatement(stmt, start)
         }
       } else if (this.consumeIf(Keyword.STATISTICS)) {
-        stmt = new model.AlterStatisticsClassStatement()
-        this.parseAlterStatisticsClassStatement(stmt, start)
+        stmt = new model.AlterStatisticsStatement()
+        this.parseAlterStatisticsStatement(stmt, start)
       } else if (this.consumeIf(Keyword.FOREIGN)) {
         if (this.consumeIf(Keyword.DATA)) {
           this.consume(Keyword.WRAPPER)
@@ -929,8 +933,8 @@ export class PostgresParser extends Parser {
           this.parseDropOperatorStatement(stmt, start)
         }
       } else if (this.consumeIf(Keyword.STATISTICS)) {
-        stmt = new model.DropStatisticsClassStatement()
-        this.parseDropStatisticsClassStatement(stmt, start)
+        stmt = new model.DropStatisticsStatement()
+        this.parseDropStatisticsStatement(stmt, start)
       } else if (this.consumeIf(Keyword.FOREIGN)) {
         if (this.consumeIf(Keyword.DATA)) {
           this.consume(Keyword.WRAPPER)
@@ -997,7 +1001,6 @@ export class PostgresParser extends Parser {
         stmt = new model.SecurityLabelStatement()
         this.parseSecurityLabelStatement(stmt, start)
       } else if (this.consumeIf(Keyword.TRUNCATE)) {
-        this.consumeIf(Keyword.TABLE)
         stmt = new model.TruncateStatement()
         this.parseTruncateStatement(stmt, start)
       } else if (this.consumeIf(Keyword.COMMENT)) {
@@ -1051,18 +1054,40 @@ export class PostgresParser extends Parser {
       } else if (this.consumeIf(Keyword.DISCARD)) {
         stmt = new model.DiscardStatement()
         this.parseDiscardStatement(stmt, start)
-      } else if (this.consumeIf(Keyword.ANALYZE)) {
-        stmt = new model.AnalyzeStatement()
-        this.parseAnalyzeStatement(stmt, start)
       } else if (this.consumeIf(Keyword.EXPLAIN)) {
         stmt = new model.ExplainStatement()
         this.parseExplainStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.ANALYZE)) {
+        stmt = new model.AnalyzeStatement()
+        this.parseAnalyzeStatement(stmt, start)
       } else if (this.consumeIf(Keyword.CLUSTER)) {
         stmt = new model.ClusterStatement()
         this.parseClusterStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.REFRESH)) {
+        this.consume(Keyword.MATERIALIZED, Keyword.VIEW)
+        stmt = new model.RefreshMaterializedViewStatement()
+        this.parseRefreshMaterializedViewStatement(stmt, start)
       } else if (this.consumeIf(Keyword.REINDEX)) {
-        stmt = new model.ReindexStatement()
-        this.parseReindexStatement(stmt, start)
+        let verbose = false
+        if (this.consumeIf(Keyword.VERBOSE)) {
+          verbose = true
+        }
+        if (this.consumeIf(Keyword.SYSTEM)) {
+          stmt = new model.ReindexSystemStatement()
+          this.parseReindexSystemStatement(stmt, start)
+        } else if (this.consumeIf(Keyword.DATABASE)) {
+          stmt = new model.ReindexDatabaseStatement()
+          this.parseReindexDatabaseStatement(stmt, start)
+        } else if (this.consumeIf(Keyword.SCHEMA)) {
+          stmt = new model.ReindexSchemaStatement()
+          this.parseReindexSchemaStatement(stmt, start)
+        } else if (this.consumeIf(Keyword.TABLE)) {
+          stmt = new model.ReindexTableStatement()
+          this.parseReindexTableStatement(stmt, start)
+        } else if (this.consumeIf(Keyword.INDEX)) {
+          stmt = new model.ReindexIndexStatement()
+          this.parseReindexIndexStatement(stmt, start)
+        }
       } else if (this.consumeIf(Keyword.VACUUM)) {
         stmt = new model.VacuumStatement()
         this.parseVacuumStatement(stmt, start)
@@ -1079,10 +1104,6 @@ export class PostgresParser extends Parser {
       } else if (this.consumeIf(Keyword.CHECKPOINT)) {
         stmt = new model.CheckpointStatement()
         this.parseCheckpointStatement(stmt, start)
-      } else if (this.consumeIf(Keyword.REFRESH)) {
-        this.consume(Keyword.MATERIALIZED, Keyword.VIEW)
-        stmt = new model.RefreshMaterializedViewStatement()
-        this.parseRefreshMaterializedViewStatement(stmt, start)
       } else if (this.consumeIf(Keyword.PREPARE)) {
         if (this.consumeIf(Keyword.TRANSACTION)) {
           stmt = new model.PrepareTransactionStatement()
@@ -1267,7 +1288,7 @@ export class PostgresParser extends Parser {
 
   }
 
-  private parseCreateStatisticsClassStatement(stmt: model.CreateStatisticsClassStatement, start: number) {
+  private parseCreateStatisticsStatement(stmt: model.CreateStatisticsStatement, start: number) {
 
   }
 
@@ -1423,7 +1444,7 @@ export class PostgresParser extends Parser {
 
   }
 
-  private parseAlterStatisticsClassStatement(stmt: model.AlterStatisticsClassStatement, start: number) {
+  private parseAlterStatisticsStatement(stmt: model.AlterStatisticsStatement, start: number) {
 
   }
 
@@ -1587,7 +1608,7 @@ export class PostgresParser extends Parser {
 
   }
 
-  private parseDropStatisticsClassStatement(stmt: model.DropStatisticsClassStatement, start: number) {
+  private parseDropStatisticsStatement(stmt: model.DropStatisticsStatement, start: number) {
 
   }
 
@@ -1619,252 +1640,514 @@ export class PostgresParser extends Parser {
 
   }
 
-  private parseDropTriggerStatement(stmt: model.DropTriggerStatement, start: number) {
-
-  }
-
-  private parseDropRuleStatement(stmt: model.DropRuleStatement, start: number) {
-
-  }
-
   private parseDropForeignDataWrapperStatement(stmt: model.DropForeignDataWrapperStatement, start: number) {
-
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      stmt.foreignDataWrappers.push(this.identifier())
+    }
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = "CASCADE"
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = "RESTRICT"
+    }
   }
 
   private parseDropForeignTableStatement(stmt: model.DropForeignTableStatement, start: number) {
-
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      stmt.foreignTables.push(this.schemaObject())
+    }
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = "CASCADE"
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = "RESTRICT"
+    }
   }
 
   private parseDropTextSearchConfigurationStatement(stmt: model.DropTextSearchConfigurationStatement, start: number) {
-
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    stmt.textSearchConfiguration = this.schemaObject()
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = "CASCADE"
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = "RESTRICT"
+    }
   }
 
   private parseDropTextSearchDictionaryStatement(stmt: model.DropTextSearchDictionaryStatement, start: number) {
-
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    stmt.textSearchDictionary = this.schemaObject()
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = "CASCADE"
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = "RESTRICT"
+    }
   }
 
   private parseDropTextSearchParserStatement(stmt: model.DropTextSearchParserStatement, start: number) {
-
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    stmt.textSearchParser = this.schemaObject()
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = "CASCADE"
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = "RESTRICT"
+    }
   }
 
   private parseDropTextSearchTemplateStatement(stmt: model.DropTextSearchTemplateStatement, start: number) {
-
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    stmt.textSearchTemplate = this.schemaObject()
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = "CASCADE"
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = "RESTRICT"
+    }
   }
 
   private parseDropPolicyStatement(stmt: model.DropPolicyStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    stmt.name = this.identifier()
+    this.consume(Keyword.ON)
+    stmt.table = this.schemaObject()
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = "CASCADE"
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = "RESTRICT"
+    }
+  }
 
+  private parseDropRuleStatement(stmt: model.DropRuleStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    stmt.name = this.identifier()
+    this.consume(Keyword.ON)
+    stmt.table = this.schemaObject()
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = "CASCADE"
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = "RESTRICT"
+    }
+  }
+
+  private parseDropTriggerStatement(stmt: model.DropTriggerStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    stmt.name = this.identifier()
+    this.consume(Keyword.ON)
+    stmt.table = this.schemaObject()
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = "CASCADE"
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = "RESTRICT"
+    }
   }
 
   private parseDropIndexStatement(stmt: model.DropIndexStatement, start: number) {
-
+    if (this.consumeIf(Keyword.CONCURRENTLY)) {
+      stmt.concurrently = true
+    }
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      stmt.indexes.push(this.schemaObject())
+    }
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = "CASCADE"
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = "RESTRICT"
+    }
   }
 
   private parseReassignOwnedStatement(stmt: model.ReassignOwnedStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseSecurityLabelStatement(stmt: model.SecurityLabelStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseTruncateStatement(stmt: model.TruncateStatement, start: number) {
-
+    this.consumeIf(Keyword.TABLE)
+    if (this.consumeIf(Keyword.ONLY)) {
+      stmt.only = true
+    }
+    stmt.table = this.schemaObject()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseCommentStatement(stmt: model.CommentStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseGrantStatement(stmt: model.GrantStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseRevokeStatement(stmt: model.RevokeStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseLockStatement(stmt: model.LockStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseStartTransactionStatement(stmt: model.StartTransactionStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseBeginStatement(stmt: model.BeginStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseSavepointStatement(stmt: model.SavepointStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseReleaseSavepointStatement(stmt: model.ReleaseSavepointStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseCommitPreparedStatement(stmt: model.CommitPreparedStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseCommitStatement(stmt: model.CommitStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseEndStatement(stmt: model.EndStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseRollbackPreparedStatement(stmt: model.RollbackPreparedStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseRollbackStatement(stmt: model.RollbackStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseAbortStatement(stmt: model.AbortStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseDiscardStatement(stmt: model.DiscardStatement, start: number) {
-
-  }
-
-  private parseAnalyzeStatement(stmt: model.AnalyzeStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseExplainStatement(stmt: model.ExplainStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
+  }
 
+  private parseAnalyzeStatement(stmt: model.AnalyzeStatement, start: number) {
+    //TODO
   }
 
   private parseClusterStatement(stmt: model.ClusterStatement, start: number) {
-
-  }
-
-  private parseReindexStatement(stmt: model.ReindexStatement, start: number) {
-
-  }
-
-  private parseVacuumStatement(stmt: model.VacuumStatement, start: number) {
-
-  }
-
-  private parseLoadStatement(stmt: model.LoadStatement, start: number) {
-
-  }
-
-  private parseImportForeignSchemaStatement(stmt: model.ImportForeignSchemaStatement, start: number) {
-
-  }
-
-  private parseCopyStatement(stmt: model.CopyStatement, start: number) {
-
-  }
-
-  private parseCheckpointStatement(stmt: model.CheckpointStatement, start: number) {
-
+    if (this.consumeIf(Keyword.VERBOSE)) {
+      stmt.verbose = true
+    }
+    if (this.token()) {
+      stmt.table = this.schemaObject()
+    }
   }
 
   private parseRefreshMaterializedViewStatement(stmt: model.RefreshMaterializedViewStatement, start: number) {
+    if (this.consumeIf(Keyword.CONCURRENTLY)) {
+      stmt.concurrently = true
+    }
+    stmt.materializedView = this.schemaObject()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
+  }
 
+  private parseReindexSystemStatement(stmt: model.ReindexSystemStatement, start: number) {
+    if (this.consumeIf(Keyword.CONCURRENTLY)) {
+      stmt.concurrently = true
+    }
+    stmt.schema = this.identifier()
+  }
+
+  private parseReindexDatabaseStatement(stmt: model.ReindexDatabaseStatement, start: number) {
+    if (this.consumeIf(Keyword.CONCURRENTLY)) {
+      stmt.concurrently = true
+    }
+    stmt.schema = this.identifier()
+  }
+
+  private parseReindexSchemaStatement(stmt: model.ReindexSchemaStatement, start: number) {
+    if (this.consumeIf(Keyword.CONCURRENTLY)) {
+      stmt.concurrently = true
+    }
+    stmt.schema = this.identifier()
+  }
+
+  private parseReindexTableStatement(stmt: model.ReindexTableStatement, start: number) {
+    if (this.consumeIf(Keyword.CONCURRENTLY)) {
+      stmt.concurrently = true
+    }
+    stmt.table = this.schemaObject()
+  }
+
+  private parseReindexIndexStatement(stmt: model.ReindexIndexStatement, start: number) {
+    if (this.consumeIf(Keyword.CONCURRENTLY)) {
+      stmt.concurrently = true
+    }
+    stmt.index = this.schemaObject()
+  }
+
+  private parseVacuumStatement(stmt: model.VacuumStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
+  }
+
+  private parseLoadStatement(stmt: model.LoadStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
+  }
+
+  private parseImportForeignSchemaStatement(stmt: model.ImportForeignSchemaStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
+  }
+
+  private parseCopyStatement(stmt: model.CopyStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
+  }
+
+  private parseCheckpointStatement(stmt: model.CheckpointStatement, start: number) {
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parsePrepareTransactionStatement(stmt: model.PrepareTransactionStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parsePrepareStatement(stmt: model.PrepareStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseExecuteStatement(stmt: model.ExecuteStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseDeallocateStatement(stmt: model.DeallocateStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseDeclareStatement(stmt: model.DeclareStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseFetchStatement(stmt: model.FetchStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseMoveStatement(stmt: model.MoveStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseCloseStatement(stmt: model.CloseStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseListenStatement(stmt: model.ListenStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseNotifyStatement(stmt: model.NotifyStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseUnlistenStatement(stmt: model.UnlistenStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseSetConstraintStatement(stmt: model.SetConstraintStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseSetRoleStatement(stmt: model.SetRoleStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseSetSessionAuthorizationStatement(stmt: model.SetSessionAuthorizationStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseSetTransactionStatement(stmt: model.SetTransactionStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseSetStatement(stmt: model.SetStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseResetStatement(stmt: model.ResetStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseShowStatement(stmt: model.ShowStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseCallStatement(stmt: model.CallStatement, start: number) {
-
+    stmt.procedure = this.schemaObject()
+    this.consume(TokenType.LeftParen)
+    while (this.token() && !this.peekIf(TokenType.RightParen)) {
+      this.consume()
+    }
+    this.consume(TokenType.RightParen)
   }
 
   private parseDoStatement(stmt: model.DoStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseValuesStatement(stmt: model.ValuesStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseInsertStatement(stmt: model.InsertStatement, start: number) {
-
+    this.consume(Keyword.INTO)
+    stmt.table = this.schemaObject()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseUpdateStatement(stmt: model.UpdateStatement, start: number) {
-
+    if (this.consumeIf(Keyword.ONLY)) {
+      stmt.only = true
+    }
+    stmt.table = this.schemaObject()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseDeleteStatement(stmt: model.DeleteStatement, start: number) {
-
+    if (this.consumeIf(Keyword.ONLY)) {
+      stmt.only = true
+    }
+    this.consumeIf(Keyword.FROM)
+    stmt.table = this.schemaObject()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseSelectStatement(stmt: model.SelectStatement, start: number) {
@@ -1915,6 +2198,15 @@ export class PostgresParser extends Parser {
     return this.tokens.slice(start, this.pos)
   }
 
+  private schemaObject() {
+    const sobj = new model.SchemaObject()
+    sobj.name = this.identifier()
+    if (this.consumeIf(TokenType.Dot)) {
+      sobj.schemaName = sobj.name
+      sobj.name = this.identifier()
+    }
+    return sobj
+  }
 
   private identifier() {
     if (this.consumeIf(TokenType.Identifier)) {

@@ -1,3 +1,4 @@
+import { Schema } from "inspector"
 import { Statement } from "../models"
 import { Token } from "../parser"
 
@@ -35,6 +36,9 @@ export class CreateAccessMethodStatement extends Statement {
 }
 
 export class DropAccessMethodStatement extends Statement {
+  accessMethod = new SchemaObject()
+  ifExists = false
+  dependent: "CASCADE" | "RESTRICT" = "RESTRICT"
 }
 
 export class CreateCastStatement extends Statement {
@@ -52,6 +56,9 @@ export class AlterEventTriggerStatement extends Statement {
 }
 
 export class DropEventTriggerStatement extends Statement {
+  eventTrigger = ""
+  ifExists = false
+  dependent: "CASCADE" | "RESTRICT" = "RESTRICT"
 }
 
 export class CreateExtensionStatement extends Statement {
@@ -63,6 +70,9 @@ export class AlterExtensionStatement extends Statement {
 }
 
 export class DropExtensionStatement extends Statement {
+  extension = ""
+  ifExists = false
+  dependent: "CASCADE" | "RESTRICT" = "RESTRICT"
 }
 
 export class CreateForeignDataWrapperStatement extends Statement {
@@ -74,6 +84,9 @@ export class AlterForeignDataWrapperStatement extends Statement {
 }
 
 export class DropForeignDataWrapperStatement extends Statement {
+  foreignDataWrappers = new Array<string>()
+  ifExists = false
+  dependent: "CASCADE" | "RESTRICT" = "RESTRICT"
 }
 
 export class CreateLanguageStatement extends Statement {
@@ -89,7 +102,10 @@ export class AlterLanguageStatement extends Statement {
 }
 
 export class DropLanguageStatement extends Statement {
+  languageName = ""
   procedural = false
+  ifExists = false
+  dependent: "CASCADE" | "RESTRICT" = "RESTRICT"
 }
 
 export class CreateTransformStatement extends Statement {
@@ -113,6 +129,9 @@ export class AlterPublicationStatement extends Statement {
 }
 
 export class DropPublicationStatement extends Statement {
+  publications = new Array<string>()
+  ifExists = false
+  dependent: "CASCADE" | "RESTRICT" = "RESTRICT"
 }
 
 export class CreateSubscriptionStatement extends Statement {
@@ -123,6 +142,9 @@ export class AlterSubscriptionStatement extends Statement {
 }
 
 export class DropSubscriptionStatement extends Statement {
+  subscription = ""
+  ifExists = false
+  dependent: "CASCADE" | "RESTRICT" = "RESTRICT"
 }
 
 export class CreateServerStatement extends Statement {
@@ -134,7 +156,9 @@ export class AlterServerStatement extends Statement {
 }
 
 export class DropServerStatement extends Statement {
-  serverName = ""
+  servers = new Array<string>()
+  ifExists = false
+  dependent: "CASCADE" | "RESTRICT" = "RESTRICT"
 }
 
 export class CreateUserMappingStatement extends Statement {
@@ -146,7 +170,9 @@ export class AlterUserMappingStatement extends Statement {
 }
 
 export class DropUserMappingStatement extends Statement {
-
+  ifExists = false
+  user = ""
+  server = ""
 }
 
 export class CreateTablespaceStatement extends Statement {
@@ -159,6 +185,7 @@ export class AlterTablespaceStatement extends Statement {
 
 export class DropTablespaceStatement extends Statement {
   tablespaceName = ""
+  ifExists = false
 }
 
 export class CreateTypeStatement extends Statement {
@@ -184,7 +211,8 @@ export class AlterRoleStatement extends Statement {
 }
 
 export class DropRoleStatement extends Statement {
-  name = ""
+  roles = new Array<string>()
+  ifExists = false
   login = false
 }
 
@@ -200,7 +228,9 @@ export class AlterSchemaStatement extends Statement {
 }
 
 export class DropSchemaStatement extends Statement {
-  schemaName = ""
+  schemas = new Array<string>()
+  ifExists = false
+  dependent: "CASCADE" | "RESTRICT" = "RESTRICT"
 }
 
 export class CreateCollationStatement extends Statement {
@@ -214,8 +244,9 @@ export class AlterCollationStatement extends Statement {
 }
 
 export class DropCollationStatement extends Statement {
-  schemaName?: string
-  name = ""
+  collation = ""
+  ifExists = false
+  dependent: "CASCADE" | "RESTRICT" = "RESTRICT"
 }
 
 export class AlterDefaultPrivilegesStatement extends Statement {
@@ -225,7 +256,10 @@ export class AlterDefaultPrivilegesStatement extends Statement {
 }
 
 export class CreateConversionStatement extends Statement {
+  conversion = ""
   default = false
+  ifExists = false
+  dependent: "CASCADE" | "RESTRICT" = "RESTRICT"
 }
 
 export class AlterConversionStatement extends Statement {
@@ -247,8 +281,9 @@ export class AlterDomainStatement extends Statement {
 }
 
 export class DropDomainStatement extends Statement {
-  schemaName?: string
-  name = ""
+  domains = new Array<SchemaObject>()
+  ifExists = false
+  dependent: "CASCADE" | "RESTRICT" = "RESTRICT"
 }
 
 export class CreateOperatorStatement extends Statement {
@@ -262,8 +297,7 @@ export class AlterOperatorStatement extends Statement {
 }
 
 export class DropOperatorStatement extends Statement {
-  schemaName?: string
-  name = ""
+
 }
 
 export class CreateOperatorFamilyStatement extends Statement {
@@ -277,13 +311,14 @@ export class AlterOperatorFamilyStatement extends Statement {
 }
 
 export class DropOperatorFamilyStatement extends Statement {
-  schemaName?: string
-  name = ""
+  operatorFamily = new SchemaObject()
+  indexMethod = ""
+  ifExists = false
+  dependent: "CASCADE" | "RESTRICT" = "RESTRICT"
 }
 
 export class CreateOperatorClassStatement extends Statement {
-  schemaName?: string
-  name = ""
+
 }
 
 export class AlterOperatorClassStatement extends Statement {
@@ -292,23 +327,25 @@ export class AlterOperatorClassStatement extends Statement {
 }
 
 export class DropOperatorClassStatement extends Statement {
+  operatorClass = new SchemaObject()
+  indexMethod = ""
+  ifExists = false
+  dependent: "CASCADE" | "RESTRICT" = "RESTRICT"
+}
+
+export class CreateStatisticsStatement extends Statement {
   schemaName?: string
   name = ""
 }
 
-export class CreateStatisticsClassStatement extends Statement {
+export class AlterStatisticsStatement extends Statement {
   schemaName?: string
   name = ""
 }
 
-export class AlterStatisticsClassStatement extends Statement {
-  schemaName?: string
-  name = ""
-}
-
-export class DropStatisticsClassStatement extends Statement {
-  schemaName?: string
-  name = ""
+export class DropStatisticsStatement extends Statement {
+  statistics = new Array<string>()
+  ifExists = false
 }
 
 export class CreateTableStatement extends Statement {
@@ -325,8 +362,9 @@ export class AlterTableStatement extends Statement {
 }
 
 export class DropTableStatement extends Statement {
-  schemaName?: string
-  name = ""
+  tables = new Array<SchemaObject>()
+  ifExists = false
+  dependent: "CASCADE" | "RESTRICT" = "RESTRICT"
 }
 
 export class CreateForeignTableStatement extends Statement {
@@ -340,8 +378,9 @@ export class AlterForeignTableStatement extends Statement {
 }
 
 export class DropForeignTableStatement extends Statement {
-  schemaName?: string
-  name = ""
+  foreignTables = new Array<SchemaObject>()
+  ifExists = false
+  dependent: "CASCADE" | "RESTRICT" = "RESTRICT"
 }
 
 export class CreateSequenceStatement extends Statement {
@@ -392,6 +431,7 @@ export class AlterMaterializedViewStatement extends Statement {
 export class DropMaterializedViewStatement extends Statement {
   schemaName?: string
   name = ""
+  dependent: "CASCADE" | "RESTRICT" = "RESTRICT"
 }
 
 export class CreateProcedureStatement extends Statement {
@@ -459,8 +499,10 @@ export class AlterTriggerStatement extends Statement {
 }
 
 export class DropTriggerStatement extends Statement {
-  schemaName?: string
   name = ""
+  table = new SchemaObject()
+  ifExists = false
+  dependent: "CASCADE" | "RESTRICT" = "RESTRICT"
 }
 
 export class CreateTextSearchConfigurationStatement extends Statement {
@@ -474,8 +516,9 @@ export class AlterTextSearchConfigurationStatement extends Statement {
 }
 
 export class DropTextSearchConfigurationStatement extends Statement {
-  schemaName?: string
-  name = ""
+  textSearchConfiguration = new SchemaObject()
+  ifExists = false
+  dependent: "CASCADE" | "RESTRICT" = "RESTRICT"
 }
 
 export class CreateTextSearchDictionaryStatement extends Statement {
@@ -489,8 +532,9 @@ export class AlterTextSearchDictionaryStatement extends Statement {
 }
 
 export class DropTextSearchDictionaryStatement extends Statement {
-  schemaName?: string
-  name = ""
+  textSearchDictionary = new SchemaObject()
+  ifExists = false
+  dependent: "CASCADE" | "RESTRICT" = "RESTRICT"
 }
 
 export class CreateTextSearchParserStatement extends Statement {
@@ -504,8 +548,9 @@ export class AlterTextSearchParserStatement extends Statement {
 }
 
 export class DropTextSearchParserStatement extends Statement {
-  schemaName?: string
-  name = ""
+  textSearchParser = new SchemaObject()
+  ifExists = false
+  dependent: "CASCADE" | "RESTRICT" = "RESTRICT"
 }
 
 export class CreateTextSearchTemplateStatement extends Statement {
@@ -519,21 +564,9 @@ export class AlterTextSearchTemplateStatement extends Statement {
 }
 
 export class DropTextSearchTemplateStatement extends Statement {
-  schemaName?: string
-  name = ""
-}
-
-export class CreateRuleStatement extends Statement {
-  name = ""
-  orReplace = false
-}
-
-export class AlterRuleStatement extends Statement {
-  name = ""
-}
-
-export class DropRuleStatement extends Statement {
-  name = ""
+  textSearchTemplate = new SchemaObject()
+  ifExists = false
+  dependent: "CASCADE" | "RESTRICT" = "RESTRICT"
 }
 
 export class CreatePolicyStatement extends Statement {
@@ -549,12 +582,30 @@ export class AlterPolicyStatement extends Statement {
 export class DropPolicyStatement extends Statement {
   name = ""
   table = new SchemaObject()
+  ifExists = false
+  dependent: "CASCADE" | "RESTRICT" = "RESTRICT"
+}
+
+export class CreateRuleStatement extends Statement {
+  name = ""
+  orReplace = false
+}
+
+export class AlterRuleStatement extends Statement {
+  name = ""
+}
+
+export class DropRuleStatement extends Statement {
+  name = ""
+  table = new SchemaObject()
+  ifExists = false
+  dependent: "CASCADE" | "RESTRICT" = "RESTRICT"
 }
 
 export class CreateIndexStatement extends Statement {
   schemaName?: string
   name = ""
-  type?: IndexType
+  type?: "UNIQUE"
 }
 
 export class AlterIndexStatement extends Statement {
@@ -563,8 +614,10 @@ export class AlterIndexStatement extends Statement {
 }
 
 export class DropIndexStatement extends Statement {
-  schemaName?: string
-  name = ""
+  indexes = new Array<SchemaObject>()
+  concurrently = false
+  ifExists = false
+  dependent: "CASCADE" | "RESTRICT" = "RESTRICT"
 }
 
 export class ReassignOwnedStatement extends Statement {
@@ -576,7 +629,8 @@ export class SecurityLabelStatement extends Statement {
 }
 
 export class TruncateStatement extends Statement {
-
+  table = new SchemaObject()
+  only = false
 }
 
 export class CommentStatement extends Statement {
@@ -648,11 +702,33 @@ export class ExplainStatement extends Statement {
 }
 
 export class ClusterStatement extends Statement {
-
+  table?: SchemaObject
+  verbose = false
 }
 
-export class ReindexStatement extends Statement {
+export class ReindexSystemStatement extends Statement {
+  schema = ""
+  concurrently = false
+}
 
+export class ReindexDatabaseStatement extends Statement {
+  schema = ""
+  concurrently = false
+}
+
+export class ReindexSchemaStatement extends Statement {
+  schema = ""
+  concurrently = false
+}
+
+export class ReindexTableStatement extends Statement {
+  table = new SchemaObject()
+  concurrently = false
+}
+
+export class ReindexIndexStatement extends Statement {
+  index = new SchemaObject()
+  concurrently = false
 }
 
 export class VacuumStatement extends Statement {
@@ -676,7 +752,8 @@ export class CheckpointStatement extends Statement {
 }
 
 export class RefreshMaterializedViewStatement extends Statement {
-
+  materializedView = new SchemaObject()
+  concurrently = false
 }
 
 export class PrepareTransactionStatement extends Statement {
@@ -752,7 +829,7 @@ export class ShowStatement extends Statement {
 }
 
 export class CallStatement extends Statement {
-
+  procedure = new SchemaObject()
 }
 
 export class DoStatement extends Statement {
@@ -764,21 +841,19 @@ export class ValuesStatement extends Statement {
 }
 
 export class InsertStatement extends Statement {
-
+  table = new SchemaObject()
 }
 
 export class UpdateStatement extends Statement {
-
+  table = new SchemaObject()
+  only = false
 }
 
 export class DeleteStatement extends Statement {
-
+  table = new SchemaObject()
+  only = false
 }
 
 export class SelectStatement extends Statement {
 
-}
-
-export enum IndexType {
-  UNIQUE = "UNIQUE"
 }
