@@ -3,7 +3,7 @@ import { Statement } from "../models"
 import { Token } from "../parser"
 
 export class SchemaObject {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
@@ -23,11 +23,11 @@ export class CreateDatabaseStatement extends Statement {
 }
 
 export class AlterDatabaseStatement extends Statement {
-  schemaName = ""
+  schema = ""
 }
 
 export class DropDatabaseStatement extends Statement {
-  schemaName = ""
+  schema = ""
   ifExists = false
 }
 
@@ -52,7 +52,7 @@ export class CreateEventTriggerStatement extends Statement {
 }
 
 export class AlterEventTriggerStatement extends Statement {
-  eventTriggerName = ""
+  eventTrigger = ""
 }
 
 export class DropEventTriggerStatement extends Statement {
@@ -66,7 +66,7 @@ export class CreateExtensionStatement extends Statement {
 }
 
 export class AlterExtensionStatement extends Statement {
-  extensionName = ""
+  extension = ""
 }
 
 export class DropExtensionStatement extends Statement {
@@ -80,7 +80,7 @@ export class CreateForeignDataWrapperStatement extends Statement {
 }
 
 export class AlterForeignDataWrapperStatement extends Statement {
-  foreignDataWrapperName = ""
+  foreignDataWrapper = ""
 }
 
 export class DropForeignDataWrapperStatement extends Statement {
@@ -97,12 +97,12 @@ export class CreateLanguageStatement extends Statement {
 }
 
 export class AlterLanguageStatement extends Statement {
-  languageName = ""
+  language = ""
   procedural = false
 }
 
 export class DropLanguageStatement extends Statement {
-  languageName = ""
+  language = ""
   procedural = false
   ifExists = false
   dependent: "CASCADE" | "RESTRICT" = "RESTRICT"
@@ -114,11 +114,11 @@ export class CreateTransformStatement extends Statement {
 }
 
 export class AlterTransformStatement extends Statement {
-  transformName = ""
+  transform = ""
 }
 
 export class DropTransformStatement extends Statement {
-  transformName = ""
+  transform = ""
 }
 
 export class CreatePublicationStatement extends Statement {
@@ -152,7 +152,7 @@ export class CreateServerStatement extends Statement {
 }
 
 export class AlterServerStatement extends Statement {
-  serverName = ""
+  server = ""
 }
 
 export class DropServerStatement extends Statement {
@@ -180,11 +180,11 @@ export class CreateTablespaceStatement extends Statement {
 }
 
 export class AlterTablespaceStatement extends Statement {
-  tablespaceName = ""
+  tablespace = ""
 }
 
 export class DropTablespaceStatement extends Statement {
-  tablespaceName = ""
+  tablespace = ""
   ifExists = false
 }
 
@@ -193,11 +193,11 @@ export class CreateTypeStatement extends Statement {
 }
 
 export class AlterTypeStatement extends Statement {
-  typeName = ""
+  type = ""
 }
 
 export class DropTypeStatement extends Statement {
-  typeName = ""
+  type = ""
 }
 
 export class CreateRoleStatement extends Statement {
@@ -224,7 +224,7 @@ export class CreateSchemaStatement extends Statement {
 }
 
 export class AlterSchemaStatement extends Statement {
-  schemaName = ""
+  schema = ""
 }
 
 export class DropSchemaStatement extends Statement {
@@ -234,12 +234,12 @@ export class DropSchemaStatement extends Statement {
 }
 
 export class CreateCollationStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
 export class AlterCollationStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
@@ -250,7 +250,7 @@ export class DropCollationStatement extends Statement {
 }
 
 export class AlterDefaultPrivilegesStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
   default = false
 }
@@ -271,12 +271,12 @@ export class DropConversionStatement extends Statement {
 }
 
 export class CreateDomainStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
 export class AlterDomainStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
@@ -287,12 +287,12 @@ export class DropDomainStatement extends Statement {
 }
 
 export class CreateOperatorStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
 export class AlterOperatorStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
@@ -301,12 +301,12 @@ export class DropOperatorStatement extends Statement {
 }
 
 export class CreateOperatorFamilyStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
 export class AlterOperatorFamilyStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
@@ -322,7 +322,7 @@ export class CreateOperatorClassStatement extends Statement {
 }
 
 export class AlterOperatorClassStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
@@ -334,12 +334,12 @@ export class DropOperatorClassStatement extends Statement {
 }
 
 export class CreateStatisticsStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
 export class AlterStatisticsStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
@@ -349,7 +349,7 @@ export class DropStatisticsStatement extends Statement {
 }
 
 export class CreateTableStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
   orReplace = false
   temporary = false
@@ -357,7 +357,7 @@ export class CreateTableStatement extends Statement {
 }
 
 export class AlterTableStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
@@ -368,12 +368,12 @@ export class DropTableStatement extends Statement {
 }
 
 export class CreateForeignTableStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
 export class AlterForeignTableStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
@@ -384,24 +384,24 @@ export class DropForeignTableStatement extends Statement {
 }
 
 export class CreateSequenceStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
   orReplace = false
   temporary = false
 }
 
 export class AlterSequenceStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
 export class DropSequenceStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
 export class CreateViewStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
   orReplace = false
   temporary = false
@@ -409,92 +409,92 @@ export class CreateViewStatement extends Statement {
 }
 
 export class AlterViewStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
 export class DropViewStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
 export class CreateMaterializedViewStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
 export class AlterMaterializedViewStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
 export class DropMaterializedViewStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
   dependent: "CASCADE" | "RESTRICT" = "RESTRICT"
 }
 
 export class CreateProcedureStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
   orReplace = false
 }
 
 export class AlterProcedureStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
 export class DropProcedureStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
 export class CreateFunctionStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
   orReplace = false
 }
 
 export class AlterFunctionStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
 export class DropFunctionStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
 export class CreateAggregateStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
   orReplace = false
 }
 
 export class AlterAggregateStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
 export class DropAggregateStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
 export class AlterRoutineStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
 export class CreateTriggerStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
   constraint = false
 }
 
 export class AlterTriggerStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
@@ -506,12 +506,12 @@ export class DropTriggerStatement extends Statement {
 }
 
 export class CreateTextSearchConfigurationStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
 export class AlterTextSearchConfigurationStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
@@ -522,12 +522,12 @@ export class DropTextSearchConfigurationStatement extends Statement {
 }
 
 export class CreateTextSearchDictionaryStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
 export class AlterTextSearchDictionaryStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
@@ -538,12 +538,12 @@ export class DropTextSearchDictionaryStatement extends Statement {
 }
 
 export class CreateTextSearchParserStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
 export class AlterTextSearchParserStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
@@ -554,12 +554,12 @@ export class DropTextSearchParserStatement extends Statement {
 }
 
 export class CreateTextSearchTemplateStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
 export class AlterTextSearchTemplateStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
@@ -603,13 +603,13 @@ export class DropRuleStatement extends Statement {
 }
 
 export class CreateIndexStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
   type?: "UNIQUE"
 }
 
 export class AlterIndexStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 

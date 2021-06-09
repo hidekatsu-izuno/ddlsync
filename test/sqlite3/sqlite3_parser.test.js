@@ -151,14 +151,14 @@ describe("test sqlite3_parser", () => {
     ["DROP VIEW IF EXISTS x",
       { view: { name: "x" }, ifExists: true }],
     ["DROP VIEW main.x",
-      { view: { schemaName: "main", name: "x" } }],
+      { view: { schema: "main", name: "x" } }],
     ["DROP VIEW IF EXISTS temp.x",
-      { view: { schemaName: "temp", name: "x" }, ifExists: true }],
+      { view: { schema: "temp", name: "x" }, ifExists: true }],
   ])("drop view %#", (input, expected) => {
     const result = new Sqlite3Parser(input, {}).root()
     expect(result.length).toBe(1)
     expect(result[0]).toBeInstanceOf(model.DropViewStatement)
-    expect(result[0].view.schemaName).toBe(expected.view.schemaName)
+    expect(result[0].view.schema).toBe(expected.view.schema)
     expect(result[0].view.name).toBe(expected.view.name)
     expect(result[0].ifExists).toBe(expected.ifExists || false)
   })
@@ -185,9 +185,9 @@ describe("test sqlite3_parser", () => {
     ["DROP TRIGGER IF EXISTS x",
       { trigger: { name: "x" }, ifExists: true }],
     ["DROP TRIGGER main.x",
-      { schemaName: "main", trigger: { name: "x" } }],
+      { schema: "main", trigger: { name: "x" } }],
     ["DROP TRIGGER IF EXISTS temp.x",
-      { trigger: { schemaName: "temp", name: "x" }, ifExists: true }],
+      { trigger: { schema: "temp", name: "x" }, ifExists: true }],
   ])("drop trigger %#", (input, expected) => {
     const result = new Sqlite3Parser(input, {}).root()
     expect(result.length).toBe(1)
@@ -219,16 +219,16 @@ describe("test sqlite3_parser", () => {
     ["DROP INDEX x",
       { index: { name: "x" } }],
     ["DROP INDEX main.x",
-      { index: { schemaName: "main", name: "x" } }],
+      { index: { schema: "main", name: "x" } }],
     ["DROP INDEX IF EXISTS x",
       { index: { name: "x" }, ifExists: true }],
     ["DROP INDEX IF EXISTS temp.x",
-      { index: { schemaName: "temp", name: "x" }, ifExists: true }],
+      { index: { schema: "temp", name: "x" }, ifExists: true }],
   ])("drop index %#", (input, expected) => {
     const result = new Sqlite3Parser(input, {}).root()
     expect(result.length).toBe(1)
     expect(result[0]).toBeInstanceOf(model.DropIndexStatement)
-    expect(result[0].index.schemaName).toBe(expected.index.schemaName)
+    expect(result[0].index.schema).toBe(expected.index.schema)
     expect(result[0].index.name).toBe(expected.index.name)
     expect(result[0].ifExists).toBe(expected.ifExists || false)
   })
@@ -247,12 +247,12 @@ describe("test sqlite3_parser", () => {
     ["VACUUM",
       {}],
     ["VACUUM x",
-      { schemaName: "x" }],
+      { schema: "x" }],
   ])("vacuum %#", (input, expected) => {
     const result = new Sqlite3Parser(input, {}).root()
     expect(result.length).toBe(1)
     expect(result[0]).toBeInstanceOf(model.VacuumStatement)
-    expect(result[0].schemaName).toBe(expected.schemaName)
+    expect(result[0].schema).toBe(expected.schema)
   })
 
   test.each([
@@ -299,12 +299,12 @@ describe("test sqlite3_parser", () => {
   })
 
   test.each([
-    ["RELEASE SAVEPOINT x", { savepointName: "x" }]
+    ["RELEASE SAVEPOINT x", { savepoint: "x" }]
   ])("release savepoint %#", (input, expected) => {
     const result = new Sqlite3Parser(input, {}).root()
     expect(result.length).toBe(1)
     expect(result[0]).toBeInstanceOf(model.ReleaseSavepointStatement)
-    expect(result[0].savepointName).toBe(expected.savepointName)
+    expect(result[0].savepoint).toBe(expected.savepoint)
   })
 
   test.each([
@@ -321,15 +321,15 @@ describe("test sqlite3_parser", () => {
   test.each([
     ["ROLLBACK", {}],
     ["ROLLBACK TRANSACTION", {}],
-    ["ROLLBACK TO x", { savepointName: "x" }],
-    ["ROLLBACK TRANSACTION TO x", { savepointName: "x" }],
-    ["ROLLBACK TO SAVEPOINT x", { savepointName: "x" }],
-    ["ROLLBACK TRANSACTION TO SAVEPOINT x", { savepointName: "x" }],
+    ["ROLLBACK TO x", { savepoint: "x" }],
+    ["ROLLBACK TRANSACTION TO x", { savepoint: "x" }],
+    ["ROLLBACK TO SAVEPOINT x", { savepoint: "x" }],
+    ["ROLLBACK TRANSACTION TO SAVEPOINT x", { savepoint: "x" }],
   ])("commit transaction %#", (input, expected) => {
     const result = new Sqlite3Parser(input, {}).root()
     expect(result.length).toBe(1)
     expect(result[0]).toBeInstanceOf(model.RollbackTransactionStatement)
-    expect(result[0].savepointName).toBe(expected.savepointName)
+    expect(result[0].savepoint).toBe(expected.savepoint)
   })
 
   test.each([
@@ -349,25 +349,25 @@ describe("test sqlite3_parser", () => {
     ["INSERT INTO x (x) VALUES (1)", { table: { name: "x" } }],
     ["REPLACE INTO x (x) VALUES (1)", { table: { name: "x" } }],
     ["INSERT OR ABORT INTO x (x, y, z) VALUES (1, 2, 3)", { table: { name: "x" }, conflictAction: "ABORT" }],
-    ["INSERT OR FAIL INTO main.x (x) VALUES (1)", { table: { schemaName: "main", name: "x" }, conflictAction: "FAIL" }],
+    ["INSERT OR FAIL INTO main.x (x) VALUES (1)", { table: { schema: "main", name: "x" }, conflictAction: "FAIL" }],
     ["INSERT OR IGNORE INTO x (x) VALUES (1)", { table: { name: "x" }, conflictAction: "IGNORE" }],
     ["INSERT OR REPLACE INTO x (x) VALUES (1)", { table: { name: "x" }, conflictAction: "REPLACE" }],
-    ["INSERT OR ROLLBACK INTO temp.x (x) VALUES (1)", { table: { schemaName: "temp", name: "x" }, conflictAction: "ROLLBACK" }],
+    ["INSERT OR ROLLBACK INTO temp.x (x) VALUES (1)", { table: { schema: "temp", name: "x" }, conflictAction: "ROLLBACK" }],
     ["WITH c AS (SELECT 1) INSERT INTO x (x) VALUES (1)", { table: { name: "x" } }],
     ["WITH c AS (SELECT 1) REPLACE INTO x (x) VALUES (1)", { table: { name: "x" } }],
   ])("insert %#", (input, expected) => {
     const result = new Sqlite3Parser(input, {}).root()
     expect(result.length).toBe(1)
     expect(result[0]).toBeInstanceOf(model.InsertStatement)
-    expect(result[0].table.schemaName).toBe(expected.table.schemaName)
+    expect(result[0].table.schema).toBe(expected.table.schema)
     expect(result[0].table.name).toBe(expected.table.name)
   })
 
   test.each([
     ["UPDATE x SET x = 1 WHERE x = 1", { table: { name: "x" } }],
-    ["UPDATE OR ABORT main.x SET x = 1 WHERE x = 1", { table: { schemaName: "main", name: "x" } }],
+    ["UPDATE OR ABORT main.x SET x = 1 WHERE x = 1", { table: { schema: "main", name: "x" } }],
     ["UPDATE OR FAIL x SET x = 1 WHERE x = 1", { table: { name: "x" } }],
-    ["UPDATE OR IGNORE temp.x SET x = 1 WHERE x = 1", { table: { schemaName: "temp", name: "x" } }],
+    ["UPDATE OR IGNORE temp.x SET x = 1 WHERE x = 1", { table: { schema: "temp", name: "x" } }],
     ["UPDATE OR REPLACE x SET x = 1 WHERE x = 1", { table: { name: "x" } }],
     ["UPDATE OR ROLLBACK x SET x = 1 WHERE x = 1", { table: { name: "x" } }],
     ["WITH c AS (SELECT 1) UPDATE x SET x = 1 WHERE x = 1", { table: { name: "x" } }],
@@ -375,19 +375,19 @@ describe("test sqlite3_parser", () => {
     const result = new Sqlite3Parser(input, {}).root()
     expect(result.length).toBe(1)
     expect(result[0]).toBeInstanceOf(model.UpdateStatement)
-    expect(result[0].table.schemaName).toBe(expected.table.schemaName)
+    expect(result[0].table.schema).toBe(expected.table.schema)
     expect(result[0].table.name).toBe(expected.table.name)
   })
 
   test.each([
     ["DELETE FROM x WHERE x = 1", { table: { name: "x" } }],
-    ["DELETE FROM main.x WHERE x = 1", { table: { schemaName: "main", name: "x" } }],
+    ["DELETE FROM main.x WHERE x = 1", { table: { schema: "main", name: "x" } }],
     ["WITH c AS (SELECT 1) DELETE FROM x WHERE x = 1", { table: { name: "x" } }],
   ])("delete %#", (input, expected) => {
     const result = new Sqlite3Parser(input, {}).root()
     expect(result.length).toBe(1)
     expect(result[0]).toBeInstanceOf(model.DeleteStatement)
-    expect(result[0].table.schemaName).toBe(expected.table.schemaName)
+    expect(result[0].table.schema).toBe(expected.table.schema)
     expect(result[0].table.name).toBe(expected.table.name)
   })
 

@@ -1907,7 +1907,7 @@ export class MysqlParser extends Parser {
     }
 
     const obj = this.schemaObject()
-    stmt.schemaName = obj.schemaName
+    stmt.schema = obj.schema
     stmt.name = obj.name
 
     if (this.consumeIf(Keyword.LIKE)) {
@@ -1988,7 +1988,7 @@ export class MysqlParser extends Parser {
           if (constraint instanceof model.IndexConstraint) {
             constraint.name = constraintName
             if (!this.peekIf(Keyword.USING) && !this.peekIf(TokenType.LeftParen)) {
-              constraint.indexName = this.identifier()
+              constraint.index = this.identifier()
             }
 
             if (this.consumeIf(Keyword.USING)) {
@@ -2020,7 +2020,7 @@ export class MysqlParser extends Parser {
           } else if (constraint instanceof model.ForeignKeyConstraint) {
             constraint.name = constraintName
             if (!this.peekIf(TokenType.LeftParen)) {
-              constraint.indexName = this.identifier()
+              constraint.index = this.identifier()
             }
             this.consume(TokenType.LeftParen)
             for (let j = 0; j === 0 || this.consumeIf(TokenType.Comma); j++) {
@@ -2266,7 +2266,7 @@ export class MysqlParser extends Parser {
     }
 
     const obj = this.schemaObject()
-    stmt.schemaName = obj.schemaName
+    stmt.schema = obj.schema
     stmt.name = obj.name
 
     while (this.token() && !this.peekIf(TokenType.Delimiter)) {
@@ -2322,7 +2322,7 @@ export class MysqlParser extends Parser {
     }
 
     const obj = this.schemaObject()
-    stmt.schemaName = obj.schemaName
+    stmt.schema = obj.schema
     stmt.name = obj.name
 
     if (this.consumeIf(Keyword.USING)) {
@@ -2335,9 +2335,9 @@ export class MysqlParser extends Parser {
       }
     }
     this.consume(Keyword.ON)
-    stmt.table.schemaName = this.identifier()
+    stmt.table.schema = this.identifier()
     if (this.consumeIf(TokenType.Dot)) {
-      stmt.table.schemaName = stmt.table.name
+      stmt.table.schema = stmt.table.name
       stmt.table.name = this.identifier()
     }
     this.consume(TokenType.LeftParen)
@@ -2398,7 +2398,7 @@ export class MysqlParser extends Parser {
     }
 
     const obj = this.schemaObject()
-    stmt.schemaName = obj.schemaName
+    stmt.schema = obj.schema
     stmt.name = obj.name
     if (this.consumeIf(TokenType.LeftParen)) {
       stmt.columns = []
@@ -2429,7 +2429,7 @@ export class MysqlParser extends Parser {
     }
 
     const obj = this.schemaObject()
-    stmt.schemaName = obj.schemaName
+    stmt.schema = obj.schema
     stmt.name = obj.name
     while (this.token()) {
       if (this.consumeIf(Keyword.COMMENT)) {
@@ -2462,7 +2462,7 @@ export class MysqlParser extends Parser {
     }
 
     const obj = this.schemaObject()
-    stmt.schemaName = obj.schemaName
+    stmt.schema = obj.schema
     stmt.name = obj.name
     while (this.token()) {
       if (this.consumeIf(Keyword.COMMENT)) {
@@ -2490,7 +2490,7 @@ export class MysqlParser extends Parser {
 
   private parseCreateProcedureStatement(stmt: model.CreateProcedureStatement, start: number) {
     const obj = this.schemaObject()
-    stmt.schemaName = obj.schemaName
+    stmt.schema = obj.schema
     stmt.name = obj.name
     this.consume(TokenType.LeftParen)
     for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
@@ -2549,7 +2549,7 @@ export class MysqlParser extends Parser {
     }
 
     const obj = this.schemaObject()
-    stmt.schemaName = obj.schemaName
+    stmt.schema = obj.schema
     stmt.name = obj.name
     this.consume(TokenType.LeftParen)
     for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
@@ -2603,7 +2603,7 @@ export class MysqlParser extends Parser {
     }
 
     const obj = this.schemaObject()
-    stmt.schemaName = obj.schemaName
+    stmt.schema = obj.schema
     stmt.name = obj.name
     if (this.consumeIf(Keyword.BEFORE)) {
       stmt.triggerTime = model.TriggerTime.BEFORE
@@ -2627,12 +2627,12 @@ export class MysqlParser extends Parser {
     if (this.consumeIf(Keyword.FOLLOWS)) {
       const triggerOrder = new model.TriggerOrder()
       triggerOrder.position = model.TriggerOrderPosition.FOLLOWS
-      triggerOrder.tableName = this.identifier()
+      triggerOrder.table = this.identifier()
       stmt.triggerOrder = triggerOrder
     } else if (this.consumeIf(Keyword.PRECEDES)) {
       const triggerOrder = new model.TriggerOrder()
       triggerOrder.position = model.TriggerOrderPosition.PRECEDES
-      triggerOrder.tableName = this.identifier()
+      triggerOrder.table = this.identifier()
       stmt.triggerOrder = triggerOrder
     }
     while (this.token() && !this.peekIf(TokenType.Delimiter)) {
@@ -2647,7 +2647,7 @@ export class MysqlParser extends Parser {
     }
 
     const obj = this.schemaObject()
-    stmt.schemaName = obj.schemaName
+    stmt.schema = obj.schema
     stmt.name = obj.name
     this.consume(Keyword.ON)
     this.consume(Keyword.SCHEDULE)
@@ -2692,21 +2692,21 @@ export class MysqlParser extends Parser {
   }
 
   private parseAlterDatabaseStatement(stmt: model.AlterDatabaseStatement, start: number) {
-    stmt.schemaName = this.identifier()
+    stmt.schema = this.identifier()
     while (this.token() && !this.peekIf(TokenType.Delimiter)) {
       this.consume()
     }
   }
 
   private parseAlterServerStatement(stmt: model.AlterServerStatement, start: number) {
-    stmt.serverName = this.identifier()
+    stmt.server = this.identifier()
     while (this.token() && !this.peekIf(TokenType.Delimiter)) {
       this.consume()
     }
   }
 
   private parseAlterResourceGroupStatement(stmt: model.AlterResourceGroupStatement, start: number) {
-    stmt.resourceGroupName = this.identifier()
+    stmt.resourceGroup = this.identifier()
     while (this.token() && !this.peekIf(TokenType.Delimiter)) {
       this.consume()
     }
@@ -2828,7 +2828,7 @@ export class MysqlParser extends Parser {
       this.consume(Keyword.EXISTS)
       stmt.ifExists = true
     }
-    stmt.schemaName = this.identifier()
+    stmt.schema = this.identifier()
   }
 
   private parseDropServerStatement(stmt: model.DropServerStatement, start: number) {
@@ -2836,11 +2836,11 @@ export class MysqlParser extends Parser {
       this.consume(Keyword.EXISTS)
       stmt.ifExists = true
     }
-    stmt.serverName = this.identifier()
+    stmt.server = this.identifier()
   }
 
   private parseDropResourceGroupStatement(stmt: model.DropResourceGroupStatement, start: number) {
-    stmt.resourceGroupName = this.identifier()
+    stmt.resourceGroup = this.identifier()
     if (this.consumeIf(Keyword.FORCE)) {
       stmt.force = true
     }
@@ -2990,7 +2990,7 @@ export class MysqlParser extends Parser {
   }
 
   private parseDeallocatePrepareStatement(stmt: model.DeallocatePrepareStatement, start: number) {
-    stmt.prepareName = this.identifier()
+    stmt.prepare = this.identifier()
   }
 
   private parseTruncateTableStatement(stmt: model.TruncateTableStatement, start: number) {
@@ -3006,7 +3006,7 @@ export class MysqlParser extends Parser {
   }
 
   private parseExecuteStatement(stmt: model.ExecuteStatement, start: number) {
-    stmt.prepareName = this.identifier()
+    stmt.prepare = this.identifier()
     while (this.token() && !this.peekIf(TokenType.Delimiter)) {
       this.consume()
     }
@@ -3315,7 +3315,7 @@ export class MysqlParser extends Parser {
   }
 
   private parseSetResourceGroupStatement(stmt: model.SetResourceGroupStatement, start: number) {
-    stmt.resourceGroupName = this.identifier()
+    stmt.resourceGroup = this.identifier()
     while (this.token() && !this.peekIf(TokenType.Delimiter)) {
       this.consume()
     }
@@ -3410,7 +3410,7 @@ export class MysqlParser extends Parser {
   }
 
   private parseUseStatement(stmt: model.UseStatement, start: number) {
-    stmt.schemaName = this.identifier()
+    stmt.schema = this.identifier()
     while (this.token() && !this.peekIf(TokenType.Delimiter)) {
       this.consume()
     }
@@ -3832,7 +3832,7 @@ export class MysqlParser extends Parser {
     const sobj = new model.SchemaObject()
     sobj.name = this.identifier()
     if (this.consumeIf(TokenType.Dot)) {
-      sobj.schemaName = sobj.name
+      sobj.schema = sobj.name
       sobj.name = this.identifier()
     }
     return sobj
@@ -4183,7 +4183,7 @@ export class MysqlParser extends Parser {
 
   references() {
     const references = new model.References()
-    references.tableName = this.identifier()
+    references.table = this.identifier()
     this.consume(TokenType.LeftParen)
     for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
       references.columns.push(this.identifier())

@@ -30,7 +30,7 @@ export abstract class Statement {
 
 
 export class VDatabase {
-  defaultSchemaName?: string
+  defaultSchema?: string
   private schemas = new Map<string, VSchema>()
   private collations = new Map<string, VCollation>()
 
@@ -97,15 +97,11 @@ export class VObject {
   public dropped = false
 
   constructor(
-    private vschema: VSchema,
+    public schema: VSchema,
     public type: string,
     public name: string,
     public target?: VObject,
   ) {
-  }
-
-  get schemaName() {
-    return this.vschema.name
   }
 }
 

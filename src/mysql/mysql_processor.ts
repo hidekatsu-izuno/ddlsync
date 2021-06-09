@@ -69,7 +69,7 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     vdb.addSchema("sys", true)
     vdb.addSchema("information_schema", true)
     vdb.addSchema("performance_schema", true)
-    vdb.defaultSchemaName = await this.getCurrentSchemaName()
+    vdb.defaultSchema = await this.getCurrentSchema()
 
     const refs = []
     for (const [i, stmt] of stmts.entries()) {
@@ -302,9 +302,9 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     }
   }
 
-  private async getCurrentSchemaName() {
-    const result = await this.con?.query("SELECT database() ad schemaName") as any[]
-    return result[0]?.schemaName
+  private async getCurrentSchema() {
+    const result = await this.con?.query("SELECT database() ad schema") as any[]
+    return result[0]?.schema
   }
 }
 

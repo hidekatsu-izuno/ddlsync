@@ -1,6 +1,5 @@
-import { Statement, VDatabase, VSchema } from "../models"
+import { Statement, VDatabase } from "../models"
 import { Token } from "../parser"
-import { lcase } from "../util/functions"
 
 export abstract class Constraint {
   name?: string
@@ -44,12 +43,12 @@ export class DetachDatabaseStatement extends Statement {
 }
 
 export class SchemaObject {
-  schemaName?: string
+  schema?: string
   name = ""
 }
 
 export class CreateTableStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
   temporary = false
   virtual = false
@@ -62,7 +61,7 @@ export class CreateTableStatement extends Statement {
   moduleArgs?: string[]
 
   validate() {
-    if (this.temporary && this.schemaName) {
+    if (this.temporary && this.schema) {
       throw new Error("temporary table name must be unqualified")
     }
 
@@ -88,7 +87,7 @@ export class CreateTableStatement extends Statement {
   process(vdb: VDatabase) {
     return processCreateStatement(vdb, {
       type: "table",
-      schemaName: this.schemaName,
+      schema: this.schema,
       name: this.name,
       temporary: this.temporary,
       ifNotExists: this.ifNotExists,
@@ -121,7 +120,7 @@ export class AlterTableStatement extends Statement {
   action: AlterTableAction = new RenameTableAction()
 
   process(vdb: VDatabase) {
-    let schemaName = this.table.schemaName
+    let schemaName = this.table.schema
     if (!schemaName) {
       const tempObject = vdb.getSchema("temp")?.getObject(this.table.name)
       schemaName = tempObject && !tempObject.dropped ? "temp" : "main"
@@ -160,7 +159,7 @@ export class DropTableStatement extends Statement {
   process(vdb: VDatabase) {
     return processDropStatement(vdb, {
       type: "table",
-      schemaName: this.table.schemaName,
+      schema: this.table.schema,
       name: this.table.name,
       ifExists: this.ifExists,
     })
@@ -168,14 +167,14 @@ export class DropTableStatement extends Statement {
 }
 
 export class CreateViewStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
   temporary = false
   ifNotExists = false
   columns?: string[]
 
   validate() {
-    if (this.temporary && this.schemaName) {
+    if (this.temporary && this.schema) {
       throw new Error("temporary table name must be unqualified")
     }
   }
@@ -183,7 +182,7 @@ export class CreateViewStatement extends Statement {
   process(vdb: VDatabase) {
     return processCreateStatement(vdb, {
       type: "view",
-      schemaName: this.schemaName,
+      schema: this.schema,
       name: this.name,
       temporary: this.temporary,
       ifNotExists: this.ifNotExists,
@@ -198,7 +197,7 @@ export class DropViewStatement extends Statement {
   process(vdb: VDatabase) {
     return processDropStatement(vdb, {
       type: "view",
-      schemaName: this.view.schemaName,
+      schema: this.view.schema,
       name: this.view.name,
       ifExists: this.ifExists,
     })
@@ -206,13 +205,13 @@ export class DropViewStatement extends Statement {
 }
 
 export class CreateTriggerStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
   temporary = false
   ifNotExists = false
 
   validate() {
-    if (this.temporary && this.schemaName) {
+    if (this.temporary && this.schema) {
       throw new Error("temporary table name must be unqualified")
     }
   }
@@ -220,7 +219,7 @@ export class CreateTriggerStatement extends Statement {
   process(vdb: VDatabase) {
     return processCreateStatement(vdb, {
       type: "trigger",
-      schemaName: this.schemaName,
+      schema: this.schema,
       name: this.name,
       temporary: this.temporary,
       ifNotExists: this.ifNotExists,
@@ -235,7 +234,7 @@ export class DropTriggerStatement extends Statement {
   process(vdb: VDatabase) {
     return processDropStatement(vdb, {
       type: "trigger",
-      schemaName: this.trigger.schemaName,
+      schema: this.trigger.schema,
       name: this.trigger.name,
       ifExists: this.ifExists,
     })
@@ -243,7 +242,7 @@ export class DropTriggerStatement extends Statement {
 }
 
 export class CreateIndexStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
   table = new SchemaObject()
   type?: IndexType
@@ -251,7 +250,7 @@ export class CreateIndexStatement extends Statement {
   columns = new Array<IndexColumn>()
 
   process(vdb: VDatabase) {
-    let schemaName = this.schemaName
+    let schemaName = this.schema
     if (!schemaName) {
       const tempObject = vdb.getSchema("temp")?.getObject(this.name)
       schemaName = tempObject && !tempObject.dropped ? "temp" : "main"
@@ -283,7 +282,7 @@ export class DropIndexStatement extends Statement {
   process(vdb: VDatabase) {
     return processDropStatement(vdb, {
       type: "index",
-      schemaName: this.index.schemaName,
+      schema: this.index.schema,
       name: this.index.name,
       ifExists: this.ifExists,
     })
@@ -291,11 +290,11 @@ export class DropIndexStatement extends Statement {
 }
 
 export class ReindexStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 
   process(vdb: VDatabase) {
-    let schemaName = this.schemaName
+    let schemaName = this.schema
     if (!schemaName) {
       const tempObject = vdb.getSchema("temp")?.getObject(this.name)
       schemaName = tempObject && !tempObject.dropped ? "temp" : "main"
@@ -319,14 +318,14 @@ export class ReindexStatement extends Statement {
 }
 
 export class VacuumStatement extends Statement {
-  schemaName?: string
-  fileName?: string
+  schema?: string
+  file?: string
 
   process(vdb: VDatabase) {
-    if (this.schemaName) {
-      const schema = vdb.getSchema(this.schemaName)
+    if (this.schema) {
+      const schema = vdb.getSchema(this.schema)
       if (!schema) {
-        throw new Error(`unknown database ${this.schemaName}`)
+        throw new Error(`unknown database ${this.schema}`)
       }
       return schema
     }
@@ -334,11 +333,11 @@ export class VacuumStatement extends Statement {
 }
 
 export class AnalyzeStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
 
   process(vdb: VDatabase) {
-    let schemaName = this.schemaName
+    let schemaName = this.schema
     if (!schemaName) {
       const tempObject = vdb.getSchema("temp")?.getObject(this.name)
       schemaName = tempObject && !tempObject.dropped ? "temp" : "main"
@@ -383,18 +382,18 @@ export class SavepointStatement extends Statement {
 }
 
 export class ReleaseSavepointStatement extends Statement {
-  savepointName = ""
+  savepoint = ""
 }
 
 export class CommitTransactionStatement extends Statement {
 }
 
 export class RollbackTransactionStatement extends Statement {
-  savepointName?: string
+  savepoint?: string
 }
 
 export class PragmaStatement extends Statement {
-  schemaName?: string
+  schema?: string
   name = ""
   value?: Token[]
 }
@@ -406,7 +405,7 @@ export class InsertStatement extends Statement {
   process(vdb: VDatabase) {
     return processObject(vdb, {
       type: "table",
-      schemaName: this.table.schemaName,
+      schema: this.table.schema,
       name: this.table.name,
     })
   }
@@ -419,7 +418,7 @@ export class UpdateStatement extends Statement {
   process(vdb: VDatabase) {
     return processObject(vdb, {
       type: "table",
-      schemaName: this.table.schemaName,
+      schema: this.table.schema,
       name: this.table.name,
     })
   }
@@ -431,7 +430,7 @@ export class DeleteStatement extends Statement {
   process(vdb: VDatabase) {
     return processObject(vdb, {
       type: "table",
-      schemaName: this.table.schemaName,
+      schema: this.table.schema,
       name: this.table.name,
     })
   }
@@ -473,7 +472,7 @@ export class CheckTableConstraint extends Constraint {
 }
 
 export class ForeignKeyTableConstraint extends Constraint {
-  columnNames = new Array<string>()
+  columns = new Array<string>()
 }
 
 export class PrimaryKeyColumnConstraint extends Constraint {
@@ -503,12 +502,12 @@ export class DefaultColumnConstraint extends Constraint {
 }
 
 export class CollateColumnConstraint extends Constraint {
-  collationName = ""
+  collation = ""
 }
 
 export class ReferencesKeyColumnConstraint extends Constraint {
-  tableName = ""
-  columnNames = new Array<string>()
+  table = ""
+  columns = new Array<string>()
 }
 
 export class GeneratedColumnConstraint extends Constraint {
@@ -546,12 +545,12 @@ export enum TransactionBehavior {
 
 function processCreateStatement(vdb: VDatabase, target: {
   type: string,
-  schemaName?: string,
+  schema?: string,
   name: string,
   temporary: boolean,
   ifNotExists: boolean
 }) {
-  const schemaName = target.schemaName || (target.temporary ? "temp" : "main")
+  const schemaName = target.schema || (target.temporary ? "temp" : "main")
   const schema = vdb.getSchema(schemaName)
   if (!schema) {
     throw new Error(`unknown database ${schemaName}`)
@@ -570,11 +569,11 @@ function processCreateStatement(vdb: VDatabase, target: {
 
 function processDropStatement(vdb: VDatabase, target: {
   type: string,
-  schemaName?: string,
+  schema?: string,
   name: string,
   ifExists: boolean,
 }) {
-  let schemaName = target.schemaName
+  let schemaName = target.schema
   if (!schemaName) {
     const tempObject = vdb.getSchema("temp")?.getObject(target.name)
     schemaName = tempObject && !tempObject.dropped ? "temp" : "main"
@@ -609,10 +608,10 @@ function processDropStatement(vdb: VDatabase, target: {
 
 function processObject(vdb: VDatabase, target: {
   type: string,
-  schemaName?: string,
+  schema?: string,
   name: string
 }) {
-  let schemaName = target.schemaName
+  let schemaName = target.schema
   if (!schemaName) {
     const tempObject = vdb.getSchema("temp")?.getObject(target.name)
     schemaName = tempObject && !tempObject.dropped ? "temp" : "main"

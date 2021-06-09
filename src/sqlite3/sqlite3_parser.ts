@@ -1,4 +1,5 @@
 import Decimal from "decimal.js"
+import { Statement } from "../models"
 import {
   ITokenType,
   Token,
@@ -553,7 +554,7 @@ export class Sqlite3Parser extends Parser {
     stmt.markers.set("nameStart", this.pos - start)
     stmt.name = this.identifier()
     if (this.consumeIf(TokenType.Dot)) {
-      stmt.schemaName = stmt.name
+      stmt.schema = stmt.name
       stmt.markers.set("nameStart", this.pos - start)
       stmt.name = this.identifier()
     }
@@ -627,7 +628,7 @@ export class Sqlite3Parser extends Parser {
     stmt.markers.set("nameStart", this.pos - start)
     stmt.name = this.identifier()
     if (this.consumeIf(TokenType.Dot)) {
-      stmt.schemaName = stmt.name
+      stmt.schema = stmt.name
       stmt.markers.set("nameStart", this.pos - start)
       stmt.name = this.identifier()
     }
@@ -655,7 +656,7 @@ export class Sqlite3Parser extends Parser {
     stmt.markers.set("nameStart", this.pos - start)
     stmt.name = this.identifier()
     if (this.consumeIf(TokenType.Dot)) {
-      stmt.schemaName = stmt.name
+      stmt.schema = stmt.name
       stmt.markers.set("nameStart", this.pos - start)
       stmt.name = this.identifier()
     }
@@ -681,7 +682,7 @@ export class Sqlite3Parser extends Parser {
     stmt.markers.set("nameStart", this.pos - start)
     stmt.name = this.identifier()
     if (this.consumeIf(TokenType.Dot)) {
-      stmt.schemaName = stmt.name
+      stmt.schema = stmt.name
       stmt.markers.set("nameStart", this.pos - start)
       stmt.name = this.identifier()
     }
@@ -702,12 +703,7 @@ export class Sqlite3Parser extends Parser {
   }
 
   private praseAlterTableStatement(stmt: model.AlterTableStatement, start: number) {
-    stmt.table.name = this.identifier()
-    if (this.consumeIf(TokenType.Dot)) {
-      stmt.table.schemaName = stmt.table.name
-      stmt.table.name = this.identifier()
-    }
-
+    stmt.table = this.schemaObject()
     if (this.consumeIf(Keyword.RENAME)) {
       if (this.consumeIf(Keyword.TO)) {
         const alterTableAction = new model.RenameTableAction()
@@ -741,12 +737,7 @@ export class Sqlite3Parser extends Parser {
       this.consume(Keyword.EXISTS)
       stmt.ifExists = true
     }
-
-    stmt.table.name = this.identifier()
-    if (this.consumeIf(TokenType.Dot)) {
-      stmt.table.schemaName = stmt.table.name
-      stmt.table.name = this.identifier()
-    }
+    stmt.table = this.schemaObject()
   }
 
   private praseDropViewStatement(stmt: model.DropViewStatement, start: number) {
@@ -754,12 +745,7 @@ export class Sqlite3Parser extends Parser {
       this.consume(Keyword.EXISTS)
       stmt.ifExists = true
     }
-
-    stmt.view.name = this.identifier()
-    if (this.consumeIf(TokenType.Dot)) {
-      stmt.view.schemaName = stmt.view.name
-      stmt.view.name = this.identifier()
-    }
+    stmt.view = this.schemaObject()
   }
 
   private praseDropTriggerStatement(stmt: model.DropTriggerStatement, start: number) {
@@ -767,12 +753,7 @@ export class Sqlite3Parser extends Parser {
       this.consume(Keyword.EXISTS)
       stmt.ifExists = true
     }
-
-    stmt.trigger.name = this.identifier()
-    if (this.consumeIf(TokenType.Dot)) {
-      stmt.trigger.schemaName = stmt.trigger.name
-      stmt.trigger.name = this.identifier()
-    }
+    stmt.trigger = this.schemaObject()
   }
 
   private praseDropIndexStatement(stmt: model.DropIndexStatement, start: number) {
@@ -781,11 +762,7 @@ export class Sqlite3Parser extends Parser {
       stmt.ifExists = true
     }
 
-    stmt.index.name = this.identifier()
-    if (this.consumeIf(TokenType.Dot)) {
-      stmt.index.schemaName = stmt.index.name
-      stmt.index.name = this.identifier()
-    }
+    stmt.index = this.schemaObject()
   }
 
   private praseAttachDatabaseStatement(stmt: model.AttachDatabaseStatement, start: number) {
@@ -801,7 +778,7 @@ export class Sqlite3Parser extends Parser {
   private praseAnalyzeStatement(stmt: model.AnalyzeStatement, start: number) {
     stmt.name = this.identifier()
     if (this.consumeIf(TokenType.Dot)) {
-      stmt.schemaName = stmt.name
+      stmt.schema = stmt.name
       stmt.name = this.identifier()
     }
   }
@@ -809,24 +786,24 @@ export class Sqlite3Parser extends Parser {
   private praseReindexStatement(stmt: model.ReindexStatement, start: number) {
     stmt.name = this.identifier()
     if (this.consumeIf(TokenType.Dot)) {
-      stmt.schemaName = stmt.name
+      stmt.schema = stmt.name
       stmt.name = this.identifier()
     }
   }
 
   private praseVacuumStatement(stmt: model.VacuumStatement, start: number) {
     if (this.token() && !this.peekIf(Keyword.TO)) {
-      stmt.schemaName = this.identifier()
+      stmt.schema = this.identifier()
     }
     if (this.consumeIf(Keyword.TO)) {
-      stmt.fileName = this.stringValue()
+      stmt.file = this.stringValue()
     }
   }
 
   private prasePragmaStatement(stmt: model.PragmaStatement, start: number) {
     stmt.name = this.identifier()
     if (this.consumeIf(TokenType.Dot)) {
-      stmt.schemaName = stmt.name
+      stmt.schema = stmt.name
       stmt.name = this.identifier()
     }
     if (this.consumeIf(Keyword.OPE_EQ)) {
@@ -846,7 +823,7 @@ export class Sqlite3Parser extends Parser {
   }
 
   private praseReleaseSavepointStatement(stmt: model.ReleaseSavepointStatement, start: number) {
-    stmt.savepointName = this.identifier()
+    stmt.savepoint = this.identifier()
   }
 
   private praseCommitTransactionStatement(stmt: model.CommitTransactionStatement, start: number) {
@@ -856,7 +833,7 @@ export class Sqlite3Parser extends Parser {
   private praseRollbackTransactionStatement(stmt: model.RollbackTransactionStatement, start: number) {
     if (this.consumeIf(Keyword.TO)) {
       this.consumeIf(Keyword.SAVEPOINT)
-      stmt.savepointName = this.identifier()
+      stmt.savepoint = this.identifier()
     }
   }
 
@@ -864,7 +841,7 @@ export class Sqlite3Parser extends Parser {
     this.consume(Keyword.INTO)
     stmt.table.name = this.identifier()
     if (this.consumeIf(TokenType.Dot)) {
-      stmt.table.schemaName = stmt.table.name
+      stmt.table.schema = stmt.table.name
       stmt.table.name = this.identifier()
     }
     while (this.token() && !this.peekIf(TokenType.SemiColon)) {
@@ -875,7 +852,7 @@ export class Sqlite3Parser extends Parser {
   private praseUpdateStatement(stmt: model.UpdateStatement, start: number) {
     stmt.table.name = this.identifier()
     if (this.consumeIf(TokenType.Dot)) {
-      stmt.table.schemaName = stmt.table.name
+      stmt.table.schema = stmt.table.name
       stmt.table.name = this.identifier()
     }
     while (this.token() && !this.peekIf(TokenType.SemiColon)) {
@@ -886,7 +863,7 @@ export class Sqlite3Parser extends Parser {
   private praseDeleteStatement(stmt: model.DeleteStatement, start: number) {
     stmt.table.name = this.identifier()
     if (this.consumeIf(TokenType.Dot)) {
-      stmt.table.schemaName = stmt.table.name
+      stmt.table.schema = stmt.table.name
       stmt.table.name = this.identifier()
     }
     while (this.token() && !this.peekIf(TokenType.SemiColon)) {
@@ -1050,14 +1027,14 @@ export class Sqlite3Parser extends Parser {
     } else if (this.consumeIf(Keyword.COLLATE)) {
       constraint = new model.CollateColumnConstraint()
       constraint.name = name
-      constraint.collationName = this.identifier()
+      constraint.collation = this.identifier()
     } else if (this.consumeIf(Keyword.REFERENCES)) {
       constraint = new model.ReferencesKeyColumnConstraint()
       constraint.name = name
-      constraint.tableName = this.identifier()
+      constraint.table = this.identifier()
       this.consume(TokenType.LeftParen)
       for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-        constraint.columnNames.push(this.identifier())
+        constraint.columns.push(this.identifier())
       }
       this.consume(TokenType.RightParen)
     } else if (this.peekIf(Keyword.GENERATED) || this.peekIf(Keyword.AS)) {
@@ -1125,9 +1102,9 @@ export class Sqlite3Parser extends Parser {
       constraint = new model.ForeignKeyTableConstraint()
       constraint.name = name
       this.consume(TokenType.LeftParen)
-      constraint.columnNames.push(this.identifier())
+      constraint.columns.push(this.identifier())
       while (this.consumeIf(TokenType.Comma)) {
-        constraint.columnNames.push(this.identifier())
+        constraint.columns.push(this.identifier())
       }
       this.consume(TokenType.RightParen)
     } else {
@@ -1222,6 +1199,16 @@ export class Sqlite3Parser extends Parser {
       throw this.createParseError()
     }
     return this.tokens.slice(start, this.pos)
+  }
+
+  schemaObject(stmt?: Statement) {
+    const sobj = new model.SchemaObject()
+    sobj.name = this.identifier()
+    if (this.consumeIf(TokenType.Dot)) {
+      sobj.schema = sobj.name
+      sobj.name = this.identifier()
+    }
+    return sobj
   }
 
   private identifier() {

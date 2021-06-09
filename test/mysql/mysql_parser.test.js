@@ -54,14 +54,14 @@ describe("test mysql_parser", () => {
 
   test.each([
     ["DROP DATABASE x",
-      { schemaName: "x" }],
+      { schema: "x" }],
     ["DROP SCHEMA x",
-      { schemaName: "x" }],
+      { schema: "x" }],
   ])("drop database %#", (input, expected) => {
     const result = new MysqlParser(input, {}).root()
     expect(result.length).toBe(1)
     expect(result[0]).toBeInstanceOf(model.DropDatabaseStatement)
-    expect(result[0].schemaName).toBe(expected.schemaName)
+    expect(result[0].schema).toBe(expected.schema)
   })
 
   test.each([
@@ -81,7 +81,7 @@ describe("test mysql_parser", () => {
     const result = new MysqlParser(input, {}).root()
     expect(result.length).toBe(1)
     expect(result[0]).toBeInstanceOf(model.CreateTableStatement)
-    expect(result[0].schemaName).toBe(expected.schemaName)
+    expect(result[0].schema).toBe(expected.schema)
     expect(result[0].orReplace).toBe(expected.orReplace || false)
     expect(result[0].name).toBe(expected.name)
     expect(result[0].ifNotExists).toBe(expected.ifNotExists || false)
@@ -98,13 +98,13 @@ describe("test mysql_parser", () => {
 
   test.each([
     ["DROP TABLE x", { tables: [{ name: "x" }] }],
-    ["DROP TABLE IF EXISTS main.x, y", { tables: [{ schemaName: "main", name: "x" }, { name: "y" }], ifExists: true }],
+    ["DROP TABLE IF EXISTS main.x, y", { tables: [{ schema: "main", name: "x" }, { name: "y" }], ifExists: true }],
   ])("drop table %#", (input, expected) => {
     const result = new MysqlParser(input, {}).root()
     expect(result.length).toBe(1)
     expect(result[0]).toBeInstanceOf(model.DropTableStatement)
     for (let i = 0; i < 3; i++) {
-      expect(result[0].tables?.[i]?.schemaName).toBe(expected.tables?.[i]?.schemaName)
+      expect(result[0].tables?.[i]?.schema).toBe(expected.tables?.[i]?.schema)
       expect(result[0].tables?.[i]?.name).toBe(expected.tables?.[i]?.name)
     }
     expect(result[0].ifExists).toBe(expected.ifExists || false)
@@ -127,7 +127,7 @@ describe("test mysql_parser", () => {
     const result = new MysqlParser(input, {}).root()
     expect(result.length).toBe(1)
     expect(result[0]).toBeInstanceOf(model.CreateSequenceStatement)
-    expect(result[0].schemaName).toBe(expected.schemaName)
+    expect(result[0].schema).toBe(expected.schema)
     expect(result[0].name).toBe(expected.name)
     expect(result[0].orReplace).toBe(expected.orReplace || false)
     expect(result[0].ifNotExists).toBe(expected.ifNotExists || false)
@@ -136,13 +136,13 @@ describe("test mysql_parser", () => {
 
   test.each([
     ["DROP SEQUENCE x", { sequences: [{ name: "x" }] }],
-    ["DROP SEQUENCE IF EXISTS main.x, y", { sequences: [{ schemaName: "main", name: "x" }, { name: "y" }], ifExists: true }],
+    ["DROP SEQUENCE IF EXISTS main.x, y", { sequences: [{ schema: "main", name: "x" }, { name: "y" }], ifExists: true }],
   ])("drop sequence %#", (input, expected) => {
     const result = new MysqlParser(input, {}).root()
     expect(result.length).toBe(1)
     expect(result[0]).toBeInstanceOf(model.DropSequenceStatement)
     for (let i = 0; i < 3; i++) {
-      expect(result[0].sequences?.[i]?.schemaName).toBe(expected.sequences?.[i]?.schemaName)
+      expect(result[0].sequences?.[i]?.schema).toBe(expected.sequences?.[i]?.schema)
       expect(result[0].sequences?.[i]?.name).toBe(expected.sequences?.[i]?.name)
     }
     expect(result[0].ifExists).toBe(expected.ifExists || false)
@@ -165,15 +165,15 @@ describe("test mysql_parser", () => {
     ["DROP VIEW IF EXISTS x",
       { views: [{ name: "x" }], ifExists: true }],
     ["DROP VIEW main.x",
-      { views: [{ schemaName: "main", name: "x" }] }],
+      { views: [{ schema: "main", name: "x" }] }],
     ["DROP VIEW IF EXISTS temp.x, main.x",
-      { views: [{ schemaName: "temp", name: "x" }, { schemaName: "main", name: "x" }], ifExists: true }],
+      { views: [{ schema: "temp", name: "x" }, { schema: "main", name: "x" }], ifExists: true }],
   ])("drop view %#", (input, expected) => {
     const result = new MysqlParser(input, {}).root()
     expect(result.length).toBe(1)
     expect(result[0]).toBeInstanceOf(model.DropViewStatement)
     for (let i = 0; i < 3; i++) {
-      expect(result[0].views?.[i]?.schemaName).toBe(expected.views?.[i]?.schemaName)
+      expect(result[0].views?.[i]?.schema).toBe(expected.views?.[i]?.schema)
       expect(result[0].views?.[i]?.name).toBe(expected.views?.[i]?.name)
     }
     expect(result[0].ifExists).toBe(expected.ifExists || false)
@@ -195,15 +195,15 @@ describe("test mysql_parser", () => {
     ["DROP TRIGGER IF EXISTS x",
       { triggers: [{ name: "x" }], ifExists: true }],
     ["DROP TRIGGER main.x",
-      { triggers: [{ schemaName: "main", name: "x" }] }],
+      { triggers: [{ schema: "main", name: "x" }] }],
     ["DROP TRIGGER IF EXISTS temp.x, main.x",
-      { triggers: [{ schemaName: "temp", name: "x" }, { schemaName: "main", name: "x" }], ifExists: true }],
+      { triggers: [{ schema: "temp", name: "x" }, { schema: "main", name: "x" }], ifExists: true }],
   ])("drop trigger %#", (input, expected) => {
     const result = new MysqlParser(input, {}).root()
     expect(result.length).toBe(1)
     expect(result[0]).toBeInstanceOf(model.DropTriggerStatement)
     for (let i = 0; i < 3; i++) {
-      expect(result[0].views?.[i]?.schemaName).toBe(expected.views?.[i]?.schemaName)
+      expect(result[0].views?.[i]?.schema).toBe(expected.views?.[i]?.schema)
       expect(result[0].views?.[i]?.name).toBe(expected.views?.[i]?.name)
     }
     expect(result[0].ifExists).toBe(expected.ifExists || false)
@@ -213,12 +213,12 @@ describe("test mysql_parser", () => {
     ["CREATE EVENT x ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 HOUR DO UPDATE x SET x = x + 1",
       { name: "x" }],
     ["CREATE EVENT main.x ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 HOUR DO UPDATE x SET x = x + 1",
-      { schemaName: "main", name: "x" }],
+      { schema: "main", name: "x" }],
   ])("create trigger %#", (input, expected) => {
     const result = new MysqlParser(input, {}).root()
     expect(result.length).toBe(1)
     expect(result[0]).toBeInstanceOf(model.CreateEventStatement)
-    expect(result[0].schemaName).toBe(expected.schemaName)
+    expect(result[0].schema).toBe(expected.schema)
     expect(result[0].name).toBe(expected.name)
   })
 
@@ -228,15 +228,15 @@ describe("test mysql_parser", () => {
     ["DROP EVENT IF EXISTS x",
       { triggers: [{ name: "x" }], ifExists: true }],
     ["DROP EVENT main.x",
-      { triggers: [{ schemaName: "main", name: "x" }] }],
+      { triggers: [{ schema: "main", name: "x" }] }],
     ["DROP EVENT IF EXISTS temp.x, main.x",
-      { triggers: [{ schemaName: "temp", name: "x" }, { schemaName: "main", name: "x" }], ifExists: true }],
+      { triggers: [{ schema: "temp", name: "x" }, { schema: "main", name: "x" }], ifExists: true }],
   ])("drop trigger %#", (input, expected) => {
     const result = new MysqlParser(input, {}).root()
     expect(result.length).toBe(1)
     expect(result[0]).toBeInstanceOf(model.DropEventStatement)
     for (let i = 0; i < 3; i++) {
-      expect(result[0].views?.[i]?.schemaName).toBe(expected.views?.[i]?.schemaName)
+      expect(result[0].views?.[i]?.schema).toBe(expected.views?.[i]?.schema)
       expect(result[0].views?.[i]?.name).toBe(expected.views?.[i]?.name)
     }
     expect(result[0].ifExists).toBe(expected.ifExists || false)
