@@ -1,12 +1,177 @@
 import { Statement, VDatabase } from "../models"
 import { Token } from "../parser"
 
+// Common
+export const DEFAULT = "DEFAULT"
+
+// View Algortihm
+export const UNDEFINED = "UNDEFINED"
+export const MERGE = "MERGE"
+export const TEMPTABLE = "TEMPTABLE"
+
+// Password expire
+// DEFAULT
+export const NEVER = "NEVER"
+
+// Password require current
+// DEFAULT
+export const OPTIONAL = "OPTIONAL"
+
+// Password lock time
+export const UNBOUNDED = "UNBOUNDED"
+
+// Transaction characteristic
+export const ISOLATION_LEVEL_REPEATABLE_READ = "ISOLATION_LEVEL_REPEATABLE_READ"
+export const ISOLATION_LEVEL_READ_COMMITTED = "ISOLATION_LEVEL_READ_COMMITTED"
+export const ISOLATION_LEVEL_READ_UNCOMMITTED = "ISOLATION_LEVEL_READ_UNCOMMITTED"
+export const ISOLATION_LEVEL_SERIALIZABLE = "ISOLATION_LEVEL_SERIALIZABLE"
+export const READ_WRITE = "READ_WRITE"
+export const READ_ONLY = "READ_ONLY"
+
+// VariableType
+export const GLOBAL = "GLOBAL"
+export const SESSION = "SESSION"
+export const USER_DEFINED = "USER_DEFINED"
+
+// Concurrency
+export const LOW_PRIORITY = "LOW_PRIORITY"
+export const DELAYED = "DELAYED"
+export const HIGH_PRIORITY = "HIGH_PRIORITY"
+export const CONCURRENT = "CONCURRENT"
+
+// Sort Order
+export const ASC = "ASC"
+export const DESC = "DESC"
+
+// Index type
+// DEFAULT = "DEFAULT",
+export const PRIMARY_KEY = "PRIMARY KEY"
+export const UNIQUE = "UNIQUE"
+export const FULLTEXT = "FULLTEXT"
+export const SPATIAL = "SPATIAL"
+
+// Index algorithm
+export const BTREE = "BTREE"
+export const HASH = "HASH"
+export const RTREE = "RTREE"
+
+// Resource group type
+export const SYSTEM = "SYSTEM"
+export const USER = "USER"
+
+// Conflict action
+export const IGNORE = "IGNORE"
+export const REPLACE = "REPLACE"
+
+// Insert method
+export const NO = "NO"
+export const FIRST = "FIRST"
+export const LAST = "LAST"
+
+// Row format
+export const DYNAMIC = "DYNAMIC"
+export const FIXED = "FIXED"
+export const COMPRESSED = "COMPRESSED"
+export const REDUNDANT = "REDUNDANT"
+export const COMPACT = "COMPACT"
+
+// Storage type
+export const DISK = "DISK"
+export const MEMORY = "MEMORY"
+
+// Sql security
+export const DEFINER = "DEFINER"
+export const INVOKER = "INVOKER"
+
+// Direction
+export const IN = "IN"
+export const OUT = "OUT"
+export const INOUT = "INOUT"
+
+// Check option
+export const CASCADED = "CASCADED"
+export const LOCAL = "LOCAL"
+
+// Procedure language
+export const SQL = "SQL"
+
+// Procedure characteristic
+export const CONTAINS_SQL = "CONTAINS SQL"
+export const NO_SQL = "NO SQL"
+export const READS_SQL_DATA = "READS SQL DATA"
+export const MODIFIES_SQL_DATA = "MODIFIES SQL DATA"
+
+// Trigger order position
+export const FOLLOWS = "FOLLOWS"
+export const PRECEDES = "PRECEDES"
+
+// Trigger time
+export const BEFORE = "BEFORE"
+export const AFTER = "AFTER"
+
+// Trigger event
+export const INSERT = "INSERT"
+export const UPDATE = "UPDATE"
+export const DELETE = "DELETE"
+
+// Interval unit
+export const YEAR = "YEAR"
+export const QUARTER = "QUARTER"
+export const MONTH = "MONTH"
+export const DAY = "DAY"
+export const HOUR = "HOUR"
+export const MINUTE = "MINUTE"
+export const WEEK = "WEEK"
+export const SECOND = "SECOND"
+export const YEAR_MONTH = "YEAR_MONTH"
+export const DAY_HOUR = "DAY_HOUR"
+export const DAY_MINUTE = "DAY_MINUTE"
+export const DAY_SECOND = "DAY_SECOND"
+export const HOUR_MINUTE = "DAY_SECOND"
+export const HOUR_SECOND = "DAY_SECOND"
+export const MINUTE_SECOND = "MINUTE_SECOND"
+
+// Index algorithm option
+// DEFAULT = "DEFAULT",
+export const INPLACE = "INPLACE"
+export const COPY = "COPY"
+
+// Index lock option
+// DEFAULT = "DEFAULT",
+export const NONE = "NONE"
+export const SHARED = "SHARED"
+export const EXCLUSIVE = "EXCLUSIVE"
+
+// Collation type
+export const BINARY = "BINARY"
+
+// Column format
+// export const FIXED = "FIXED"
+// export const DYNAMIC = "DYNAMIC"
+// DEFAULT = "DEFAULT",
+
+// Generated column store type
+export const VIRTUAL = "VIRTUAL"
+export const STORED = "STORED"
+
+// Match type
+export const FULL = "FULL"
+export const PARTIAL = "PARTIAL"
+export const SIMPLE = "SIMPLE"
+
+// Reference option
+export const RESTRICT = "RESTRICT"
+export const CASCADE = "CASCADE"
+export const SET_NULL = "SET NULL"
+export const NO_ACTION = "NO ACTION"
+export const SET_DEFAULT = "SET DEFAULT"
+
 export class Interval {
-  constructor(
-    public quantity: string,
-    public unit: IntervalUnit,
-  ) {
-  }
+  quantity = ""
+  unit: "YEAR" | "QUARTER" | "MONTH" | "DAY" |
+    "HOUR" | "MINUTE" | "WEEK" | "SECOND" |
+    "YEAR_MONTH" | "DAY_HOUR" | "DAY_MINUTE" | "DAY_SECOND" |
+    "HOUR_MINUTE" | "HOUR_SECOND" | "MINUTE_SECOND" = "YEAR"
 }
 
 export abstract class Constraint {
@@ -216,7 +381,7 @@ export class DropServerStatement extends Statement {
 export class CreateResourceGroupStatement extends Statement {
   name = ""
   orReplace = false
-  type: ResourceGroupType = ResourceGroupType.SYSTEM
+  type: "SYSTEM" | "USER" = SYSTEM
   vcpu = new Array<string | { min: string, max: string }>()
   threadPriority = "0"
   disable = false
@@ -304,20 +469,20 @@ export class ListPartition extends Partition {
 export class KeyPart {
   expression?: Array<Token>
   column?: string
-  sortOrder = SortOrder.ASC
+  sortOrder: "ASC" | "DESC" = ASC
 }
 
 export class GeneratedColumn {
-  type = GeneratedColumnType.VIRTUAL
+  storeType: "VIRTUAL" | "STORED" = VIRTUAL
   expression = new Array<Token>()
 }
 
 export class References {
   table = ""
   columns = new Array<string>()
-  match?: MatchType
-  onDelete = ReferenceOption.NO_ACTION
-  onUpdate = ReferenceOption.NO_ACTION
+  match?: "FULL" | "PARTIAL" | "SIMPLE"
+  onDelete: "RESTRICT" | "CASCADE" | "SET NULL" | "NO ACTION" | "SET DEFAULT" = NO_ACTION
+  onUpdate: "RESTRICT" | "CASCADE" | "SET NULL" | "NO ACTION" | "SET DEFAULT" = NO_ACTION
 }
 
 export class TableColumn {
@@ -328,12 +493,12 @@ export class TableColumn {
   visible = true
   collate?: string
   autoIncrement = false
-  indexType?: IndexType
+  indexType?: "PRIMARY KEY" | "UNIQUE" | "FULLTEXT" | "SPATIAL"
   comment?: string
-  columnFormat?: ColumnFormat
+  columnFormat?: "FIXED" | "DYNAMIC" | "DEFAULT"
   engineAttribute?: string
   secondaryEngineAttribute?: string
-  storageType?: StorageType
+  storageType?: "DISK" | "MEMORY"
   generatedColumn?: GeneratedColumn
   references?: References
   checkConstraint?: CheckConstraint
@@ -352,9 +517,9 @@ export class DataType {
 }
 
 export class IndexConstraint extends Constraint {
-  type?: IndexType
+  type?: "PRIMARY KEY" | "UNIQUE" | "FULLTEXT" | "SPATIAL"
   index?: string
-  algorithm?: IndexAlgorithm
+  algorithm?: "BTREE" |  "HASH" | "RTREE"
   keyParts = new Array<KeyPart>()
 }
 
@@ -382,7 +547,7 @@ export class CreateTableStatement extends Statement {
   constraints?: Array<Constraint>
   tableOptions = new Array<{ key: string, value: any }>()
   partition?: Partition
-  conflictAction?: ConflictAction
+  conflictAction?: "IGNORE" | "REPLACE"
 
   process(vdb: VDatabase) {
     return processCreateStatement(vdb, {
@@ -471,7 +636,7 @@ export class DropTableStatement extends Statement {
   tables = new Array<SchemaObject>()
   temporary = false
   ifExists = false
-  dropOption = DropOption.CASCADE
+  dropOption: "RESTRICT" | "CASCADE" = CASCADE
 
   process(vdb: VDatabase) {
     const result = []
@@ -498,7 +663,7 @@ export class CreateSequenceStatement extends Statement {
   maxvalue?: string
   start?: string
   cache?: string
-  cacheCycle = CacheCycle.NOCYCLE
+  noCycle = false
   tableOptions = new Array<{ key: string, value: any }>()
 
   process(vdb: VDatabase) {
@@ -532,7 +697,7 @@ export class DropSequenceStatement extends Statement {
 export class IndexColumn {
   name?: string
   expression?: Token[]
-  sortOrder = SortOrder.ASC
+  sortOrder: "ASC" | "DESC" = ASC
 }
 
 export class CreateIndexStatement extends Statement {
@@ -540,13 +705,13 @@ export class CreateIndexStatement extends Statement {
   name = ""
   orReplace = false
   ifNotExists = false
-  type?: IndexType
-  algorithm?: IndexAlgorithm
+  type?: "UNIQUE" | "FULLTEXT" | "SPATIAL"
+  algorithm?: "BTREE" |  "HASH" | "RTREE"
   table = new SchemaObject()
   columns = new Array<IndexColumn>()
   indexOptions = new Array<{ key: string, value: any }>()
-  algorithmOption = IndexAlgorithmOption.DEFAULT
-  lockOption = IndexLockOption.DEFAULT
+  algorithmOption: "DEFAULT" | "INPLACE" | "COPY" = DEFAULT
+  lockOption: "DEFAULT" | "NONE" | "SHARED" | "EXCLUSIVE" = DEFAULT
 
   process(vdb: VDatabase) {
     const schemaName = this.schema || vdb.defaultSchema
@@ -600,11 +765,11 @@ export class CreateViewStatement extends Statement {
   name = ""
   orReplace = false
   ifNotExists = false
-  algorithm?: Algortihm
+  algorithm?: "UNDEFINED" | "MERGE" | "TEMPTABLE"
   definer?: UserRole
-  sqlSecurity?: SqlSecurity
+  sqlSecurity: "DEFINER" | "INVOKER" = DEFINER
   columns?: Array<string>
-  checkOption?: CheckOption
+  checkOption: "CASCADED" | "LOCAL" = CASCADED
 
   process(vdb: VDatabase) {
     return processCreateStatement(vdb, {
@@ -618,9 +783,9 @@ export class CreateViewStatement extends Statement {
 
 export class AlterViewStatement extends Statement {
   view = new SchemaObject()
-  algorithm?: Algortihm
+  algorithm?: "UNDEFINED" | "MERGE" | "TEMPTABLE"
   definer?: UserRole
-  sqlSecurity?: SqlSecurity
+  sqlSecurity?: "DEFINER" | "INVOKER"
 
   process(vdb: VDatabase) {
     return processAlterStatement(vdb, {
@@ -634,7 +799,7 @@ export class AlterViewStatement extends Statement {
 export class DropViewStatement extends Statement {
   views = new Array<SchemaObject>()
   ifExists = false
-  dropOption = DropOption.CASCADE
+  dropOption: "RESTRICT" | "CASCADE" = CASCADE
 
   process(vdb: VDatabase) {
     const result = []
@@ -651,7 +816,7 @@ export class DropViewStatement extends Statement {
 }
 
 export class ProcedureParam {
-  direction: Direction = Direction.IN
+  direction: "IN" | "OUT" | "INOUT" = IN
   name = ""
   dataType = new DataType()
 }
@@ -663,7 +828,7 @@ export class CreatePackageStatement extends Statement {
   ifNotExists = false
   definer?: UserRole
   comment?: string
-  sqlSecurity = SqlSecurity.DEFINER
+  sqlSecurity: "DEFINER" | "INVOKER" = DEFINER
 
   process(vdb: VDatabase) {
     return processCreateStatement(vdb, {
@@ -696,7 +861,7 @@ export class CreatePackageBodyStatement extends Statement {
   ifNotExists = false
   definer?: UserRole
   comment?: string
-  sqlSecurity = SqlSecurity.DEFINER
+  sqlSecurity: "DEFINER" | "INVOKER" = DEFINER
 
   process(vdb: VDatabase) {
     return processCreateStatement(vdb, {
@@ -729,10 +894,10 @@ export class CreateProcedureStatement extends Statement {
   definer?: UserRole
   params = new Array<ProcedureParam>()
   comment?: string
-  language = ProcedureLanguage.SQL
+  language: "SQL" = "SQL"
   deterministic = false
-  characteristic = ProcedureCharacteristic.CONTAINS_SQL
-  sqlSecurity = SqlSecurity.DEFINER
+  characteristic: "CONTAINS SQL" | "NO SQL" | "READS SQL DATA" | "MODIFIES SQL DATA" = CONTAINS_SQL
+  sqlSecurity: "DEFINER" | "INVOKER" = DEFINER
 
   process(vdb: VDatabase) {
     return processCreateStatement(vdb, {
@@ -786,10 +951,10 @@ export class CreateFunctionStatement extends Statement {
   params = new Array<FunctionParam>()
   returnDataType = new DataType()
   comment?: string
-  language = ProcedureLanguage.SQL
+  language: "SQL" = "SQL"
   deterministic = false
-  characteristic = ProcedureCharacteristic.CONTAINS_SQL
-  sqlSecurity = SqlSecurity.DEFINER
+  characteristic: "CONTAINS SQL" | "NO SQL" | "READS SQL DATA" | "MODIFIES SQL DATA" = CONTAINS_SQL
+  sqlSecurity: "DEFINER" | "INVOKER" = DEFINER
 
   process(vdb: VDatabase) {
     return processCreateStatement(vdb, {
@@ -829,7 +994,7 @@ export class DropFunctionStatement extends Statement {
 }
 
 export class TriggerOrder {
-  position = TriggerOrderPosition.FOLLOWS
+  position: "FOLLOWS" | "PRECEDES" = FOLLOWS
   table = ""
 }
 
@@ -839,8 +1004,8 @@ export class CreateTriggerStatement extends Statement {
   orReplace = false
   definer?: UserRole
   ifNotExists = false
-  triggerTime = TriggerTime.BEFORE
-  triggerEvent = TriggerEvent.INSERT
+  triggerTime: "BEFORE" | "AFTER" = BEFORE
+  triggerEvent: "INSERT" | "UPDATE" | "DELETE" = INSERT
   table = new SchemaObject()
   triggerOrder?: TriggerOrder
 
@@ -931,8 +1096,10 @@ export class BeginStatement extends Statement {
 }
 
 export class SetTransactionStatement extends Statement {
-  type?: VariableType
-  characteristic = TransactionCharacteristic.ISOLATION_LEVEL_READ_COMMITTED
+  type?: "GLOBAL" | "SESSION" | "USER_DEFINED"
+  characteristic: "ISOLATION_LEVEL_REPEATABLE_READ" | "ISOLATION_LEVEL_READ_COMMITTED" |
+    "ISOLATION_LEVEL_READ_UNCOMMITTED" | "ISOLATION_LEVEL_SERIALIZABLE" |
+    "READ_WRITE" | "READ_ONLY" = ISOLATION_LEVEL_READ_COMMITTED
 }
 
 export class SavepointStatement extends Statement {
@@ -1135,8 +1302,8 @@ export class UseStatement extends Statement {
 
 export class InsertStatement extends Statement {
   table = new SchemaObject()
-  concurrency?: Concurrency
-  conflictAction?: ConflictAction
+  concurrency?: "LOW_PRIORITY" | "DELAYED" | "HIGH_PRIORITY"
+  conflictAction?: "IGNORE" | "REPLACE"
 
   process(vdb: VDatabase) {
     return processObject(vdb, {
@@ -1149,8 +1316,8 @@ export class InsertStatement extends Statement {
 
 export class UpdateStatement extends Statement {
   table = new SchemaObject()
-  concurrency?: Concurrency
-  conflictAction?: ConflictAction
+  concurrency?: "LOW_PRIORITY"
+  conflictAction?: "IGNORE" | "REPLACE"
 
   process(vdb: VDatabase) {
     return processObject(vdb, {
@@ -1163,8 +1330,8 @@ export class UpdateStatement extends Statement {
 
 export class ReplaceStatement extends Statement {
   table = new SchemaObject()
-  concurrency?: Concurrency
-  conflictAction?: ConflictAction
+  concurrency?: "LOW_PRIORITY" | "DELAYED"
+  conflictAction?: "IGNORE" | "REPLACE"
 
   process(vdb: VDatabase) {
     return processObject(vdb, {
@@ -1177,9 +1344,9 @@ export class ReplaceStatement extends Statement {
 
 export class DeleteStatement extends Statement {
   table = new SchemaObject()
-  concurrency?: Concurrency
+  concurrency?: "LOW_PRIORITY"
   quick = false
-  conflictAction?: ConflictAction
+  conflictAction?: "IGNORE" | "REPLACE"
 
   process(vdb: VDatabase) {
     return processObject(vdb, {
@@ -1191,12 +1358,12 @@ export class DeleteStatement extends Statement {
 }
 
 export class LoadDataStatement extends Statement {
-  concurrency?: Concurrency
+  concurrency?: "LOW_PRIORITY" | "CONCURRENT"
   local = false
 }
 
 export class LoadXmlStatement extends Statement {
-  concurrency?: Concurrency
+  concurrency?: "LOW_PRIORITY" | "CONCURRENT"
   local = false
 }
 
@@ -1211,7 +1378,7 @@ export class SetStatement extends Statement {
 }
 
 export class VariableAssignment {
-  type?: VariableType
+  type?: "GLOBAL" | "SESSION" | "USER_DEFINED"
   name = ""
   value?: Token[]
 }
@@ -1259,200 +1426,6 @@ export class ShutdownStatement extends Statement {
 
 export class CloneStatement extends Statement {
 
-}
-
-export enum Algortihm {
-  UNDEFINED = "UNDEFINED",
-  MERGE = "MERGE",
-  TEMPTABLE = "TEMPTABLE",
-}
-
-export enum TransactionCharacteristic {
-  ISOLATION_LEVEL_REPEATABLE_READ = "ISOLATION_LEVEL_REPEATABLE_READ",
-  ISOLATION_LEVEL_READ_COMMITTED = "ISOLATION_LEVEL_READ_COMMITTED",
-  ISOLATION_LEVEL_READ_UNCOMMITTED = "ISOLATION_LEVEL_READ_UNCOMMITTED",
-  ISOLATION_LEVEL_SERIALIZABLE = "ISOLATION_LEVEL_SERIALIZABLE",
-  READ_WRITE = "READ_WRITE",
-  READ_ONLY = "READ_ONLY",
-}
-
-export enum VariableType {
-  GLOBAL = "GLOBAL",
-  SESSION = "SESSION",
-  USER_DEFINED = "USER_DEFINED"
-}
-
-export enum Concurrency {
-  LOW_PRIORITY = "LOW_PRIORITY",
-  DELAYED = "DELAYED",
-  HIGH_PRIORITY = "HIGH_PRIORITY",
-  CONCURRENT = "CONCURRENT",
-}
-
-export enum SortOrder {
-  ASC = "ASC",
-  DESC = "DESC",
-}
-
-export enum IndexType {
-  PRIMARY_KEY = "PRIMARY KEY",
-  UNIQUE = "UNIQUE",
-  FULLTEXT = "FULLTEXT",
-  SPATIAL = "SPATIAL",
-}
-
-export enum IndexAlgorithm {
-  BTREE = "BTREE",
-  HASH = "HASH",
-  RTREE = "RTREE",
-}
-
-export enum ResourceGroupType {
-  SYSTEM = "SYSTEM",
-  USER = "USER",
-}
-
-export enum ConflictAction {
-  IGNORE = "IGNORE",
-  REPLACE = "REPLACE",
-}
-
-export enum InsertMethod {
-  NO = "NO",
-  FIRST = "FIRST",
-  LAST = "LAST",
-}
-
-export enum RowFormat {
-  DEFAULT = "DEFAULT",
-  DYNAMIC = "DYNAMIC",
-  FIXED = "FIXED",
-  COMPRESSED = "COMPRESSED",
-  REDUNDANT = "REDUNDANT",
-  COMPACT = "COMPACT",
-}
-
-export enum StorageType {
-  DISK = "DISK",
-  MEMORY = "MEMORY",
-}
-
-export enum SqlSecurity {
-  DEFINER = "DEFINER",
-  INVOKER = "INVOKER",
-}
-
-export enum Direction {
-  IN = "IN",
-  OUT = "OUT",
-  INOUT = "INOUT",
-}
-
-export enum CheckOption {
-  CASCADED = "CASCADED",
-  LOCAL = "LOCAL",
-}
-
-export enum ProcedureLanguage {
-  SQL = "SQL"
-}
-
-export enum ProcedureCharacteristic {
-  CONTAINS_SQL = "CONTAINS SQL",
-  NO_SQL = "NO SQL",
-  READS_SQL_DATA = "READS SQL DATA",
-  MODIFIES_SQL_DATA = "MODIFIES SQL DATA",
-}
-
-export enum TriggerOrderPosition {
-  FOLLOWS = "FOLLOWS",
-  PRECEDES = "PRECEDES",
-}
-
-export enum TriggerTime {
-  BEFORE = "BEFORE",
-  AFTER = "AFTER",
-}
-
-export enum TriggerEvent {
-  INSERT = "INSERT",
-  UPDATE = "UPDATE",
-  DELETE = "DELETE",
-}
-
-export enum IntervalUnit {
-  YEAR = "YEAR",
-  QUARTER = "QUARTER",
-  MONTH = "MONTH",
-  DAY = "DAY",
-  HOUR = "HOUR",
-  MINUTE = "MINUTE",
-  WEEK = "WEEK",
-  SECOND = "SECOND",
-  YEAR_MONTH = "YEAR_MONTH",
-  DAY_HOUR = "DAY_HOUR",
-  DAY_MINUTE = "DAY_MINUTE",
-  DAY_SECOND = "DAY_SECOND",
-  HOUR_MINUTE = "DAY_SECOND",
-  HOUR_SECOND = "DAY_SECOND",
-  MINUTE_SECOND = "MINUTE_SECOND",
-}
-
-export enum IndexAlgorithmOption {
-  DEFAULT = "DEFAULT",
-  INPLACE = "INPLACE",
-  COPY = "COPY",
-}
-
-export enum IndexLockOption {
-  DEFAULT = "DEFAULT",
-  NONE = "NONE",
-  SHARED = "SHARED",
-  EXCLUSIVE = "EXCLUSIVE",
-}
-
-export enum CollationType {
-  BINARY = "BINARY"
-}
-
-export enum ColumnFormat {
-  FIXED = "FIXED",
-  DYNAMIC = "DYNAMIC",
-  DEFAULT = "DEFAULT",
-}
-
-export enum GeneratedColumnType {
-  VIRTUAL = "VIRTUAL",
-  STORED = "STORED",
-}
-
-export enum MatchType {
-  FULL = "FULL",
-  PARTIAL = "PARTIAL",
-  SIMPLE = "SIMPLE",
-}
-
-export enum ReferenceOption {
-  RESTRICT = "RESTRICT",
-  CASCADE = "CASCADE",
-  SET_NULL = "SET NULL",
-  NO_ACTION = "NO ACTION",
-  SET_DEFAULT = "SET DEFAULT",
-}
-
-export enum DropOption {
-  RESTRICT = "RESTRICT",
-  CASCADE = "CASCADE",
-}
-
-export enum CacheCycle {
-  CYCLE = "CYCLE",
-  NOCYCLE = "NOCYCLE",
-}
-
-export enum OnCompletionAction {
-  PRESERVE = "PRESERVE",
-  NOT_PRESERVE = "NOT PRESERVE",
 }
 
 function processCreateStatement(vdb: VDatabase, target: {

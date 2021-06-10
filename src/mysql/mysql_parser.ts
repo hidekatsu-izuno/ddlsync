@@ -483,6 +483,7 @@ export class Keyword implements ITokenType {
   static ROW_NUMBER = new Keyword("ROW_NUMBER", { reserved: function(options: { [ key:string]:any}) {
     return options.package === "mysql" && semver.satisfies(">=8.0.2", options.version || "0")
   } })
+  static RTREE = new Keyword("RTREE")
   static SAVEPOINT = new Keyword("SAVEPOINT")
   static SECURITY = new Keyword("SECURITY")
   static SCHEDULE = new Keyword("SCHEDULE")
@@ -970,39 +971,34 @@ export class MysqlParser extends Parser {
       } else if (this.consumeIf(Keyword.UNIQUE, Keyword.INDEX)) {
         stmt = new model.CreateIndexStatement()
         stmt.orReplace = orReplace
-        stmt.type = model.IndexType.UNIQUE
+        stmt.type = model.UNIQUE
         this.parseCreateIndexStatement(stmt, start)
       } else if (this.consumeIf(Keyword.FULLTEXT, Keyword.INDEX)) {
         stmt = new model.CreateIndexStatement()
         stmt.orReplace = orReplace
-        stmt.type = model.IndexType.FULLTEXT
+        stmt.type = model.FULLTEXT
         this.parseCreateIndexStatement(stmt, start)
       } else if (this.consumeIf(Keyword.SPATIAL, Keyword.INDEX)) {
         stmt = new model.CreateIndexStatement()
         stmt.orReplace = orReplace
-        stmt.type = model.IndexType.SPATIAL
+        stmt.type = model.SPATIAL
         this.parseCreateIndexStatement(stmt, start)
       } else if (this.consumeIf(Keyword.INDEX)) {
         stmt = new model.CreateIndexStatement()
         stmt.orReplace = orReplace
         this.parseCreateIndexStatement(stmt, start)
       } else if (this.consumeIf(Keyword.ALGORITHM)) {
-        const viewAlgorithm = this.viewAlgorithm()
-        let definer
-        if (this.consumeIf(Keyword.DEFINER)) {
-          this.consume(Keyword.OPE_EQ)
-          definer = this.userRole()
-        }
-        let sqlSecurity
-        if (this.peekIf(Keyword.SQL)) {
-          sqlSecurity = this.sqlSecurity()
-        }
-        this.consume(Keyword.VIEW)
         stmt = new model.CreateViewStatement()
         stmt.orReplace = orReplace
-        stmt.algorithm = viewAlgorithm
-        stmt.definer = definer
-        stmt.sqlSecurity = sqlSecurity
+        stmt.algorithm = this.viewAlgorithm()
+        if (this.consumeIf(Keyword.DEFINER)) {
+          this.consume(Keyword.OPE_EQ)
+          stmt.definer = this.userRole()
+        }
+        if (this.peekIf(Keyword.SQL)) {
+          stmt.sqlSecurity = this.sqlSecurity()
+        }
+        this.consume(Keyword.VIEW)
         this.parseCreateViewStatement(stmt, start)
       } else if (this.peekIf(Keyword.DEFINER)) {
         this.consume(Keyword.OPE_EQ)
@@ -1139,21 +1135,16 @@ export class MysqlParser extends Parser {
         stmt = new model.AlterTableStatement()
         this.parseAlterTableStatement(stmt, start)
       } else if (this.consumeIf(Keyword.ALGORITHM)) {
-        const viewAlgorithm = this.viewAlgorithm()
-        let definer
+        stmt = new model.AlterViewStatement()
+        stmt.algorithm = this.viewAlgorithm()
         if (this.consumeIf(Keyword.DEFINER)) {
           this.consume(Keyword.OPE_EQ)
-          definer = this.userRole()
+          stmt.definer = this.userRole()
         }
-        let sqlSecurity
         if (this.peekIf(Keyword.SQL)) {
-          sqlSecurity = this.sqlSecurity()
+          stmt.sqlSecurity = this.sqlSecurity()
         }
         this.consume(Keyword.VIEW)
-        stmt = new model.AlterViewStatement()
-        stmt.algorithm = viewAlgorithm
-        stmt.definer = definer
-        stmt.sqlSecurity = sqlSecurity
         this.parseAlterInstanceStatement(stmt, start)
       } else if (this.peekIf(Keyword.DEFINER)) {
         this.consume(Keyword.OPE_EQ)
@@ -1492,14 +1483,14 @@ export class MysqlParser extends Parser {
         this.parseSetNamesStatement(stmt, start)
       } else if (this.consumeIf(Keyword.GLOBAL, Keyword.TRANSACTION)) {
         stmt = new model.SetTransactionStatement()
-        stmt.type = model.VariableType.GLOBAL
+        stmt.type = model.GLOBAL
         this.parseSetTransactionStatement(stmt, start)
       } else if (
         this.consumeIf(Keyword.SESSION, Keyword.TRANSACTION) ||
         this.consumeIf(Keyword.LOCAL, Keyword.TRANSACTION)
       ) {
         stmt = new model.SetTransactionStatement()
-        stmt.type = model.VariableType.SESSION
+        stmt.type = model.SESSION
         this.parseSetTransactionStatement(stmt, start)
       } else if (this.consumeIf(Keyword.TRANSACTION)) {
         stmt = new model.SetTransactionStatement()
@@ -1628,9 +1619,9 @@ export class MysqlParser extends Parser {
     stmt.name = this.identifier()
     this.consume(Keyword.TYPE, Keyword.OPE_EQ)
     if (this.consumeIf(Keyword.SYSTEM)) {
-      stmt.type = model.ResourceGroupType.SYSTEM
+      stmt.type = model.SYSTEM
     } else if (this.consumeIf(Keyword.USER)) {
-      stmt.type = model.ResourceGroupType.USER
+      stmt.type = model.USER
     } else {
       throw this.createParseError()
     }
@@ -1834,9 +1825,9 @@ export class MysqlParser extends Parser {
       if (this.consumeIf(Keyword.PASSWORD)) {
         if (this.consumeIf(Keyword.EXPIRE)) {
           if (this.consumeIf(Keyword.DEFAULT)) {
-            stmt.passwordOptions.push({ key: "PASSWORD EXPIRE", value: "DEFAULT" })
+            stmt.passwordOptions.push({ key: "PASSWORD EXPIRE", value: model.DEFAULT })
           } else if (this.consumeIf(Keyword.NEVER)) {
-            stmt.passwordOptions.push({ key: "PASSWORD EXPIRE", value: "NEVER" })
+            stmt.passwordOptions.push({ key: "PASSWORD EXPIRE", value: model.NEVER })
           } else if (this.consumeIf(Keyword.INTERVAL)) {
             stmt.passwordOptions.push({ key: "PASSWORD EXPIRE", value: this.numberValue() })
             this.consumeIf(Keyword.DAY)
@@ -1845,14 +1836,14 @@ export class MysqlParser extends Parser {
           }
         } else if (this.consumeIf(Keyword.HISTORY)) {
           if (this.consumeIf(Keyword.DEFAULT)) {
-            stmt.passwordOptions.push({ key: "PASSWORD HISTORY", value: "DEFAULT" })
+            stmt.passwordOptions.push({ key: "PASSWORD HISTORY", value: model.DEFAULT })
           } else {
             stmt.passwordOptions.push({ key: "PASSWORD HISTORY", value: this.numberValue() })
           }
         } else if (this.consumeIf(Keyword.REUSE)) {
           this.consume(Keyword.INTERVAL)
           if (this.consumeIf(Keyword.DEFAULT)) {
-            stmt.passwordOptions.push({ key: "PASSWORD REUSE INTERVAL", value: "DEFAULT" })
+            stmt.passwordOptions.push({ key: "PASSWORD REUSE INTERVAL", value: model.DEFAULT })
           } else {
             stmt.passwordOptions.push({ key: "PASSWORD REUSE INTERVAL", value: this.numberValue() })
             this.consumeIf(Keyword.DAY)
@@ -1860,9 +1851,9 @@ export class MysqlParser extends Parser {
         } else if (this.consumeIf(Keyword.REQUIRE)) {
           this.consumeIf(Keyword.CURRENT)
           if (this.consumeIf(Keyword.DEFAULT)) {
-            stmt.passwordOptions.push({ key: "PASSWORD REQUIRE CURRENT", value: "DEFAULT" })
+            stmt.passwordOptions.push({ key: "PASSWORD REQUIRE CURRENT", value: model.DEFAULT })
           } else if (this.consumeIf(Keyword.OPTIONAL)) {
-            stmt.passwordOptions.push({ key: "PASSWORD REQUIRE CURRENT", value: "OPTIONAL" })
+            stmt.passwordOptions.push({ key: "PASSWORD REQUIRE CURRENT", value: model.OPTIONAL })
           } else {
             stmt.passwordOptions.push({ key: "PASSWORD REQUIRE CURRENT", value: true })
           }
@@ -1873,7 +1864,7 @@ export class MysqlParser extends Parser {
         stmt.passwordOptions.push({ key: "FAILED_LOGIN_ATTEMPTS", value: this.numberValue() })
       } else if (this.consumeIf(Keyword.PASSWORD_LOCK_TIME)) {
         if (this.consumeIf(Keyword.UNBOUNDED)) {
-          stmt.passwordOptions.push({ key: "PASSWORD_LOCK_TIME", value: "UNBOUNDED" })
+          stmt.passwordOptions.push({ key: "PASSWORD_LOCK_TIME", value: model.UNBOUNDED })
         } else {
           stmt.passwordOptions.push({ key: "PASSWORD_LOCK_TIME", value: this.numberValue() })
         }
@@ -1933,11 +1924,11 @@ export class MysqlParser extends Parser {
             if (this.consumeIf(Keyword.PRIMARY)) {
               this.consume(Keyword.KEY)
               constraint = new model.IndexConstraint()
-              constraint.type = model.IndexType.PRIMARY_KEY
+              constraint.type = model.PRIMARY_KEY
             } else if (this.consumeIf(Keyword.UNIQUE)) {
               if (this.consumeIf(Keyword.INDEX) || this.consumeIf(Keyword.KEY)) {
                 constraint = new model.IndexConstraint()
-                constraint.type = model.IndexType.UNIQUE
+                constraint.type = model.UNIQUE
               } else {
                 throw this.createParseError()
               }
@@ -1952,11 +1943,11 @@ export class MysqlParser extends Parser {
           } else if (this.consumeIf(Keyword.PRIMARY)) {
             this.consume(Keyword.KEY)
             constraint = new model.IndexConstraint()
-            constraint.type = model.IndexType.PRIMARY_KEY
+            constraint.type = model.PRIMARY_KEY
           } else if (this.consumeIf(Keyword.UNIQUE)) {
             if (this.consumeIf(Keyword.INDEX) || this.consumeIf(Keyword.KEY)) {
               constraint = new model.IndexConstraint()
-              constraint.type = model.IndexType.UNIQUE
+              constraint.type = model.UNIQUE
             } else {
               throw this.createParseError()
             }
@@ -1968,14 +1959,14 @@ export class MysqlParser extends Parser {
           } else if (this.consumeIf(Keyword.FULLTEXT)) {
             if (this.consumeIf(Keyword.INDEX) || this.consumeIf(Keyword.KEY)) {
               constraint = new model.IndexConstraint()
-              constraint.type = model.IndexType.FULLTEXT
+              constraint.type = model.FULLTEXT
             } else {
               throw this.createParseError()
             }
           } else if (this.consumeIf(Keyword.SPATIAL)) {
             if (this.consumeIf(Keyword.INDEX) || this.consumeIf(Keyword.KEY)) {
               constraint = new model.IndexConstraint()
-              constraint.type = model.IndexType.SPATIAL
+              constraint.type = model.SPATIAL
             } else {
               throw this.createParseError()
             }
@@ -1993,9 +1984,9 @@ export class MysqlParser extends Parser {
 
             if (this.consumeIf(Keyword.USING)) {
               if (this.consumeIf(Keyword.BTREE)) {
-                constraint.algorithm = model.IndexAlgorithm.BTREE
+                constraint.algorithm = model.BTREE
               } else if (this.consumeIf(Keyword.HASH)) {
-                constraint.algorithm = model.IndexAlgorithm.HASH
+                constraint.algorithm = model.HASH
               } else {
                 throw this.createParseError()
               }
@@ -2010,9 +2001,9 @@ export class MysqlParser extends Parser {
                 keyPart.column = this.identifier()
               }
               if (this.consumeIf(Keyword.ASC)) {
-                keyPart.sortOrder = model.SortOrder.ASC
+                keyPart.sortOrder = model.ASC
               } else if (this.consumeIf(Keyword.DESC)) {
-                keyPart.sortOrder = model.SortOrder.DESC
+                keyPart.sortOrder = model.DESC
               }
               constraint.keyParts.push(keyPart)
             }
@@ -2244,10 +2235,10 @@ export class MysqlParser extends Parser {
         }
       }
       if (this.consumeIf(Keyword.IGNORE)) {
-        stmt.conflictAction = model.ConflictAction.IGNORE
+        stmt.conflictAction = model.IGNORE
         stmt.asSelect = true
       } else if (this.consumeIf(Keyword.REPLACE)) {
-        stmt.conflictAction = model.ConflictAction.REPLACE
+        stmt.conflictAction = model.REPLACE
         stmt.asSelect = true
       }
       if (this.consumeIf(Keyword.AS)) {
@@ -2303,9 +2294,9 @@ export class MysqlParser extends Parser {
           stmt.cache = this.numberValue()
         }
         if (this.consumeIf(Keyword.CYCLE)) {
-          stmt.cacheCycle = model.CacheCycle.CYCLE
+          stmt.noCycle = false
         } else if (this.consumeIf(Keyword.NOCYCLE)) {
-          stmt.cacheCycle = model.CacheCycle.NOCYCLE
+          stmt.noCycle = true
         }
       } else {
         break
@@ -2327,9 +2318,11 @@ export class MysqlParser extends Parser {
 
     if (this.consumeIf(Keyword.USING)) {
       if (this.consumeIf(Keyword.BTREE)) {
-        stmt.algorithm = model.IndexAlgorithm.BTREE
+        stmt.algorithm = model.BTREE
       } else if (this.consumeIf(Keyword.HASH)) {
-        stmt.algorithm = model.IndexAlgorithm.HASH
+        stmt.algorithm = model.HASH
+      } else if (this.consumeIf(Keyword.RTREE)) {
+        stmt.algorithm = model.RTREE
       } else {
         throw this.createParseError()
       }
@@ -2352,9 +2345,9 @@ export class MysqlParser extends Parser {
         column.expression = tokens
       }
       if (this.consumeIf(Keyword.ASC)) {
-        column.sortOrder = model.SortOrder.ASC
+        column.sortOrder = model.ASC
       } else if (this.consumeIf(Keyword.DESC)) {
-        column.sortOrder = model.SortOrder.DESC
+        column.sortOrder = model.DESC
       }
       stmt.columns.push(column)
     }
@@ -2364,24 +2357,24 @@ export class MysqlParser extends Parser {
       if (this.consumeIf(Keyword.ALGORITHM)) {
         this.consumeIf(Keyword.OPE_EQ)
         if (this.consumeIf(Keyword.DEFAULT)) {
-          stmt.algorithmOption = model.IndexAlgorithmOption.DEFAULT
+          stmt.algorithmOption = model.DEFAULT
         } else if (this.consumeIf(Keyword.INPLACE)) {
-          stmt.algorithmOption = model.IndexAlgorithmOption.INPLACE
+          stmt.algorithmOption = model.INPLACE
         } else if (this.consumeIf(Keyword.COPY)) {
-          stmt.algorithmOption = model.IndexAlgorithmOption.COPY
+          stmt.algorithmOption = model.COPY
         } else {
           throw this.createParseError()
         }
       } else if (this.consumeIf(Keyword.LOCK)) {
         this.consumeIf(Keyword.OPE_EQ)
         if (this.consumeIf(Keyword.DEFAULT)) {
-          stmt.lockOption = model.IndexLockOption.DEFAULT
+          stmt.lockOption = model.DEFAULT
         } else if (this.consumeIf(Keyword.NONE)) {
-          stmt.lockOption = model.IndexLockOption.NONE
+          stmt.lockOption = model.NONE
         } else if (this.consumeIf(Keyword.SHARED)) {
-          stmt.lockOption = model.IndexLockOption.SHARED
+          stmt.lockOption = model.SHARED
         } else if (this.consumeIf(Keyword.EXCLUSIVE)) {
-          stmt.lockOption = model.IndexLockOption.EXCLUSIVE
+          stmt.lockOption = model.EXCLUSIVE
         } else {
           throw this.createParseError()
         }
@@ -2411,11 +2404,9 @@ export class MysqlParser extends Parser {
     this.selectClause()
     if (this.consumeIf(Keyword.WITH)) {
       if (this.consumeIf(Keyword.CASCADED)) {
-        stmt.checkOption = model.CheckOption.CASCADED
+        stmt.checkOption = model.CASCADED
       } else if (this.consumeIf(Keyword.LOCAL)) {
-        stmt.checkOption = model.CheckOption.LOCAL
-      } else {
-        stmt.checkOption = model.CheckOption.CASCADED
+        stmt.checkOption = model.LOCAL
       }
       this.consume(Keyword.CHECK)
       this.consume(Keyword.OPTION)
@@ -2436,9 +2427,9 @@ export class MysqlParser extends Parser {
         stmt.comment = this.stringValue()
       } else if (this.consumeIf(Keyword.SQL, Keyword.SECURITY)) {
         if (this.consumeIf(Keyword.DEFINER)) {
-          stmt.sqlSecurity = model.SqlSecurity.DEFINER
+          stmt.sqlSecurity = model.DEFINER
         } else if (this.consumeIf(Keyword.INVOKER)) {
-          stmt.sqlSecurity = model.SqlSecurity.INVOKER
+          stmt.sqlSecurity = model.INVOKER
         } else {
           throw this.createParseError()
         }
@@ -2469,9 +2460,9 @@ export class MysqlParser extends Parser {
         stmt.comment = this.stringValue()
       } else if (this.consumeIf(Keyword.SQL, Keyword.SECURITY)) {
         if (this.consumeIf(Keyword.DEFINER)) {
-          stmt.sqlSecurity = model.SqlSecurity.DEFINER
+          stmt.sqlSecurity = model.DEFINER
         } else if (this.consumeIf(Keyword.INVOKER)) {
-          stmt.sqlSecurity = model.SqlSecurity.INVOKER
+          stmt.sqlSecurity = model.INVOKER
         } else {
           throw this.createParseError()
         }
@@ -2496,11 +2487,11 @@ export class MysqlParser extends Parser {
     for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
       const param = new model.ProcedureParam()
       if (this.consumeIf(Keyword.IN)) {
-        param.direction = model.Direction.IN
+        param.direction = model.IN
       } else if (this.consumeIf(Keyword.OUT)) {
-        param.direction = model.Direction.OUT
+        param.direction = model.OUT
       } else if (this.consumeIf(Keyword.INOUT)) {
-        param.direction = model.Direction.INOUT
+        param.direction = model.INOUT
       }
       param.name = this.identifier()
       param.dataType = this.dataType()
@@ -2512,24 +2503,24 @@ export class MysqlParser extends Parser {
         stmt.comment = this.stringValue()
       } else if (this.consumeIf(Keyword.LANGUAGE)) {
         this.consume(Keyword.SQL)
-        stmt.language = model.ProcedureLanguage.SQL
+        stmt.language = model.SQL
       } else if (this.consumeIf(Keyword.DETERMINISTIC)) {
         stmt.deterministic = true
       } else if (this.consumeIf(Keyword.NOT, Keyword.DETERMINISTIC)) {
         stmt.deterministic = false
       } else if (this.consumeIf(Keyword.CONTAINS, Keyword.SQL)) {
-        stmt.characteristic = model.ProcedureCharacteristic.CONTAINS_SQL
+        stmt.characteristic = model.CONTAINS_SQL
       } else if (this.consumeIf(Keyword.NO, Keyword.SQL)) {
-        stmt.characteristic = model.ProcedureCharacteristic.NO_SQL
+        stmt.characteristic = model.NO_SQL
       } else if (this.consumeIf(Keyword.READS, Keyword.SQL, Keyword.DATA)) {
-        stmt.characteristic = model.ProcedureCharacteristic.READS_SQL_DATA
+        stmt.characteristic = model.READS_SQL_DATA
       } else if (this.consumeIf(Keyword.MODIFIES, Keyword.SQL, Keyword.DATA)) {
-        stmt.characteristic = model.ProcedureCharacteristic.MODIFIES_SQL_DATA
+        stmt.characteristic = model.MODIFIES_SQL_DATA
       } else if (this.consumeIf(Keyword.SQL, Keyword.SECURITY)) {
         if (this.consumeIf(Keyword.DEFINER)) {
-          stmt.sqlSecurity = model.SqlSecurity.DEFINER
+          stmt.sqlSecurity = model.DEFINER
         } else if (this.consumeIf(Keyword.INVOKER)) {
-          stmt.sqlSecurity = model.SqlSecurity.INVOKER
+          stmt.sqlSecurity = model.INVOKER
         } else {
           throw this.createParseError()
         }
@@ -2566,24 +2557,24 @@ export class MysqlParser extends Parser {
         stmt.comment = this.stringValue()
       } else if (this.consumeIf(Keyword.LANGUAGE)) {
         this.consume(Keyword.SQL)
-        stmt.language = model.ProcedureLanguage.SQL
+        stmt.language = model.SQL
       } else if (this.consumeIf(Keyword.DETERMINISTIC)) {
         stmt.deterministic = true
       } else if (this.consumeIf(Keyword.NOT, Keyword.DETERMINISTIC)) {
         stmt.deterministic = false
       } else if (this.consumeIf(Keyword.CONTAINS, Keyword.SQL)) {
-        stmt.characteristic = model.ProcedureCharacteristic.CONTAINS_SQL
+        stmt.characteristic = model.CONTAINS_SQL
       } else if (this.consumeIf(Keyword.NO, Keyword.SQL)) {
-        stmt.characteristic = model.ProcedureCharacteristic.NO_SQL
+        stmt.characteristic = model.NO_SQL
       } else if (this.consumeIf(Keyword.READS, Keyword.SQL, Keyword.DATA)) {
-        stmt.characteristic = model.ProcedureCharacteristic.READS_SQL_DATA
+        stmt.characteristic = model.READS_SQL_DATA
       } else if (this.consumeIf(Keyword.MODIFIES, Keyword.SQL, Keyword.DATA)) {
-        stmt.characteristic = model.ProcedureCharacteristic.MODIFIES_SQL_DATA
+        stmt.characteristic = model.MODIFIES_SQL_DATA
       } else if (this.consumeIf(Keyword.SQL, Keyword.SECURITY)) {
         if (this.consumeIf(Keyword.DEFINER)) {
-          stmt.sqlSecurity = model.SqlSecurity.DEFINER
+          stmt.sqlSecurity = model.DEFINER
         } else if (this.consumeIf(Keyword.INVOKER)) {
-          stmt.sqlSecurity = model.SqlSecurity.INVOKER
+          stmt.sqlSecurity = model.INVOKER
         } else {
           throw this.createParseError()
         }
@@ -2606,18 +2597,18 @@ export class MysqlParser extends Parser {
     stmt.schema = obj.schema
     stmt.name = obj.name
     if (this.consumeIf(Keyword.BEFORE)) {
-      stmt.triggerTime = model.TriggerTime.BEFORE
+      stmt.triggerTime = model.BEFORE
     } else if (this.consumeIf(Keyword.AFTER)) {
-      stmt.triggerTime = model.TriggerTime.AFTER
+      stmt.triggerTime = model.AFTER
     } else {
       throw this.createParseError()
     }
     if (this.consumeIf(Keyword.INSERT)) {
-      stmt.triggerEvent = model.TriggerEvent.INSERT
+      stmt.triggerEvent = model.INSERT
     } else if (this.consumeIf(Keyword.UPDATE)) {
-      stmt.triggerEvent = model.TriggerEvent.UPDATE
+      stmt.triggerEvent = model.UPDATE
     } else if (this.consumeIf(Keyword.DELETE)) {
-      stmt.triggerEvent = model.TriggerEvent.DELETE
+      stmt.triggerEvent = model.DELETE
     } else {
       throw this.createParseError()
     }
@@ -2626,12 +2617,12 @@ export class MysqlParser extends Parser {
     this.consume(Keyword.FOR, Keyword.EACH, Keyword.ROW)
     if (this.consumeIf(Keyword.FOLLOWS)) {
       const triggerOrder = new model.TriggerOrder()
-      triggerOrder.position = model.TriggerOrderPosition.FOLLOWS
+      triggerOrder.position = model.FOLLOWS
       triggerOrder.table = this.identifier()
       stmt.triggerOrder = triggerOrder
     } else if (this.consumeIf(Keyword.PRECEDES)) {
       const triggerOrder = new model.TriggerOrder()
-      triggerOrder.position = model.TriggerOrderPosition.PRECEDES
+      triggerOrder.position = model.PRECEDES
       triggerOrder.table = this.identifier()
       stmt.triggerOrder = triggerOrder
     }
@@ -2897,9 +2888,9 @@ export class MysqlParser extends Parser {
       stmt.tables.push(this.schemaObject())
     }
     if (this.consumeIf(Keyword.RESTRICT)) {
-      stmt.dropOption = model.DropOption.RESTRICT
+      stmt.dropOption = model.RESTRICT
     } else if (this.consumeIf(Keyword.CASCADE)) {
-      stmt.dropOption = model.DropOption.CASCADE
+      stmt.dropOption = model.CASCADE
     }
   }
 
@@ -2922,9 +2913,9 @@ export class MysqlParser extends Parser {
       stmt.views.push(this.schemaObject())
     }
     if (this.consumeIf(Keyword.RESTRICT)) {
-      stmt.dropOption = model.DropOption.RESTRICT
+      stmt.dropOption = model.RESTRICT
     } else if (this.consumeIf(Keyword.CASCADE)) {
-      stmt.dropOption = model.DropOption.CASCADE
+      stmt.dropOption = model.CASCADE
     }
   }
 
@@ -3274,9 +3265,9 @@ export class MysqlParser extends Parser {
 
   private parseLoadDataStatement(stmt: model.LoadDataStatement, start: number) {
     if (this.consumeIf(Keyword.LOW_PRIORITY)) {
-      stmt.concurrency = model.Concurrency.LOW_PRIORITY
+      stmt.concurrency = model.LOW_PRIORITY
     } else if (this.consumeIf(Keyword.CONCURRENT)) {
-      stmt.concurrency = model.Concurrency.CONCURRENT
+      stmt.concurrency = model.CONCURRENT
     }
     if (this.consumeIf(Keyword.LOCAL)) {
       stmt.local = true
@@ -3289,9 +3280,9 @@ export class MysqlParser extends Parser {
 
   private parseLoadXmlStatement(stmt: model.LoadXmlStatement, start: number) {
     if (this.consumeIf(Keyword.LOW_PRIORITY)) {
-      stmt.concurrency = model.Concurrency.LOW_PRIORITY
+      stmt.concurrency = model.LOW_PRIORITY
     } else if (this.consumeIf(Keyword.CONCURRENT)) {
-      stmt.concurrency = model.Concurrency.CONCURRENT
+      stmt.concurrency = model.CONCURRENT
     }
     if (this.consumeIf(Keyword.LOCAL)) {
       stmt.local = true
@@ -3361,26 +3352,26 @@ export class MysqlParser extends Parser {
     for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
       const va = new model.VariableAssignment()
       if (this.consumeIf(Keyword.GLOBAL)) {
-        va.type = model.VariableType.GLOBAL
+        va.type = model.GLOBAL
         va.name = this.identifier()
       } else if (this.consumeIf(Keyword.SESSION) || this.consumeIf(Keyword.LOCAL)) {
-        va.type = model.VariableType.SESSION
+        va.type = model.SESSION
         va.name = this.identifier()
       } else if (this.consumeIf(Keyword.VAR_GLOBAL)) {
-        va.type = model.VariableType.GLOBAL
+        va.type = model.GLOBAL
         this.consume(TokenType.Dot)
         va.name = this.identifier()
       } else if (this.consumeIf(Keyword.VAR_SESSION) || this.consumeIf(Keyword.VAR_LOCAL)) {
-        va.type = model.VariableType.SESSION
+        va.type = model.SESSION
         this.consume(TokenType.Dot)
         va.name = this.identifier()
       } else if (this.consumeIf(TokenType.SessionVariable)) {
         const name = this.token(-1).text.substring(2)
-        va.type = model.VariableType.SESSION
+        va.type = model.SESSION
         va.name = /^['"`]/.test(name) ? dequote(name) : lcase(name)
       } else if (this.consumeIf(TokenType.UserDefinedVariable)) {
         const name = this.token(-1).text.substring(1)
-        va.type = model.VariableType.USER_DEFINED
+        va.type = model.USER_DEFINED
         va.name = /^['"`]/.test(name) ? dequote(name) : lcase(name)
       } else {
         throw this.createParseError()
@@ -3392,7 +3383,7 @@ export class MysqlParser extends Parser {
       }
       stmt.variableAssignments.push(va)
 
-      if (va.type !== model.VariableType.USER_DEFINED && va.name === "sql_mode") {
+      if (va.type !== model.USER_DEFINED && va.name === "sql_mode") {
         if (va.value.length === 1 && (
           va.value[0].type === TokenType.String ||
           (!this.sqlMode.has("ANSI_QUOTE") && va.value[0].type === TokenType.QuotedValue)
@@ -3418,14 +3409,14 @@ export class MysqlParser extends Parser {
 
   private parseInsertStatement(stmt: model.InsertStatement, start: number) {
     if (this.consumeIf(Keyword.LOW_PRIORITY)) {
-      stmt.concurrency = model.Concurrency.LOW_PRIORITY
+      stmt.concurrency = model.LOW_PRIORITY
     } else if (this.consumeIf(Keyword.DELAYED)) {
-      stmt.concurrency = model.Concurrency.DELAYED
+      stmt.concurrency = model.DELAYED
     } else if (this.consumeIf(Keyword.HIGH_PRIORITY)) {
-      stmt.concurrency = model.Concurrency.HIGH_PRIORITY
+      stmt.concurrency = model.HIGH_PRIORITY
     }
     if (this.consumeIf(Keyword.IGNORE)) {
-      stmt.conflictAction = model.ConflictAction.IGNORE
+      stmt.conflictAction = model.IGNORE
     }
     this.consumeIf(Keyword.INTO)
     stmt.table = this.schemaObject()
@@ -3436,10 +3427,10 @@ export class MysqlParser extends Parser {
 
   private parseUpdateStatement(stmt: model.UpdateStatement, start: number) {
     if (this.consumeIf(Keyword.LOW_PRIORITY)) {
-      stmt.concurrency = model.Concurrency.LOW_PRIORITY
+      stmt.concurrency = model.LOW_PRIORITY
     }
     if (this.consumeIf(Keyword.IGNORE)) {
-      stmt.conflictAction = model.ConflictAction.IGNORE
+      stmt.conflictAction = model.IGNORE
     }
     stmt.table = this.schemaObject()
     while (this.token() && !this.peekIf(TokenType.Delimiter)) {
@@ -3449,12 +3440,12 @@ export class MysqlParser extends Parser {
 
   private parseReplaceStatement(stmt: model.ReplaceStatement, start: number) {
     if (this.consumeIf(Keyword.LOW_PRIORITY)) {
-      stmt.concurrency = model.Concurrency.LOW_PRIORITY
+      stmt.concurrency = model.LOW_PRIORITY
     } else if (this.consumeIf(Keyword.DELAYED)) {
-      stmt.concurrency = model.Concurrency.DELAYED
+      stmt.concurrency = model.DELAYED
     }
     if (this.consumeIf(Keyword.IGNORE)) {
-      stmt.conflictAction = model.ConflictAction.IGNORE
+      stmt.conflictAction = model.IGNORE
     }
     this.consumeIf(Keyword.INTO)
     stmt.table = this.schemaObject()
@@ -3465,17 +3456,13 @@ export class MysqlParser extends Parser {
 
   private parseDeleteStatement(stmt: model.DeleteStatement, start: number) {
     if (this.consumeIf(Keyword.LOW_PRIORITY)) {
-      stmt.concurrency = model.Concurrency.LOW_PRIORITY
-    } else if (this.consumeIf(Keyword.DELAYED)) {
-      stmt.concurrency = model.Concurrency.DELAYED
-    } else if (this.consumeIf(Keyword.HIGH_PRIORITY)) {
-      stmt.concurrency = model.Concurrency.HIGH_PRIORITY
+      stmt.concurrency = model.LOW_PRIORITY
     }
     if (this.consumeIf(Keyword.QUICK)) {
       stmt.quick = true
     }
     if (this.consumeIf(Keyword.IGNORE)) {
-      stmt.conflictAction = model.ConflictAction.IGNORE
+      stmt.conflictAction = model.IGNORE
     }
     this.consumeIf(Keyword.FROM)
     stmt.table = this.schemaObject()
@@ -3524,11 +3511,11 @@ export class MysqlParser extends Parser {
   viewAlgorithm() {
     this.consume(Keyword.ALGORITHM, Keyword.OPE_EQ)
     if (this.consumeIf(Keyword.UNDEFINED)) {
-      return model.Algortihm.UNDEFINED
+      return model.UNDEFINED
     } else if (this.consumeIf(Keyword.MERGE)) {
-      return model.Algortihm.MERGE
+      return model.MERGE
     } else if (this.consumeIf(Keyword.TEMPTABLE)) {
-      return model.Algortihm.TEMPTABLE
+      return model.TEMPTABLE
     } else {
       throw this.createParseError()
     }
@@ -3537,9 +3524,9 @@ export class MysqlParser extends Parser {
   sqlSecurity() {
     this.consume(Keyword.SQL, Keyword.SECURITY)
     if (this.consumeIf(Keyword.DEFINER)) {
-      return model.SqlSecurity.DEFINER
+      return model.DEFINER
     } else if (this.consumeIf(Keyword.INVOKER)) {
-      return model.SqlSecurity.INVOKER
+      return model.INVOKER
     } else {
       throw this.createParseError()
     }
@@ -3629,11 +3616,11 @@ export class MysqlParser extends Parser {
       } else if (this.consumeIf(Keyword.INSERT_METHOD)) {
         this.consumeIf(Keyword.OPE_EQ)
         if (this.consumeIf(Keyword.NO)) {
-          options.push({ key: "INSERT_METHOD", value: model.InsertMethod.NO })
+          options.push({ key: "INSERT_METHOD", value: model.NO })
         } else if (this.consumeIf(Keyword.FIRST)) {
-          options.push({ key: "INSERT_METHOD", value: model.InsertMethod.FIRST })
+          options.push({ key: "INSERT_METHOD", value: model.FIRST })
         } else if (this.consumeIf(Keyword.LAST)) {
-          options.push({ key: "INSERT_METHOD", value: model.InsertMethod.LAST })
+          options.push({ key: "INSERT_METHOD", value: model.LAST })
         } else {
           throw this.createParseError()
         }
@@ -3668,17 +3655,17 @@ export class MysqlParser extends Parser {
       } else if (this.consumeIf(Keyword.ROW_FORMAT)) {
         this.consumeIf(Keyword.OPE_EQ)
         if (this.consumeIf(Keyword.DEFAULT)) {
-          options.push({ key: "ROW_FORMAT", value: model.RowFormat.DEFAULT })
+          options.push({ key: "ROW_FORMAT", value: model.DEFAULT })
         } else if (this.consumeIf(Keyword.DYNAMIC)) {
-          options.push({ key: "ROW_FORMAT", value: model.RowFormat.DYNAMIC })
+          options.push({ key: "ROW_FORMAT", value: model.DYNAMIC })
         } else if (this.consumeIf(Keyword.FIXED)) {
-          options.push({ key: "ROW_FORMAT", value: model.RowFormat.FIXED })
+          options.push({ key: "ROW_FORMAT", value: model.FIXED })
         } else if (this.consumeIf(Keyword.COMPRESSED)) {
-          options.push({ key: "ROW_FORMAT", value: model.RowFormat.COMPRESSED })
+          options.push({ key: "ROW_FORMAT", value: model.COMPRESSED })
         } else if (this.consumeIf(Keyword.REDUNDANT)) {
-          options.push({ key: "ROW_FORMAT", value: model.RowFormat.REDUNDANT })
+          options.push({ key: "ROW_FORMAT", value: model.REDUNDANT })
         } else if (this.consumeIf(Keyword.COMPACT)) {
-          options.push({ key: "ROW_FORMAT", value: model.RowFormat.COMPACT })
+          options.push({ key: "ROW_FORMAT", value: model.COMPACT })
         } else {
           throw this.createParseError()
         }
@@ -3709,9 +3696,9 @@ export class MysqlParser extends Parser {
         options.push({ key: "TABLESPACE", value: this.identifier() })
         if (this.consumeIf(Keyword.STORAGE)) {
           if (this.consumeIf(Keyword.DISK)) {
-            options.push({ key: "TABLESPACE STORAGE DISK", value: model.StorageType.DISK })
+            options.push({ key: "TABLESPACE STORAGE DISK", value: model.DISK })
           } else if (this.consumeIf(Keyword.MEMORY)) {
-            options.push({ key: "TABLESPACE STORAGE DISK", value: model.StorageType.MEMORY })
+            options.push({ key: "TABLESPACE STORAGE DISK", value: model.MEMORY })
           } else {
             throw this.createParseError()
           }
@@ -3745,11 +3732,11 @@ export class MysqlParser extends Parser {
         options.push({ key: "KEY_BLOCK_SIZE", value: this.sizeValue() })
       } else if (this.consumeIf(Keyword.USING)) {
         if (this.consumeIf(Keyword.BTREE)) {
-          options.push({ key: "USING", value: model.IndexAlgorithm.BTREE })
+          options.push({ key: "USING", value: model.BTREE })
         } else if (this.consumeIf(Keyword.HASH)) {
-          options.push({ key: "USING", value: model.IndexAlgorithm.HASH })
+          options.push({ key: "USING", value: model.HASH })
         } else if (this.consumeIf(Keyword.HASH)) {
-          options.push({ key: "USING", value: model.IndexAlgorithm.RTREE })
+          options.push({ key: "USING", value: model.RTREE })
         } else {
           throw this.createParseError()
         }
@@ -3894,9 +3881,9 @@ export class MysqlParser extends Parser {
       generatedColumn.expression = this.expression()
       this.consume(TokenType.RightParen)
       if (this.consumeIf(Keyword.VIRTUAL)) {
-        generatedColumn.type = model.GeneratedColumnType.VIRTUAL
+        generatedColumn.storeType = model.VIRTUAL
       } else if (this.consumeIf(Keyword.STORED)) {
-        generatedColumn.type = model.GeneratedColumnType.STORED
+        generatedColumn.storeType = model.STORED
       }
       column.generatedColumn = generatedColumn
 
@@ -3915,13 +3902,13 @@ export class MysqlParser extends Parser {
 
       if (this.consumeIf(Keyword.UNIQUE)) {
         this.consumeIf(Keyword.KEY)
-        column.indexType = model.IndexType.UNIQUE
+        column.indexType = model.UNIQUE
       }
       if (this.consumeIf(Keyword.PRIMARY)) {
         this.consumeIf(Keyword.KEY)
-        column.indexType = model.IndexType.PRIMARY_KEY
+        column.indexType = model.PRIMARY_KEY
       } else if (this.consumeIf(Keyword.KEY)) {
-        column.indexType = model.IndexType.PRIMARY_KEY
+        column.indexType = model.PRIMARY_KEY
       }
 
       if (this.consumeIf(Keyword.COMMENT)) {
@@ -3961,13 +3948,13 @@ export class MysqlParser extends Parser {
 
       if (this.consumeIf(Keyword.UNIQUE)) {
         this.consumeIf(Keyword.KEY)
-        column.indexType = model.IndexType.UNIQUE
+        column.indexType = model.UNIQUE
       }
       if (this.consumeIf(Keyword.PRIMARY)) {
         this.consumeIf(Keyword.KEY)
-        column.indexType = model.IndexType.PRIMARY_KEY
+        column.indexType = model.PRIMARY_KEY
       } else if (this.consumeIf(Keyword.KEY)) {
-        column.indexType = model.IndexType.PRIMARY_KEY
+        column.indexType = model.PRIMARY_KEY
       }
 
       if (this.consumeIf(Keyword.COMMENT)) {
@@ -3980,11 +3967,11 @@ export class MysqlParser extends Parser {
 
       if (this.consumeIf(Keyword.COLUMN_FORMAT)) {
         if (this.consumeIf(Keyword.FIXED)) {
-          column.columnFormat = model.ColumnFormat.FIXED
+          column.columnFormat = model.FIXED
         } else if (this.consumeIf(Keyword.DYNAMIC)) {
-          column.columnFormat = model.ColumnFormat.DYNAMIC
+          column.columnFormat = model.DYNAMIC
         } else if (this.consumeIf(Keyword.DEFAULT)) {
-          column.columnFormat = model.ColumnFormat.DEFAULT
+          column.columnFormat = model.DEFAULT
         } else {
           throw this.createParseError()
         }
@@ -4002,9 +3989,9 @@ export class MysqlParser extends Parser {
 
       if (this.consumeIf(Keyword.STORAGE)) {
         if (this.consumeIf(Keyword.DISK)) {
-          column.storageType = model.StorageType.DISK
+          column.storageType = model.DISK
         } else if (this.consumeIf(Keyword.MEMORY)) {
-          column.storageType = model.StorageType.MEMORY
+          column.storageType = model.MEMORY
         } else {
           throw this.createParseError()
         }
@@ -4191,51 +4178,51 @@ export class MysqlParser extends Parser {
     this.consume(TokenType.RightParen)
     if (this.consumeIf(Keyword.MATCH)) {
       if (this.consumeIf(Keyword.FULL)) {
-        references.match = model.MatchType.FULL
+        references.match = model.FULL
       } else if (this.consumeIf(Keyword.PARTIAL)) {
-        references.match = model.MatchType.PARTIAL
+        references.match = model.PARTIAL
       } else if (this.consumeIf(Keyword.SIMPLE)) {
-        references.match = model.MatchType.SIMPLE
+        references.match = model.SIMPLE
       } else {
         throw this.createParseError()
       }
     }
     if (this.consumeIf(Keyword.ON, Keyword.DELETE)) {
       if (this.consumeIf(Keyword.CASCADE)) {
-        references.onDelete = model.ReferenceOption.CASCADE
+        references.onDelete = model.CASCADE
       } else if (this.consumeIf(Keyword.SET)) {
         if (this.consumeIf(Keyword.NULL)) {
-          references.onDelete = model.ReferenceOption.SET_NULL
+          references.onDelete = model.SET_NULL
         } else if (this.consumeIf(Keyword.DEFAULT)) {
-          references.onDelete = model.ReferenceOption.SET_DEFAULT
+          references.onDelete = model.SET_DEFAULT
         } else {
           throw this.createParseError()
         }
       } else if (this.consumeIf(Keyword.RESTRICT)) {
-        references.onDelete = model.ReferenceOption.RESTRICT
+        references.onDelete = model.RESTRICT
       } else if (this.consumeIf(Keyword.NO)) {
         this.consume(Keyword.ACTION)
-        references.onDelete = model.ReferenceOption.NO_ACTION
+        references.onDelete = model.NO_ACTION
       } else {
         throw this.createParseError()
       }
     }
     if (this.consumeIf(Keyword.ON, Keyword.UPDATE)) {
       if (this.consumeIf(Keyword.CASCADE)) {
-        references.onUpdate = model.ReferenceOption.CASCADE
+        references.onUpdate = model.CASCADE
       } else if (this.consumeIf(Keyword.SET)) {
         if (this.consumeIf(Keyword.NULL)) {
-          references.onUpdate = model.ReferenceOption.SET_NULL
+          references.onUpdate = model.SET_NULL
         } else if (this.consumeIf(Keyword.DEFAULT)) {
-          references.onUpdate = model.ReferenceOption.SET_DEFAULT
+          references.onUpdate = model.SET_DEFAULT
         } else {
           throw this.createParseError()
         }
       } else if (this.consumeIf(Keyword.RESTRICT)) {
-        references.onUpdate = model.ReferenceOption.RESTRICT
+        references.onUpdate = model.RESTRICT
       } else if (this.consumeIf(Keyword.NO)) {
         this.consume(Keyword.ACTION)
-        references.onUpdate = model.ReferenceOption.NO_ACTION
+        references.onUpdate = model.NO_ACTION
       } else {
         throw this.createParseError()
       }
@@ -4316,42 +4303,42 @@ export class MysqlParser extends Parser {
   }
 
   intervalValue() {
-    let quantity = this.numberValue()
-    let unit
+    const interval = new model.Interval()
+    interval.quantity = this.numberValue()
     if (this.consumeIf(Keyword.YEAR)) {
-      unit = model.IntervalUnit.YEAR
+      interval.unit = model.YEAR
     } else if (this.consumeIf(Keyword.QUARTER)) {
-      unit = model.IntervalUnit.QUARTER
+      interval.unit = model.QUARTER
     } else if (this.consumeIf(Keyword.MONTH)) {
-      unit = model.IntervalUnit.MONTH
+      interval.unit = model.MONTH
     } else if (this.consumeIf(Keyword.DAY)) {
-      unit = model.IntervalUnit.DAY
+      interval.unit = model.DAY
     } else if (this.consumeIf(Keyword.HOUR)) {
-      unit = model.IntervalUnit.HOUR
+      interval.unit = model.HOUR
     } else if (this.consumeIf(Keyword.MINUTE)) {
-      unit = model.IntervalUnit.MINUTE
+      interval.unit = model.MINUTE
     } else if (this.consumeIf(Keyword.WEEK)) {
-      unit = model.IntervalUnit.WEEK
+      interval.unit = model.WEEK
     } else if (this.consumeIf(Keyword.SECOND)) {
-      unit = model.IntervalUnit.SECOND
+      interval.unit = model.SECOND
     } else if (this.consumeIf(Keyword.YEAR_MONTH)) {
-      unit = model.IntervalUnit.YEAR_MONTH
+      interval.unit = model.YEAR_MONTH
     } else if (this.consumeIf(Keyword.DAY_HOUR)) {
-      unit = model.IntervalUnit.DAY_HOUR
+      interval.unit = model.DAY_HOUR
     } else if (this.consumeIf(Keyword.DAY_MINUTE)) {
-      unit = model.IntervalUnit.DAY_MINUTE
+      interval.unit = model.DAY_MINUTE
     } else if (this.consumeIf(Keyword.DAY_SECOND)) {
-      unit = model.IntervalUnit.DAY_SECOND
+      interval.unit = model.DAY_SECOND
     } else if (this.consumeIf(Keyword.HOUR_MINUTE)) {
-      unit = model.IntervalUnit.HOUR_MINUTE
+      interval.unit = model.HOUR_MINUTE
     } else if (this.consumeIf(Keyword.HOUR_SECOND)) {
-      unit = model.IntervalUnit.HOUR_SECOND
+      interval.unit = model.HOUR_SECOND
     } else if (this.consumeIf(Keyword.MINUTE_SECOND)) {
-      unit = model.IntervalUnit.MINUTE_SECOND
+      interval.unit = model.MINUTE_SECOND
     } else {
       throw this.createParseError()
     }
-    return new model.Interval(quantity, unit)
+    return interval
   }
 
   stringValue() {
