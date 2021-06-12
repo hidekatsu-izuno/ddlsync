@@ -283,7 +283,7 @@ export class Sqlite3Parser extends Parser {
     super(input, new Sqlite3Lexer(options), options)
   }
 
-  root() {
+  root(): Statement[] {
     const root = []
     const errors = []
     for (let i = 0;
@@ -369,7 +369,7 @@ export class Sqlite3Parser extends Parser {
     return stmt
   }
 
-  statement() {
+  statement(): Statement {
     let stmt
 
     let explain = false

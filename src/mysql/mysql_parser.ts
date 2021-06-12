@@ -1,5 +1,6 @@
 import Decimal from "decimal.js"
 import semver from "semver"
+import { Statement } from "../models"
 import {
   ITokenType,
   Token,
@@ -734,9 +735,8 @@ export class MysqlLexer extends Lexer {
 }
 
 export class MysqlParser extends Parser {
-  private stmtStart = 0
-
   private sqlMode = new Set<string>()
+  private stmtStart = 0
 
   constructor(
     input: string,
@@ -831,7 +831,7 @@ export class MysqlParser extends Parser {
     }
   }
 
-  root() {
+  root(): Statement[] {
     const root = []
     const errors = []
     for (
@@ -906,7 +906,7 @@ export class MysqlParser extends Parser {
     return stmt
   }
 
-  statement() {
+  statement(): Statement {
     let stmt
     if (this.consumeIf(Keyword.CREATE)) {
       let orReplace = false
