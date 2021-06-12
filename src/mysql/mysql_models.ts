@@ -10,11 +10,11 @@ export const MERGE = "MERGE"
 export const TEMPTABLE = "TEMPTABLE"
 
 // Password expire
-// DEFAULT
+// export const DEFAULT = "DEFAULT"
 export const NEVER = "NEVER"
 
 // Password require current
-// DEFAULT
+// export const DEFAULT = "DEFAULT"
 export const OPTIONAL = "OPTIONAL"
 
 // Password lock time
@@ -44,7 +44,6 @@ export const ASC = "ASC"
 export const DESC = "DESC"
 
 // Index type
-// DEFAULT = "DEFAULT",
 export const PRIMARY_KEY = "PRIMARY KEY"
 export const UNIQUE = "UNIQUE"
 export const FULLTEXT = "FULLTEXT"
@@ -132,12 +131,12 @@ export const HOUR_SECOND = "DAY_SECOND"
 export const MINUTE_SECOND = "MINUTE_SECOND"
 
 // Index algorithm option
-// DEFAULT = "DEFAULT",
+// export const DEFAULT = "DEFAULT"
 export const INPLACE = "INPLACE"
 export const COPY = "COPY"
 
 // Index lock option
-// DEFAULT = "DEFAULT",
+// export const DEFAULT = "DEFAULT"
 export const NONE = "NONE"
 export const SHARED = "SHARED"
 export const EXCLUSIVE = "EXCLUSIVE"
@@ -148,7 +147,7 @@ export const BINARY = "BINARY"
 // Column format
 // export const FIXED = "FIXED"
 // export const DYNAMIC = "DYNAMIC"
-// DEFAULT = "DEFAULT",
+// export const DEFAULT = "DEFAULT"
 
 // Generated column store type
 export const VIRTUAL = "VIRTUAL"

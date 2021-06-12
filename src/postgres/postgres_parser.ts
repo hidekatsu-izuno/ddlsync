@@ -62,6 +62,7 @@ export class Keyword implements ITokenType {
   static BEGIN = new Keyword("BEGIN")
   static BINARY = new Keyword("BINARY")
   static BOTH = new Keyword("BOTH", { reserved: true })
+  static BY = new Keyword("BY")
   static CALL = new Keyword("CALL")
   static CASCADE = new Keyword("CASCADE")
   static CASE = new Keyword("CASE", { reserved: true })
@@ -129,6 +130,7 @@ export class Keyword implements ITokenType {
   static ILIKE = new Keyword("ILIKE")
   static IMPORT = new Keyword("IMPORT")
   static IN = new Keyword("IN", { reserved: true })
+  static INOUT = new Keyword("INOUT")
   static INITIALLY = new Keyword("INITIALLY", { reserved: true })
   static INDEX = new Keyword("INDEX")
   static INNER = new Keyword("INNER")
@@ -162,12 +164,14 @@ export class Keyword implements ITokenType {
   static NOTNULL = new Keyword("NOTNULL")
   static NULL = new Keyword("NULL", { reserved: true })
   static OBJECT = new Keyword("OBJECT")
+  static OFF = new Keyword("OFF")
   static OFFSET = new Keyword("OFFSET", { reserved: true })
   static ON = new Keyword("ON", { reserved: true })
   static ONLY = new Keyword("ONLY", { reserved: true })
   static OPERATOR = new Keyword("OPERATOR")
   static OR = new Keyword("OR", { reserved: true })
   static ORDER = new Keyword("ORDER", { reserved: true })
+  static OUT = new Keyword("OUT")
   static OUTER = new Keyword("OUTER")
   static OVERLAPS = new Keyword("OVERLAPS")
   static OWNED = new Keyword("OWNED")
@@ -209,6 +213,7 @@ export class Keyword implements ITokenType {
   static SESSION_USER = new Keyword("SESSION_USER", { reserved: true })
   static SET = new Keyword("SET")
   static SIMILAR = new Keyword("SIMILAR")
+  static SKIP_LOCKED = new Keyword("SKIP_LOCKED")
   static SOME = new Keyword("SOME", { reserved: true })
   static START = new Keyword("START")
   static STATISTICS = new Keyword("STATISTICS")
@@ -248,6 +253,8 @@ export class Keyword implements ITokenType {
   static WHERE = new Keyword("WHERE", { reserved: true })
   static WINDOW = new Keyword("WINDOW", { reserved: true })
   static WITH = new Keyword("WITH", { reserved: true })
+
+  static OPE_ASTER = new Keyword("*")
 
   constructor(
     public name: string,
@@ -316,7 +323,10 @@ export class PostgresLexer extends Lexer {
   }
 
   protected process(token: Token) {
-    if (token.type === TokenType.Identifier) {
+    if (
+      token.type === TokenType.Identifier ||
+      token.type === TokenType.Operator
+    ) {
       const keyword = KeywordMap.get(token.text.toUpperCase())
       if (keyword) {
         if (this.reserved.has(keyword)) {
@@ -1629,15 +1639,48 @@ export class PostgresParser extends Parser {
   }
 
   private parseDropProcedureStatement(stmt: model.DropProcedureStatement, start: number) {
-
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      stmt.procedures.push(this.callable(CallableType.PROCEDURE))
+    }
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = model.CASCADE
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = model.RESTRICT
+    }
   }
 
   private parseDropFunctionStatement(stmt: model.DropFunctionStatement, start: number) {
-
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      stmt.functions.push(this.callable(CallableType.FUNCTION))
+    }
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = model.CASCADE
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = model.RESTRICT
+    }
   }
 
   private parseDropAggregateStatement(stmt: model.DropAggregateStatement, start: number) {
-
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      stmt.aggregates.push(this.callable(CallableType.AGGREGATE))
+    }
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = model.CASCADE
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = model.RESTRICT
+    }
   }
 
   private parseDropForeignDataWrapperStatement(stmt: model.DropForeignDataWrapperStatement, start: number) {
@@ -1649,9 +1692,9 @@ export class PostgresParser extends Parser {
       stmt.foreignDataWrappers.push(this.identifier())
     }
     if (this.consumeIf(Keyword.CASCADE)) {
-      stmt.dependent = "CASCADE"
+      stmt.dependent = model.CASCADE
     } else if (this.consumeIf(Keyword.RESTRICT)) {
-      stmt.dependent = "RESTRICT"
+      stmt.dependent = model.RESTRICT
     }
   }
 
@@ -1664,9 +1707,9 @@ export class PostgresParser extends Parser {
       stmt.foreignTables.push(this.schemaObject())
     }
     if (this.consumeIf(Keyword.CASCADE)) {
-      stmt.dependent = "CASCADE"
+      stmt.dependent = model.CASCADE
     } else if (this.consumeIf(Keyword.RESTRICT)) {
-      stmt.dependent = "RESTRICT"
+      stmt.dependent = model.RESTRICT
     }
   }
 
@@ -1677,9 +1720,9 @@ export class PostgresParser extends Parser {
     }
     stmt.textSearchConfiguration = this.schemaObject()
     if (this.consumeIf(Keyword.CASCADE)) {
-      stmt.dependent = "CASCADE"
+      stmt.dependent = model.CASCADE
     } else if (this.consumeIf(Keyword.RESTRICT)) {
-      stmt.dependent = "RESTRICT"
+      stmt.dependent = model.RESTRICT
     }
   }
 
@@ -1690,9 +1733,9 @@ export class PostgresParser extends Parser {
     }
     stmt.textSearchDictionary = this.schemaObject()
     if (this.consumeIf(Keyword.CASCADE)) {
-      stmt.dependent = "CASCADE"
+      stmt.dependent = model.CASCADE
     } else if (this.consumeIf(Keyword.RESTRICT)) {
-      stmt.dependent = "RESTRICT"
+      stmt.dependent = model.RESTRICT
     }
   }
 
@@ -1703,9 +1746,9 @@ export class PostgresParser extends Parser {
     }
     stmt.textSearchParser = this.schemaObject()
     if (this.consumeIf(Keyword.CASCADE)) {
-      stmt.dependent = "CASCADE"
+      stmt.dependent = model.CASCADE
     } else if (this.consumeIf(Keyword.RESTRICT)) {
-      stmt.dependent = "RESTRICT"
+      stmt.dependent = model.RESTRICT
     }
   }
 
@@ -1716,9 +1759,9 @@ export class PostgresParser extends Parser {
     }
     stmt.textSearchTemplate = this.schemaObject()
     if (this.consumeIf(Keyword.CASCADE)) {
-      stmt.dependent = "CASCADE"
+      stmt.dependent = model.CASCADE
     } else if (this.consumeIf(Keyword.RESTRICT)) {
-      stmt.dependent = "RESTRICT"
+      stmt.dependent = model.RESTRICT
     }
   }
 
@@ -1731,9 +1774,9 @@ export class PostgresParser extends Parser {
     this.consume(Keyword.ON)
     stmt.table = this.schemaObject()
     if (this.consumeIf(Keyword.CASCADE)) {
-      stmt.dependent = "CASCADE"
+      stmt.dependent = model.CASCADE
     } else if (this.consumeIf(Keyword.RESTRICT)) {
-      stmt.dependent = "RESTRICT"
+      stmt.dependent = model.RESTRICT
     }
   }
 
@@ -1746,9 +1789,9 @@ export class PostgresParser extends Parser {
     this.consume(Keyword.ON)
     stmt.table = this.schemaObject()
     if (this.consumeIf(Keyword.CASCADE)) {
-      stmt.dependent = "CASCADE"
+      stmt.dependent = model.CASCADE
     } else if (this.consumeIf(Keyword.RESTRICT)) {
-      stmt.dependent = "RESTRICT"
+      stmt.dependent = model.RESTRICT
     }
   }
 
@@ -1757,13 +1800,13 @@ export class PostgresParser extends Parser {
       this.consume(Keyword.EXISTS)
       stmt.ifExists = true
     }
-    stmt.name = this.identifier()
+    stmt.trigger = this.identifier()
     this.consume(Keyword.ON)
     stmt.table = this.schemaObject()
     if (this.consumeIf(Keyword.CASCADE)) {
-      stmt.dependent = "CASCADE"
+      stmt.dependent = model.CASCADE
     } else if (this.consumeIf(Keyword.RESTRICT)) {
-      stmt.dependent = "RESTRICT"
+      stmt.dependent = model.RESTRICT
     }
   }
 
@@ -1779,9 +1822,9 @@ export class PostgresParser extends Parser {
       stmt.indexes.push(this.schemaObject())
     }
     if (this.consumeIf(Keyword.CASCADE)) {
-      stmt.dependent = "CASCADE"
+      stmt.dependent = model.CASCADE
     } else if (this.consumeIf(Keyword.RESTRICT)) {
-      stmt.dependent = "RESTRICT"
+      stmt.dependent = model.RESTRICT
     }
   }
 
@@ -1905,7 +1948,17 @@ export class PostgresParser extends Parser {
   }
 
   private parseAnalyzeStatement(stmt: model.AnalyzeStatement, start: number) {
-    //TODO
+    if (this.consumeIf(Keyword.VERBOSE)) {
+      stmt.verbose = true
+    } else if (this.consumeIf(TokenType.LeftParen)) {
+      while (this.token() && !this.peekIf(TokenType.RightParen)) {
+        this.consume()
+      }
+      this.consume(TokenType.RightParen)
+    }
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseClusterStatement(stmt: model.ClusterStatement, start: number) {
@@ -2202,10 +2255,86 @@ export class PostgresParser extends Parser {
     const sobj = new model.SchemaObject()
     sobj.name = this.identifier()
     if (this.consumeIf(TokenType.Dot)) {
-      sobj.schemaName = sobj.name
+      sobj.schema = sobj.name
       sobj.name = this.identifier()
     }
     return sobj
+  }
+
+  private callable(type: CallableType) {
+    const cobj = new model.Callable()
+    cobj.name = this.identifier()
+    if (
+      type === CallableType.AGGREGATE && this.consume(TokenType.LeftParen) ||
+      this.consumeIf(TokenType.LeftParen)) {
+      for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+        if (type === CallableType.AGGREGATE && this.consumeIf(Keyword.OPE_ASTER)) {
+          break
+        }
+
+        const arg = new model.CallableArgument()
+        if (this.consumeIf(Keyword.IN)) {
+          arg.mode = model.IN
+        } else if (type === CallableType.FUNCTION && this.consumeIf(Keyword.OUT)) {
+          arg.mode = model.OUT
+        } else if (type === CallableType.FUNCTION && this.consumeIf(Keyword.INOUT)) {
+          arg.mode = model.INOUT
+        } else if (this.consumeIf(Keyword.VARIADIC)) {
+          arg.mode = model.VARIADIC
+        }
+        arg.type.name = this.identifier()
+        if (this.consumeIf(TokenType.Dot)) {
+          arg.type.schema = arg.type.name
+          arg.type.name = this.identifier()
+        } else if (this.token() &&
+          !this.peekIf(TokenType.Comma) &&
+          !this.peekIf(TokenType.RightParen) &&
+          !this.peekIf(Keyword.ORDER)
+        ) {
+          arg.name = arg.type.name
+          arg.type.name = this.identifier()
+          if (this.consumeIf(TokenType.Dot)) {
+            arg.type.schema = arg.type.name
+            arg.type.name = this.identifier()
+          }
+        }
+        cobj.args.push(arg)
+        if (type === CallableType.AGGREGATE) {
+          if (this.consumeIf(Keyword.ORDER)) {
+            this.consume(Keyword.BY)
+            cobj.orderBy = []
+            for (let j = 0; j === 0 || this.consumeIf(TokenType.Comma); j++) {
+              const arg2 = new model.CallableArgument()
+              if (this.consumeIf(Keyword.IN)) {
+                arg2.mode = model.IN
+              } else if (this.consumeIf(Keyword.VARIADIC)) {
+                arg2.mode = model.VARIADIC
+              }
+              arg2.type.name = this.identifier()
+              if (this.consumeIf(TokenType.Dot)) {
+                arg2.type.schema = arg2.type.name
+                arg2.type.name = this.identifier()
+              } else if (this.token() &&
+                !this.peekIf(TokenType.Comma) &&
+                !this.peekIf(TokenType.RightParen) &&
+                !this.peekIf(Keyword.ORDER)
+              ) {
+                arg2.name = arg2.type.name
+                arg2.type.name = this.identifier()
+                if (this.consumeIf(TokenType.Dot)) {
+                  arg2.type.schema = arg2.type.name
+                  arg2.type.name = this.identifier()
+                }
+              }
+              cobj.orderBy.push(arg2)
+            }
+            break
+          }
+        }
+      }
+      this.consume(TokenType.RightParen)
+    }
+    return cobj
   }
 
   private identifier() {
@@ -2217,6 +2346,12 @@ export class PostgresParser extends Parser {
       throw this.createParseError()
     }
   }
+}
+
+enum CallableType {
+  PROCEDURE,
+  FUNCTION,
+  AGGREGATE
 }
 
 const ReplaceReMap: {[key: string]: RegExp} = {
