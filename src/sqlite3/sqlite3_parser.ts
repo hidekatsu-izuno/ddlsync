@@ -274,6 +274,8 @@ export class Sqlite3Lexer extends Lexer {
 }
 
 export class Sqlite3Parser extends Parser {
+  private stmtStart = 0
+
   constructor(
     input: string,
     options: { [key: string]: any} = {},
@@ -293,13 +295,15 @@ export class Sqlite3Parser extends Parser {
       i++
     ) {
       try {
-        let stmt
-        if (this.peekIf(TokenType.Command)) {
-          stmt = this.command()
-        } else if (this.token() && !this.peekIf(TokenType.SemiColon)) {
-          stmt = this.statement()
-        }
-        if (stmt) {
+        if (this.token() && !this.peekIf(TokenType.SemiColon)) {
+          this.stmtStart = this.pos
+
+          let stmt
+          if (this.peekIf(TokenType.Command)) {
+            stmt = this.command()
+          } else {
+            stmt = this.statement()
+          }
           stmt.validate()
           root.push(stmt)
         }
@@ -339,7 +343,6 @@ export class Sqlite3Parser extends Parser {
   }
 
   command() {
-    const start = this.pos
     const stmt = new model.CommandStatement()
     this.consume(TokenType.Command)
     const token = this.token(-1)
@@ -362,13 +365,11 @@ export class Sqlite3Parser extends Parser {
         }
       }
     }
-    stmt.tokens = this.tokens.slice(start, this.pos)
+    stmt.tokens = this.tokens.slice(this.stmtStart, this.pos)
     return stmt
   }
 
   statement() {
-    const start = this.pos
-
     let stmt
 
     let explain = false
@@ -388,41 +389,41 @@ export class Sqlite3Parser extends Parser {
       ) {
         stmt = new model.CreateTableStatement()
         stmt.temporary = true
-        this.praseCreateTableStatement(stmt, start)
+        this.praseCreateTableStatement(stmt)
       } else if (this.consumeIf(Keyword.VIRTUAL, Keyword.TABLE)) {
         stmt = new model.CreateTableStatement()
         stmt.virtual = true
-        this.praseCreateTableStatement(stmt, start)
+        this.praseCreateTableStatement(stmt)
       } else if (this.consumeIf(Keyword.TABLE)) {
         stmt = new model.CreateTableStatement()
-        this.praseCreateTableStatement(stmt, start)
+        this.praseCreateTableStatement(stmt)
       } else if (
         this.consumeIf(Keyword.TEMPORARY, Keyword.VIEW) ||
         this.consumeIf(Keyword.TEMP, Keyword.VIEW)
       ) {
         stmt = new model.CreateViewStatement()
         stmt.temporary = true
-        this.parseCreateViewStatement(stmt, start)
+        this.parseCreateViewStatement(stmt)
       } else if (this.consumeIf(Keyword.VIEW)) {
         stmt = new model.CreateViewStatement()
-        this.parseCreateViewStatement(stmt, start)
+        this.parseCreateViewStatement(stmt)
       } else if (
         this.consumeIf(Keyword.TEMPORARY, Keyword.TRIGGER) ||
         this.consumeIf(Keyword.TEMP, Keyword.TRIGGER)
       ) {
         stmt = new model.CreateTriggerStatement()
         stmt.temporary = true
-        this.praseCreateTriggerStatement(stmt, start)
+        this.praseCreateTriggerStatement(stmt)
       } else if (this.consumeIf(Keyword.TRIGGER)) {
         stmt = new model.CreateTriggerStatement()
-        this.praseCreateTriggerStatement(stmt, start)
+        this.praseCreateTriggerStatement(stmt)
       } else if (this.consumeIf(Keyword.UNIQUE, Keyword.INDEX)) {
         stmt = new model.CreateIndexStatement()
         stmt.type = model.IndexType.UNIQUE
-        this.praseCreateIndexStatement(stmt, start)
+        this.praseCreateIndexStatement(stmt)
       } else if (this.consumeIf(Keyword.INDEX)) {
         stmt = new model.CreateIndexStatement()
-        this.praseCreateIndexStatement(stmt, start)
+        this.praseCreateIndexStatement(stmt)
       } else if (
         this.consumeIf(Keyword.TEMPORARY) ||
         this.consumeIf(Keyword.TEMP) ||
@@ -434,44 +435,44 @@ export class Sqlite3Parser extends Parser {
     } else if (this.consumeIf(Keyword.ALTER)) {
       if (this.consumeIf(Keyword.TABLE)) {
         stmt = new model.AlterTableStatement()
-        this.praseAlterTableStatement(stmt, start)
+        this.praseAlterTableStatement(stmt)
       }
     } else if (this.consumeIf(Keyword.DROP)) {
       if (this.consumeIf(Keyword.TABLE)) {
         stmt = new model.DropTableStatement()
-        this.praseDropTableStatement(stmt, start)
+        this.praseDropTableStatement(stmt)
       } else if (this.consumeIf(Keyword.VIEW)) {
         stmt = new model.DropViewStatement()
-        this.praseDropViewStatement(stmt, start)
+        this.praseDropViewStatement(stmt)
       } else if (this.consumeIf(Keyword.TRIGGER)) {
         stmt = new model.DropTriggerStatement()
-        this.praseDropTriggerStatement(stmt, start)
+        this.praseDropTriggerStatement(stmt)
       } else if (this.consumeIf(Keyword.INDEX)) {
         stmt = new model.DropIndexStatement()
-        this.praseDropIndexStatement(stmt, start)
+        this.praseDropIndexStatement(stmt)
       }
     } else if (this.consumeIf(Keyword.ATTACH)) {
       if (this.consumeIf(Keyword.DATABASE)) {
         stmt = new model.AttachDatabaseStatement()
-        this.praseAttachDatabaseStatement(stmt, start)
+        this.praseAttachDatabaseStatement(stmt)
       }
     } else if (this.consumeIf(Keyword.DETACH)) {
       if (this.consumeIf(Keyword.DATABASE)) {
         stmt = new model.DetachDatabaseStatement()
-        this.praseDetachDatabaseStatement(stmt, start)
+        this.praseDetachDatabaseStatement(stmt)
       }
     } else if (this.consumeIf(Keyword.ANALYZE)) {
       stmt = new model.AnalyzeStatement()
-      this.praseAnalyzeStatement(stmt, start)
+      this.praseAnalyzeStatement(stmt)
     } else if (this.consumeIf(Keyword.REINDEX)) {
       stmt = new model.ReindexStatement()
-      this.praseReindexStatement(stmt, start)
+      this.praseReindexStatement(stmt)
     } else if (this.consumeIf(Keyword.VACUUM)) {
       stmt = new model.VacuumStatement()
-      this.praseVacuumStatement(stmt, start)
+      this.praseVacuumStatement(stmt)
     } else if (this.consumeIf(Keyword.PRAGMA)) {
       stmt = new model.PragmaStatement()
-      this.prasePragmaStatement(stmt, start)
+      this.prasePragmaStatement(stmt)
     } else if (this.consumeIf(Keyword.BEGIN)) {
       stmt = new model.BeginTransactionStatement()
       if (this.consumeIf(Keyword.DEFERRED)) {
@@ -482,22 +483,22 @@ export class Sqlite3Parser extends Parser {
         stmt.transactionBehavior = model.TransactionBehavior.EXCLUSIVE
       }
       this.consumeIf(Keyword.TRANSACTION)
-      this.praseBeginTransactionStatement(stmt, start)
+      this.praseBeginTransactionStatement(stmt)
     } else if (this.consumeIf(Keyword.SAVEPOINT)) {
       stmt = new model.SavepointStatement()
-      this.praseSavepointStatement(stmt, start)
+      this.praseSavepointStatement(stmt)
     } else if (this.consumeIf(Keyword.RELEASE)) {
       this.consumeIf(Keyword.SAVEPOINT)
       stmt = new model.ReleaseSavepointStatement()
-      this.praseReleaseSavepointStatement(stmt, start)
+      this.praseReleaseSavepointStatement(stmt)
     } else if (this.consumeIf(Keyword.COMMIT) || this.consumeIf(Keyword.END)) {
       this.consumeIf(Keyword.TRANSACTION)
       stmt = new model.CommitTransactionStatement()
-      this.praseCommitTransactionStatement(stmt, start)
+      this.praseCommitTransactionStatement(stmt)
     } else if (this.consumeIf(Keyword.ROLLBACK)) {
       this.consumeIf(Keyword.TRANSACTION)
       stmt = new model.RollbackTransactionStatement()
-      this.praseRollbackTransactionStatement(stmt, start)
+      this.praseRollbackTransactionStatement(stmt)
     } else {
       if (this.peekIf(Keyword.WITH)) {
         this.withClause()
@@ -507,24 +508,24 @@ export class Sqlite3Parser extends Parser {
         if (this.consumeIf(Keyword.OR)) {
           stmt.conflictAction = this.conflictAction()
         }
-        this.praseInsertStatement(stmt, start)
+        this.praseInsertStatement(stmt)
       } else if (this.consumeIf(Keyword.REPLACE)) {
         stmt = new model.InsertStatement()
         stmt.conflictAction = model.ConflictAction.REPLACE
-        this.praseInsertStatement(stmt, start)
+        this.praseInsertStatement(stmt)
       } else if (this.consumeIf(Keyword.UPDATE)) {
         stmt = new model.UpdateStatement()
         if (this.consumeIf(Keyword.OR)) {
           stmt.conflictAction = this.conflictAction()
         }
-        this.praseUpdateStatement(stmt, start)
+        this.praseUpdateStatement(stmt)
       } else if (this.consumeIf(Keyword.DELETE)) {
         this.consume(Keyword.FROM)
         stmt = new model.DeleteStatement()
-        this.praseDeleteStatement(stmt, start)
+        this.praseDeleteStatement(stmt)
       } else if (this.peekIf(Keyword.SELECT)) {
         stmt = new model.SelectStatement()
-        this.praseSelectStatement(stmt, start)
+        this.praseSelectStatement(stmt)
       }
     }
 
@@ -540,25 +541,25 @@ export class Sqlite3Parser extends Parser {
     if (typeof this.options.filename === "string") {
       stmt.filename = this.options.filename
     }
-    stmt.tokens = this.tokens.slice(start, this.pos)
+    stmt.tokens = this.tokens.slice(this.stmtStart, this.pos)
 
     return stmt
   }
 
-  private praseCreateTableStatement(stmt: model.CreateTableStatement, start: number) {
+  private praseCreateTableStatement(stmt: model.CreateTableStatement) {
     if (this.consumeIf(Keyword.IF)) {
       this.consume(Keyword.NOT, Keyword.EXISTS)
       stmt.ifNotExists = true
     }
 
-    stmt.markers.set("nameStart", this.pos - start)
+    stmt.markers.set("nameStart", this.pos - this.stmtStart)
     stmt.name = this.identifier()
     if (this.consumeIf(TokenType.Dot)) {
       stmt.schema = stmt.name
-      stmt.markers.set("nameStart", this.pos - start)
+      stmt.markers.set("nameStart", this.pos - this.stmtStart)
       stmt.name = this.identifier()
     }
-    stmt.markers.set("nameEnd", this.pos - start)
+    stmt.markers.set("nameEnd", this.pos - this.stmtStart)
 
     if (stmt.virtual) {
       this.consume(Keyword.USING)
@@ -611,28 +612,28 @@ export class Sqlite3Parser extends Parser {
       }
     } else if (this.consumeIf(Keyword.AS)) {
       stmt.asSelect = true
-      stmt.markers.set("selectStart", this.pos - start)
+      stmt.markers.set("selectStart", this.pos - this.stmtStart)
       this.selectClause()
-      stmt.markers.set("selectEnd", this.pos - start)
+      stmt.markers.set("selectEnd", this.pos - this.stmtStart)
     } else {
       throw this.createParseError()
     }
   }
 
-  private parseCreateViewStatement(stmt: model.CreateViewStatement, start: number) {
+  private parseCreateViewStatement(stmt: model.CreateViewStatement) {
     if (this.consumeIf(Keyword.IF)) {
       this.consume(Keyword.NOT, Keyword.EXISTS)
       stmt.ifNotExists = true
     }
 
-    stmt.markers.set("nameStart", this.pos - start)
+    stmt.markers.set("nameStart", this.pos - this.stmtStart)
     stmt.name = this.identifier()
     if (this.consumeIf(TokenType.Dot)) {
       stmt.schema = stmt.name
-      stmt.markers.set("nameStart", this.pos - start)
+      stmt.markers.set("nameStart", this.pos - this.stmtStart)
       stmt.name = this.identifier()
     }
-    stmt.markers.set("nameEnd", this.pos - start)
+    stmt.markers.set("nameEnd", this.pos - this.stmtStart)
 
     this.consume(Keyword.AS)
     if (this.consumeIf(TokenType.LeftParen)) {
@@ -642,25 +643,25 @@ export class Sqlite3Parser extends Parser {
       }
       this.consume(TokenType.RightParen)
     }
-    stmt.markers.set("selectStart", this.pos - start)
+    stmt.markers.set("selectStart", this.pos - this.stmtStart)
     this.selectClause()
-    stmt.markers.set("selectEnd", this.pos - start)
+    stmt.markers.set("selectEnd", this.pos - this.stmtStart)
   }
 
-  private praseCreateTriggerStatement(stmt: model.CreateTriggerStatement, start: number) {
+  private praseCreateTriggerStatement(stmt: model.CreateTriggerStatement) {
     if (this.consumeIf(Keyword.IF)) {
       this.consume(Keyword.NOT, Keyword.EXISTS)
       stmt.ifNotExists = true
     }
 
-    stmt.markers.set("nameStart", this.pos - start)
+    stmt.markers.set("nameStart", this.pos - this.stmtStart)
     stmt.name = this.identifier()
     if (this.consumeIf(TokenType.Dot)) {
       stmt.schema = stmt.name
-      stmt.markers.set("nameStart", this.pos - start)
+      stmt.markers.set("nameStart", this.pos - this.stmtStart)
       stmt.name = this.identifier()
     }
-    stmt.markers.set("nameEnd", this.pos - start)
+    stmt.markers.set("nameEnd", this.pos - this.stmtStart)
 
     while (this.token() && !this.peekIf(TokenType.SemiColon)) {
       if (this.consumeIf(Keyword.BEGIN)) {
@@ -673,20 +674,20 @@ export class Sqlite3Parser extends Parser {
     }
   }
 
-  private praseCreateIndexStatement(stmt: model.CreateIndexStatement, start: number) {
+  private praseCreateIndexStatement(stmt: model.CreateIndexStatement) {
     if (this.consumeIf(Keyword.IF)) {
       this.consume(Keyword.NOT, Keyword.EXISTS)
       stmt.ifNotExists = true
     }
 
-    stmt.markers.set("nameStart", this.pos - start)
+    stmt.markers.set("nameStart", this.pos - this.stmtStart)
     stmt.name = this.identifier()
     if (this.consumeIf(TokenType.Dot)) {
       stmt.schema = stmt.name
-      stmt.markers.set("nameStart", this.pos - start)
+      stmt.markers.set("nameStart", this.pos - this.stmtStart)
       stmt.name = this.identifier()
     }
-    stmt.markers.set("nameEnd", this.pos - start)
+    stmt.markers.set("nameEnd", this.pos - this.stmtStart)
 
     this.consume(Keyword.ON)
     stmt.table.name = this.identifier()
@@ -702,7 +703,7 @@ export class Sqlite3Parser extends Parser {
     }
   }
 
-  private praseAlterTableStatement(stmt: model.AlterTableStatement, start: number) {
+  private praseAlterTableStatement(stmt: model.AlterTableStatement) {
     stmt.table = this.schemaObject()
     if (this.consumeIf(Keyword.RENAME)) {
       if (this.consumeIf(Keyword.TO)) {
@@ -732,7 +733,7 @@ export class Sqlite3Parser extends Parser {
     }
   }
 
-  private praseDropTableStatement(stmt: model.DropTableStatement, start: number) {
+  private praseDropTableStatement(stmt: model.DropTableStatement) {
     if (this.consumeIf(Keyword.IF)) {
       this.consume(Keyword.EXISTS)
       stmt.ifExists = true
@@ -740,7 +741,7 @@ export class Sqlite3Parser extends Parser {
     stmt.table = this.schemaObject()
   }
 
-  private praseDropViewStatement(stmt: model.DropViewStatement, start: number) {
+  private praseDropViewStatement(stmt: model.DropViewStatement) {
     if (this.consumeIf(Keyword.IF)) {
       this.consume(Keyword.EXISTS)
       stmt.ifExists = true
@@ -748,7 +749,7 @@ export class Sqlite3Parser extends Parser {
     stmt.view = this.schemaObject()
   }
 
-  private praseDropTriggerStatement(stmt: model.DropTriggerStatement, start: number) {
+  private praseDropTriggerStatement(stmt: model.DropTriggerStatement) {
     if (this.consumeIf(Keyword.IF)) {
       this.consume(Keyword.EXISTS)
       stmt.ifExists = true
@@ -756,7 +757,7 @@ export class Sqlite3Parser extends Parser {
     stmt.trigger = this.schemaObject()
   }
 
-  private praseDropIndexStatement(stmt: model.DropIndexStatement, start: number) {
+  private praseDropIndexStatement(stmt: model.DropIndexStatement) {
     if (this.consumeIf(Keyword.IF)) {
       this.consume(Keyword.EXISTS)
       stmt.ifExists = true
@@ -765,25 +766,17 @@ export class Sqlite3Parser extends Parser {
     stmt.index = this.schemaObject()
   }
 
-  private praseAttachDatabaseStatement(stmt: model.AttachDatabaseStatement, start: number) {
+  private praseAttachDatabaseStatement(stmt: model.AttachDatabaseStatement) {
     stmt.expr = this.expression()
     this.consume(Keyword.AS)
     stmt.name = this.identifier()
   }
 
-  private praseDetachDatabaseStatement(stmt: model.DetachDatabaseStatement, start: number) {
+  private praseDetachDatabaseStatement(stmt: model.DetachDatabaseStatement) {
     stmt.name = this.identifier()
   }
 
-  private praseAnalyzeStatement(stmt: model.AnalyzeStatement, start: number) {
-    stmt.name = this.identifier()
-    if (this.consumeIf(TokenType.Dot)) {
-      stmt.schema = stmt.name
-      stmt.name = this.identifier()
-    }
-  }
-
-  private praseReindexStatement(stmt: model.ReindexStatement, start: number) {
+  private praseAnalyzeStatement(stmt: model.AnalyzeStatement) {
     stmt.name = this.identifier()
     if (this.consumeIf(TokenType.Dot)) {
       stmt.schema = stmt.name
@@ -791,7 +784,15 @@ export class Sqlite3Parser extends Parser {
     }
   }
 
-  private praseVacuumStatement(stmt: model.VacuumStatement, start: number) {
+  private praseReindexStatement(stmt: model.ReindexStatement) {
+    stmt.name = this.identifier()
+    if (this.consumeIf(TokenType.Dot)) {
+      stmt.schema = stmt.name
+      stmt.name = this.identifier()
+    }
+  }
+
+  private praseVacuumStatement(stmt: model.VacuumStatement) {
     if (this.token() && !this.peekIf(Keyword.TO)) {
       stmt.schema = this.identifier()
     }
@@ -800,7 +801,7 @@ export class Sqlite3Parser extends Parser {
     }
   }
 
-  private prasePragmaStatement(stmt: model.PragmaStatement, start: number) {
+  private prasePragmaStatement(stmt: model.PragmaStatement) {
     stmt.name = this.identifier()
     if (this.consumeIf(TokenType.Dot)) {
       stmt.schema = stmt.name
@@ -814,30 +815,30 @@ export class Sqlite3Parser extends Parser {
     }
   }
 
-  private praseBeginTransactionStatement(stmt: model.BeginTransactionStatement, start: number) {
+  private praseBeginTransactionStatement(stmt: model.BeginTransactionStatement) {
     // do nothing
   }
 
-  private praseSavepointStatement(stmt: model.SavepointStatement, start: number) {
+  private praseSavepointStatement(stmt: model.SavepointStatement) {
     stmt.name = this.identifier()
   }
 
-  private praseReleaseSavepointStatement(stmt: model.ReleaseSavepointStatement, start: number) {
+  private praseReleaseSavepointStatement(stmt: model.ReleaseSavepointStatement) {
     stmt.savepoint = this.identifier()
   }
 
-  private praseCommitTransactionStatement(stmt: model.CommitTransactionStatement, start: number) {
+  private praseCommitTransactionStatement(stmt: model.CommitTransactionStatement) {
     // do nothing
   }
 
-  private praseRollbackTransactionStatement(stmt: model.RollbackTransactionStatement, start: number) {
+  private praseRollbackTransactionStatement(stmt: model.RollbackTransactionStatement) {
     if (this.consumeIf(Keyword.TO)) {
       this.consumeIf(Keyword.SAVEPOINT)
       stmt.savepoint = this.identifier()
     }
   }
 
-  private praseInsertStatement(stmt: model.InsertStatement, start: number) {
+  private praseInsertStatement(stmt: model.InsertStatement) {
     this.consume(Keyword.INTO)
     stmt.table.name = this.identifier()
     if (this.consumeIf(TokenType.Dot)) {
@@ -849,7 +850,7 @@ export class Sqlite3Parser extends Parser {
     }
   }
 
-  private praseUpdateStatement(stmt: model.UpdateStatement, start: number) {
+  private praseUpdateStatement(stmt: model.UpdateStatement) {
     stmt.table.name = this.identifier()
     if (this.consumeIf(TokenType.Dot)) {
       stmt.table.schema = stmt.table.name
@@ -860,7 +861,7 @@ export class Sqlite3Parser extends Parser {
     }
   }
 
-  private praseDeleteStatement(stmt: model.DeleteStatement, start: number) {
+  private praseDeleteStatement(stmt: model.DeleteStatement) {
     stmt.table.name = this.identifier()
     if (this.consumeIf(TokenType.Dot)) {
       stmt.table.schema = stmt.table.name
@@ -871,7 +872,7 @@ export class Sqlite3Parser extends Parser {
     }
   }
 
-  private praseSelectStatement(stmt: model.SelectStatement, start: number) {
+  private praseSelectStatement(stmt: model.SelectStatement) {
     if (this.peekIf(Keyword.WITH)) {
       throw this.createParseError()
     }
