@@ -159,6 +159,7 @@ export class Keyword implements ITokenType {
   static METHOD = new Keyword("METHOD")
   static MOVE = new Keyword("MOVE")
   static NATURAL = new Keyword("NATURAL")
+  static NONE = new Keyword("NONE")
   static NOT = new Keyword("NOT", { reserved: true })
   static NOTIFY = new Keyword("NOTIFY")
   static NOTNULL = new Keyword("NOTNULL")
@@ -184,6 +185,7 @@ export class Keyword implements ITokenType {
   static PRIVILEGES = new Keyword("PRIVILEGES")
   static PROCEDURAL = new Keyword("PROCEDURAL")
   static PROCEDURE = new Keyword("PROCEDURE")
+  static PUBLIC = new Keyword("PUBLIC")
   static PUBLICATION = new Keyword("PUBLICATION")
   static REASSIGN = new Keyword("REASSIGN")
   static RECURSIVE = new Keyword("RECURSIVE")
@@ -904,9 +906,6 @@ export class PostgresParser extends Parser {
       } else if (this.consumeIf(Keyword.TABLESPACE)) {
         stmt = new model.DropTablespaceStatement()
         this.parseDropTablespaceStatement(stmt, start)
-      } else if (this.consumeIf(Keyword.TYPE)) {
-        stmt = new model.DropTypeStatement()
-        this.parseDropTypeStatement(stmt, start)
       } else if (this.consumeIf(Keyword.GROUP) || this.consumeIf(Keyword.ROLE)) {
         stmt = new model.DropRoleStatement()
         this.parseDropRoleStatement(stmt, start)
@@ -916,12 +915,14 @@ export class PostgresParser extends Parser {
           this.parseDropUserMappingStatement(stmt, start)
         } else {
           stmt = new model.DropRoleStatement()
-          stmt.login = true
           this.parseDropRoleStatement(stmt, start)
         }
       } else if (this.consumeIf(Keyword.SCHEMA)) {
         stmt = new model.DropSchemaStatement()
         this.parseDropSchemaStatement(stmt, start)
+      } else if (this.consumeIf(Keyword.TYPE)) {
+        stmt = new model.DropTypeStatement()
+        this.parseDropTypeStatement(stmt, start)
       } else if (this.consumeIf(Keyword.COLLATION)) {
         stmt = new model.DropCollationStatement()
         this.parseDropCollationStatement(stmt, start)
@@ -1531,111 +1532,387 @@ export class PostgresParser extends Parser {
   }
 
   private parseDropOwnedStatement(stmt: model.DropOwnedStatement, start: number) {
-
+    this.consume(Keyword.BY)
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      const role = new model.Role()
+      if (this.consumeIf(Keyword.CURRENT_USER)) {
+        role.alias = model.CURRENT_USER
+      } else if (this.consumeIf(Keyword.SESSION_USER)) {
+        role.alias = model.SESSION_USER
+      } else {
+        role.name = this.identifier()
+      }
+      stmt.roles.push(role)
+    }
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = model.CASCADE
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = model.RESTRICT
+    }
   }
 
   private parseDropDatabaseStatement(stmt: model.DropDatabaseStatement, start: number) {
-
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    stmt.database = this.identifier()
   }
 
   private parseDropAccessMethodStatement(stmt: model.DropAccessMethodStatement, start: number) {
-
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    stmt.accessMethod = this.identifier()
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = model.CASCADE
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = model.RESTRICT
+    }
   }
 
   private parseDropCastStatement(stmt: model.DropCastStatement, start: number) {
-
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    this.consume(TokenType.LeftParen)
+    stmt.sourceType = this.schemaObject() //TODO
+    this.consume(Keyword.AS)
+    stmt.targetType = this.schemaObject() //TODO
+    this.consume(TokenType.RightParen)
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = model.CASCADE
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = model.RESTRICT
+    }
   }
 
   private parseDropEventTriggerStatement(stmt: model.DropEventTriggerStatement, start: number) {
-
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    stmt.eventTrigger = this.identifier()
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = model.CASCADE
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = model.RESTRICT
+    }
   }
 
   private parseDropExtensionStatement(stmt: model.DropExtensionStatement, start: number) {
-
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    stmt.extension = this.identifier()
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = model.CASCADE
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = model.RESTRICT
+    }
   }
 
   private parseDropLanguageStatement(stmt: model.DropLanguageStatement, start: number) {
-
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    if (this.consumeIf(TokenType.String)) {
+      stmt.language = dequote(this.token(-1).text)
+    } else {
+      stmt.language = this.identifier()
+    }
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = model.CASCADE
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = model.RESTRICT
+    }
   }
 
   private parseDropTransformStatement(stmt: model.DropTransformStatement, start: number) {
-
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    this.consume(Keyword.FOR)
+    stmt.type = this.schemaObject()
+    this.consume(Keyword.LANGUAGE)
+    stmt.language = this.identifier()
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = model.CASCADE
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = model.RESTRICT
+    }
   }
 
   private parseDropPublicationStatement(stmt: model.DropPublicationStatement, start: number) {
-
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      stmt.publications.push(this.identifier())
+    }
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = model.CASCADE
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = model.RESTRICT
+    }
   }
 
   private parseDropSubscriptionStatement(stmt: model.DropSubscriptionStatement, start: number) {
-
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    stmt.subscription = this.identifier()
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = model.CASCADE
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = model.RESTRICT
+    }
   }
 
   private parseDropServerStatement(stmt: model.DropServerStatement, start: number) {
-
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      stmt.servers.push(this.identifier())
+    }
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = model.CASCADE
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = model.RESTRICT
+    }
   }
 
   private parseDropTablespaceStatement(stmt: model.DropTablespaceStatement, start: number) {
-
-  }
-
-  private parseDropTypeStatement(stmt: model.DropTypeStatement, start: number) {
-
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    stmt.tablespace = this.identifier()
   }
 
   private parseDropRoleStatement(stmt: model.DropRoleStatement, start: number) {
-
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      const role = new model.Role()
+      role.name = this.identifier()
+      stmt.roles.push(role)
+    }
   }
 
   private parseDropUserMappingStatement(stmt: model.DropUserMappingStatement, start: number) {
-
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    this.consume(Keyword.FOR)
+    if (this.consumeIf(Keyword.USER) || this.consumeIf(Keyword.CURRENT_USER)) {
+      stmt.user.alias = model.CURRENT_USER
+    } else if (this.consumeIf(Keyword.PUBLIC)) {
+      stmt.user.alias = model.PUBLIC
+    } else {
+      stmt.user.name = this.identifier()
+    }
+    this.consume(Keyword.SERVER)
+    stmt.server = this.identifier()
   }
 
   private parseDropSchemaStatement(stmt: model.DropSchemaStatement, start: number) {
-
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      stmt.schemas.push(this.identifier())
+    }
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = model.CASCADE
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = model.RESTRICT
+    }
   }
 
-  private parseDropCollationStatement(stmt: model.DropCollationStatement, start: number) {
+  private parseDropTypeStatement(stmt: model.DropTypeStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      stmt.types.push(this.schemaObject())
+    }
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = model.CASCADE
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = model.RESTRICT
+    }
+  }
 
+
+  private parseDropCollationStatement(stmt: model.DropCollationStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    stmt.collation = this.schemaObject()
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = model.CASCADE
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = model.RESTRICT
+    }
   }
 
   private parseDropConversionStatement(stmt: model.DropConversionStatement, start: number) {
-
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    stmt.conversion = this.schemaObject()
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = model.CASCADE
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = model.RESTRICT
+    }
   }
 
   private parseDropDomainStatement(stmt: model.DropDomainStatement, start: number) {
-
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      stmt.domains.push(this.schemaObject())
+    }
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = model.CASCADE
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = model.RESTRICT
+    }
   }
 
   private parseDropOperatorClassStatement(stmt: model.DropOperatorClassStatement, start: number) {
-
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    stmt.operatorClass = this.schemaObject()
+    this.consume(Keyword.USING)
+    stmt.indexAccessMethod = this.identifier()
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = model.CASCADE
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = model.RESTRICT
+    }
   }
 
   private parseDropOperatorFamilyStatement(stmt: model.DropOperatorFamilyStatement, start: number) {
-
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    stmt.operatorFamily = this.schemaObject()
+    this.consume(Keyword.USING)
+    stmt.indexAccessMethod = this.identifier()
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = model.CASCADE
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = model.RESTRICT
+    }
   }
 
   private parseDropOperatorStatement(stmt: model.DropOperatorStatement, start: number) {
-
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      stmt.operators.push(this.customOperator())
+    }
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = model.CASCADE
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = model.RESTRICT
+    }
   }
 
   private parseDropStatisticsStatement(stmt: model.DropStatisticsStatement, start: number) {
-
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      stmt.statistics.push(this.schemaObject())
+    }
   }
 
   private parseDropTableStatement(stmt: model.DropTableStatement, start: number) {
-
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      stmt.tables.push(this.schemaObject())
+    }
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = model.CASCADE
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = model.RESTRICT
+    }
   }
 
   private parseDropSequenceStatement(stmt: model.DropSequenceStatement, start: number) {
-
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      stmt.sequences.push(this.schemaObject())
+    }
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = model.CASCADE
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = model.RESTRICT
+    }
   }
 
   private parseDropViewStatement(stmt: model.DropViewStatement, start: number) {
-
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      stmt.views.push(this.schemaObject())
+    }
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = model.CASCADE
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = model.RESTRICT
+    }
   }
 
   private parseDropMaterializedViewStatement(stmt: model.DropMaterializedViewStatement, start: number) {
-
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      stmt.materializedViews.push(this.schemaObject())
+    }
+    if (this.consumeIf(Keyword.CASCADE)) {
+      stmt.dependent = model.CASCADE
+    } else if (this.consumeIf(Keyword.RESTRICT)) {
+      stmt.dependent = model.RESTRICT
+    }
   }
 
   private parseDropProcedureStatement(stmt: model.DropProcedureStatement, start: number) {
@@ -2261,6 +2538,33 @@ export class PostgresParser extends Parser {
     return sobj
   }
 
+  private customOperator() {
+    const ope = new model.CustomOpeartor()
+    if (this.consumeIf(TokenType.Operator)) {
+      ope.name = this.token(-1).text
+    } else {
+      ope.schema = this.identifier()
+      this.consume(TokenType.Dot, TokenType.Operator)
+      ope.name = this.token(-1).text
+    }
+    if (this.consumeIf(TokenType.LeftParen)) {
+      if (this.consumeIf(Keyword.NONE)) {
+        // no handle
+      } else {
+        ope.leftType = this.schemaObject() //TODO
+      }
+      if (this.consumeIf(TokenType.Comma)) {
+        if (this.consumeIf(Keyword.NONE)) {
+          // no handle
+        } else {
+          ope.rightType = this.schemaObject() //TODO
+        }
+      }
+      this.consume(TokenType.RightParen)
+    }
+    return ope
+  }
+
   private callable(type: CallableType) {
     const cobj = new model.Callable()
     cobj.name = this.identifier()
@@ -2285,18 +2589,14 @@ export class PostgresParser extends Parser {
         arg.type.name = this.identifier()
         if (this.consumeIf(TokenType.Dot)) {
           arg.type.schema = arg.type.name
-          arg.type.name = this.identifier()
+          arg.type.name = this.identifier() //TODO
         } else if (this.token() &&
           !this.peekIf(TokenType.Comma) &&
           !this.peekIf(TokenType.RightParen) &&
           !this.peekIf(Keyword.ORDER)
         ) {
           arg.name = arg.type.name
-          arg.type.name = this.identifier()
-          if (this.consumeIf(TokenType.Dot)) {
-            arg.type.schema = arg.type.name
-            arg.type.name = this.identifier()
-          }
+          arg.type = this.schemaObject() //TODO
         }
         cobj.args.push(arg)
         if (type === CallableType.AGGREGATE) {
@@ -2313,18 +2613,14 @@ export class PostgresParser extends Parser {
               arg2.type.name = this.identifier()
               if (this.consumeIf(TokenType.Dot)) {
                 arg2.type.schema = arg2.type.name
-                arg2.type.name = this.identifier()
+                arg2.type.name = this.identifier() //TODO
               } else if (this.token() &&
                 !this.peekIf(TokenType.Comma) &&
                 !this.peekIf(TokenType.RightParen) &&
                 !this.peekIf(Keyword.ORDER)
               ) {
                 arg2.name = arg2.type.name
-                arg2.type.name = this.identifier()
-                if (this.consumeIf(TokenType.Dot)) {
-                  arg2.type.schema = arg2.type.name
-                  arg2.type.name = this.identifier()
-                }
+                arg2.type = this.schemaObject() //TODO
               }
               cobj.orderBy.push(arg2)
             }

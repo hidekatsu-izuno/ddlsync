@@ -12,6 +12,11 @@ export const OUT = "OUT"
 export const INOUT = "INOUT"
 export const VARIADIC = "VARIADIC"
 
+// Role alias
+export const CURRENT_USER = "CURRENT_USER"
+export const SESSION_USER = "SESSION_USER"
+export const PUBLIC = "PUBLIC"
+
 export class SchemaObject {
   schema?: string
   name = ""
@@ -26,6 +31,8 @@ export class AlterSystemStatement extends Statement {
 }
 
 export class DropOwnedStatement extends Statement {
+  roles = new Array<Role>()
+  dependent: "CASCADE" | "RESTRICT" = RESTRICT
 }
 
 export class CreateDatabaseStatement extends Statement {
@@ -37,7 +44,7 @@ export class AlterDatabaseStatement extends Statement {
 }
 
 export class DropDatabaseStatement extends Statement {
-  schema = ""
+  database = ""
   ifExists = false
 }
 
@@ -46,7 +53,7 @@ export class CreateAccessMethodStatement extends Statement {
 }
 
 export class DropAccessMethodStatement extends Statement {
-  accessMethod = new SchemaObject()
+  accessMethod = ""
   ifExists = false
   dependent: "CASCADE" | "RESTRICT" = RESTRICT
 }
@@ -55,6 +62,10 @@ export class CreateCastStatement extends Statement {
 }
 
 export class DropCastStatement extends Statement {
+  ifExists = false
+  sourceType = new SchemaObject()
+  targetType = new SchemaObject()
+  dependent: "CASCADE" | "RESTRICT" = RESTRICT
 }
 
 export class CreateEventTriggerStatement extends Statement {
@@ -128,7 +139,10 @@ export class AlterTransformStatement extends Statement {
 }
 
 export class DropTransformStatement extends Statement {
-  transform = ""
+  type = new SchemaObject()
+  language = ""
+  ifExists = false
+  dependent: "CASCADE" | "RESTRICT" = RESTRICT
 }
 
 export class CreatePublicationStatement extends Statement {
@@ -181,7 +195,7 @@ export class AlterUserMappingStatement extends Statement {
 
 export class DropUserMappingStatement extends Statement {
   ifExists = false
-  user = ""
+  user = new Role()
   server = ""
 }
 
@@ -198,16 +212,9 @@ export class DropTablespaceStatement extends Statement {
   ifExists = false
 }
 
-export class CreateTypeStatement extends Statement {
-  name = ""
-}
-
-export class AlterTypeStatement extends Statement {
-  type = ""
-}
-
-export class DropTypeStatement extends Statement {
-  type = ""
+export class Role {
+  name?: string
+  alias?: string
 }
 
 export class CreateRoleStatement extends Statement {
@@ -221,9 +228,8 @@ export class AlterRoleStatement extends Statement {
 }
 
 export class DropRoleStatement extends Statement {
-  roles = new Array<string>()
+  roles = new Array<Role>()
   ifExists = false
-  login = false
 }
 
 export class AlterLargeObjectStatement extends Statement {
@@ -243,6 +249,20 @@ export class DropSchemaStatement extends Statement {
   dependent: "CASCADE" | "RESTRICT" = RESTRICT
 }
 
+export class CreateTypeStatement extends Statement {
+  name = ""
+}
+
+export class AlterTypeStatement extends Statement {
+  type = ""
+}
+
+export class DropTypeStatement extends Statement {
+  types = new Array<SchemaObject>()
+  ifExists = false
+  dependent: "CASCADE" | "RESTRICT" = RESTRICT
+}
+
 export class CreateCollationStatement extends Statement {
   schema?: string
   name = ""
@@ -254,7 +274,7 @@ export class AlterCollationStatement extends Statement {
 }
 
 export class DropCollationStatement extends Statement {
-  collation = ""
+  collation = new SchemaObject()
   ifExists = false
   dependent: "CASCADE" | "RESTRICT" = RESTRICT
 }
@@ -277,7 +297,9 @@ export class AlterConversionStatement extends Statement {
 }
 
 export class DropConversionStatement extends Statement {
-
+  conversion = new SchemaObject()
+  ifExists = false
+  dependent: "CASCADE" | "RESTRICT" = RESTRICT
 }
 
 export class CreateDomainStatement extends Statement {
@@ -296,6 +318,13 @@ export class DropDomainStatement extends Statement {
   dependent: "CASCADE" | "RESTRICT" = RESTRICT
 }
 
+export class CustomOpeartor {
+  schema?: string
+  name = ""
+  leftType?: SchemaObject
+  rightType?: SchemaObject
+}
+
 export class CreateOperatorStatement extends Statement {
   schema?: string
   name = ""
@@ -307,7 +336,9 @@ export class AlterOperatorStatement extends Statement {
 }
 
 export class DropOperatorStatement extends Statement {
-
+  operators = new Array<CustomOpeartor>()
+  ifExists = false
+  dependent: "CASCADE" | "RESTRICT" = RESTRICT
 }
 
 export class CreateOperatorFamilyStatement extends Statement {
@@ -322,7 +353,7 @@ export class AlterOperatorFamilyStatement extends Statement {
 
 export class DropOperatorFamilyStatement extends Statement {
   operatorFamily = new SchemaObject()
-  indexMethod = ""
+  indexAccessMethod = ""
   ifExists = false
   dependent: "CASCADE" | "RESTRICT" = RESTRICT
 }
@@ -338,7 +369,7 @@ export class AlterOperatorClassStatement extends Statement {
 
 export class DropOperatorClassStatement extends Statement {
   operatorClass = new SchemaObject()
-  indexMethod = ""
+  indexAccessMethod = ""
   ifExists = false
   dependent: "CASCADE" | "RESTRICT" = RESTRICT
 }
@@ -354,7 +385,7 @@ export class AlterStatisticsStatement extends Statement {
 }
 
 export class DropStatisticsStatement extends Statement {
-  statistics = new Array<string>()
+  statistics = new Array<SchemaObject>()
   ifExists = false
 }
 
@@ -406,8 +437,9 @@ export class AlterSequenceStatement extends Statement {
 }
 
 export class DropSequenceStatement extends Statement {
-  schema?: string
-  name = ""
+  sequences = new Array<SchemaObject>()
+  ifExists = false
+  dependent: "CASCADE" | "RESTRICT" = RESTRICT
 }
 
 export class CreateViewStatement extends Statement {
@@ -424,8 +456,9 @@ export class AlterViewStatement extends Statement {
 }
 
 export class DropViewStatement extends Statement {
-  schema?: string
-  name = ""
+  views = new Array<SchemaObject>()
+  ifExists = false
+  dependent: "CASCADE" | "RESTRICT" = RESTRICT
 }
 
 export class CreateMaterializedViewStatement extends Statement {
@@ -439,8 +472,8 @@ export class AlterMaterializedViewStatement extends Statement {
 }
 
 export class DropMaterializedViewStatement extends Statement {
-  schema?: string
-  name = ""
+  materializedViews = new Array<SchemaObject>()
+  ifExists = false
   dependent: "CASCADE" | "RESTRICT" = RESTRICT
 }
 
