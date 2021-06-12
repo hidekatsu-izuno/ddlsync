@@ -12,10 +12,11 @@ export const OUT = "OUT"
 export const INOUT = "INOUT"
 export const VARIADIC = "VARIADIC"
 
-// Role alias
+// Role constants
 export const CURRENT_USER = "CURRENT_USER"
 export const SESSION_USER = "SESSION_USER"
 export const PUBLIC = "PUBLIC"
+export const ALL = "ALL"
 
 export class SchemaObject {
   schema?: string
@@ -40,7 +41,7 @@ export class CreateDatabaseStatement extends Statement {
 }
 
 export class AlterDatabaseStatement extends Statement {
-  schema = ""
+  database = ""
 }
 
 export class DropDatabaseStatement extends Statement {
@@ -150,6 +151,7 @@ export class CreatePublicationStatement extends Statement {
 }
 
 export class AlterPublicationStatement extends Statement {
+  publication = ""
 }
 
 export class DropPublicationStatement extends Statement {
@@ -163,6 +165,7 @@ export class CreateSubscriptionStatement extends Statement {
 }
 
 export class AlterSubscriptionStatement extends Statement {
+  subscription = ""
 }
 
 export class DropSubscriptionStatement extends Statement {
@@ -190,7 +193,8 @@ export class CreateUserMappingStatement extends Statement {
 }
 
 export class AlterUserMappingStatement extends Statement {
-
+  user = new Role()
+  server = ""
 }
 
 export class DropUserMappingStatement extends Statement {
@@ -223,8 +227,8 @@ export class CreateRoleStatement extends Statement {
 }
 
 export class AlterRoleStatement extends Statement {
-  name = ""
-  login = false
+  role = new Role()
+  database?: string
 }
 
 export class DropRoleStatement extends Statement {
@@ -233,6 +237,7 @@ export class DropRoleStatement extends Statement {
 }
 
 export class AlterLargeObjectStatement extends Statement {
+  largeObject = ""
 }
 
 export class CreateSchemaStatement extends Statement {
@@ -269,8 +274,7 @@ export class CreateCollationStatement extends Statement {
 }
 
 export class AlterCollationStatement extends Statement {
-  schema?: string
-  name = ""
+  collation = new SchemaObject()
 }
 
 export class DropCollationStatement extends Statement {
@@ -280,8 +284,8 @@ export class DropCollationStatement extends Statement {
 }
 
 export class AlterDefaultPrivilegesStatement extends Statement {
-  schema?: string
-  name = ""
+  roles = new Array<Role>()
+  schemas = new Array<string>()
   default = false
 }
 
@@ -293,7 +297,7 @@ export class CreateConversionStatement extends Statement {
 }
 
 export class AlterConversionStatement extends Statement {
-
+  conversion = new SchemaObject()
 }
 
 export class DropConversionStatement extends Statement {
@@ -308,8 +312,7 @@ export class CreateDomainStatement extends Statement {
 }
 
 export class AlterDomainStatement extends Statement {
-  schema?: string
-  name = ""
+  domain = new SchemaObject()
 }
 
 export class DropDomainStatement extends Statement {
@@ -331,8 +334,7 @@ export class CreateOperatorStatement extends Statement {
 }
 
 export class AlterOperatorStatement extends Statement {
-  schema?: string
-  name = ""
+  operator = new CustomOpeartor()
 }
 
 export class DropOperatorStatement extends Statement {
@@ -347,8 +349,8 @@ export class CreateOperatorFamilyStatement extends Statement {
 }
 
 export class AlterOperatorFamilyStatement extends Statement {
-  schema?: string
-  name = ""
+  operatorFamily = new SchemaObject()
+  indexAccessMethod = ""
 }
 
 export class DropOperatorFamilyStatement extends Statement {
@@ -363,8 +365,8 @@ export class CreateOperatorClassStatement extends Statement {
 }
 
 export class AlterOperatorClassStatement extends Statement {
-  schema?: string
-  name = ""
+  operatorClass = new SchemaObject()
+  indexAccessMethod = ""
 }
 
 export class DropOperatorClassStatement extends Statement {
@@ -380,8 +382,7 @@ export class CreateStatisticsStatement extends Statement {
 }
 
 export class AlterStatisticsStatement extends Statement {
-  schema?: string
-  name = ""
+  statistic = new SchemaObject()
 }
 
 export class DropStatisticsStatement extends Statement {
@@ -398,8 +399,10 @@ export class CreateTableStatement extends Statement {
 }
 
 export class AlterTableStatement extends Statement {
-  schema?: string
-  name = ""
+  table?: SchemaObject
+  tablespace?: string
+  ifExists = false
+  only = false
 }
 
 export class DropTableStatement extends Statement {
@@ -414,8 +417,9 @@ export class CreateForeignTableStatement extends Statement {
 }
 
 export class AlterForeignTableStatement extends Statement {
-  schema?: string
-  name = ""
+  foreignTable = new SchemaObject()
+  ifExists = false
+  only = false
 }
 
 export class DropForeignTableStatement extends Statement {
@@ -432,8 +436,8 @@ export class CreateSequenceStatement extends Statement {
 }
 
 export class AlterSequenceStatement extends Statement {
-  schema?: string
-  name = ""
+  sequence = new SchemaObject()
+  ifExists = false
 }
 
 export class DropSequenceStatement extends Statement {
@@ -451,8 +455,8 @@ export class CreateViewStatement extends Statement {
 }
 
 export class AlterViewStatement extends Statement {
-  schema?: string
-  name = ""
+  view = new SchemaObject()
+  ifExists = false
 }
 
 export class DropViewStatement extends Statement {
@@ -467,8 +471,9 @@ export class CreateMaterializedViewStatement extends Statement {
 }
 
 export class AlterMaterializedViewStatement extends Statement {
-  schema?: string
-  name = ""
+  materializedView?: SchemaObject
+  tablespace?: string
+  ifExists = false
 }
 
 export class DropMaterializedViewStatement extends Statement {
@@ -496,8 +501,7 @@ export class CreateProcedureStatement extends Statement {
 }
 
 export class AlterProcedureStatement extends Statement {
-  schema?: string
-  name = ""
+  procedure = new Callable()
 }
 
 export class DropProcedureStatement extends Statement {
@@ -513,8 +517,7 @@ export class CreateFunctionStatement extends Statement {
 }
 
 export class AlterFunctionStatement extends Statement {
-  schema?: string
-  name = ""
+  function = new Callable()
 }
 
 export class DropFunctionStatement extends Statement {
@@ -530,8 +533,7 @@ export class CreateAggregateStatement extends Statement {
 }
 
 export class AlterAggregateStatement extends Statement {
-  schema?: string
-  name = ""
+  aggregate = new Callable()
 }
 
 export class DropAggregateStatement extends Statement {
@@ -541,26 +543,7 @@ export class DropAggregateStatement extends Statement {
 }
 
 export class AlterRoutineStatement extends Statement {
-  schema?: string
-  name = ""
-}
-
-export class CreateTriggerStatement extends Statement {
-  schema?: string
-  name = ""
-  constraint = false
-}
-
-export class AlterTriggerStatement extends Statement {
-  schema?: string
-  name = ""
-}
-
-export class DropTriggerStatement extends Statement {
-  trigger = ""
-  table = new SchemaObject()
-  ifExists = false
-  dependent: "CASCADE" | "RESTRICT" = RESTRICT
+  routine = new Callable()
 }
 
 export class CreateTextSearchConfigurationStatement extends Statement {
@@ -569,8 +552,7 @@ export class CreateTextSearchConfigurationStatement extends Statement {
 }
 
 export class AlterTextSearchConfigurationStatement extends Statement {
-  schema?: string
-  name = ""
+  textSearchConfiguration = new SchemaObject()
 }
 
 export class DropTextSearchConfigurationStatement extends Statement {
@@ -585,8 +567,7 @@ export class CreateTextSearchDictionaryStatement extends Statement {
 }
 
 export class AlterTextSearchDictionaryStatement extends Statement {
-  schema?: string
-  name = ""
+  textSearchDictionary = new SchemaObject()
 }
 
 export class DropTextSearchDictionaryStatement extends Statement {
@@ -601,8 +582,7 @@ export class CreateTextSearchParserStatement extends Statement {
 }
 
 export class AlterTextSearchParserStatement extends Statement {
-  schema?: string
-  name = ""
+  textSearchParser = new SchemaObject()
 }
 
 export class DropTextSearchParserStatement extends Statement {
@@ -617,8 +597,7 @@ export class CreateTextSearchTemplateStatement extends Statement {
 }
 
 export class AlterTextSearchTemplateStatement extends Statement {
-  schema?: string
-  name = ""
+  textSearchTemplate = new SchemaObject()
 }
 
 export class DropTextSearchTemplateStatement extends Statement {
@@ -650,11 +629,30 @@ export class CreateRuleStatement extends Statement {
 }
 
 export class AlterRuleStatement extends Statement {
-  name = ""
+  rule = ""
+  table = new SchemaObject()
 }
 
 export class DropRuleStatement extends Statement {
+  rule = ""
+  table = new SchemaObject()
+  ifExists = false
+  dependent: "CASCADE" | "RESTRICT" = RESTRICT
+}
+
+export class CreateTriggerStatement extends Statement {
+  schema?: string
   name = ""
+  constraint = false
+}
+
+export class AlterTriggerStatement extends Statement {
+  trigger = ""
+  table = new SchemaObject()
+}
+
+export class DropTriggerStatement extends Statement {
+  trigger = ""
   table = new SchemaObject()
   ifExists = false
   dependent: "CASCADE" | "RESTRICT" = RESTRICT
@@ -667,8 +665,9 @@ export class CreateIndexStatement extends Statement {
 }
 
 export class AlterIndexStatement extends Statement {
-  schema?: string
-  name = ""
+  tablespace?: string
+  index?: SchemaObject
+  ifExists = false
 }
 
 export class DropIndexStatement extends Statement {

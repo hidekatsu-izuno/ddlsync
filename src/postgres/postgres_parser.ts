@@ -761,7 +761,6 @@ export class PostgresParser extends Parser {
           this.parseAlterUserMappingStatement(stmt, start)
         } else {
           stmt = new model.AlterRoleStatement()
-          stmt.login = true
           this.parseAlterRoleStatement(stmt, start)
         }
       } else if (this.consumeIf(Keyword.LARGE)) {
@@ -1372,163 +1371,377 @@ export class PostgresParser extends Parser {
   }
 
   private parseAlterSystemStatement(stmt: model.AlterSystemStatement, start: number) {
-
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseAlterDatabaseStatement(stmt: model.AlterDatabaseStatement, start: number) {
-
+    stmt.database = this.identifier()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseAlterEventTriggerStatement(stmt: model.AlterEventTriggerStatement, start: number) {
-
+    stmt.eventTrigger = this.identifier()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseAlterExtensionStatement(stmt: model.AlterExtensionStatement, start: number) {
-
+    stmt.extension = this.identifier()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseAlterLanguageStatement(stmt: model.AlterLanguageStatement, start: number) {
-
+    stmt.language = this.identifier()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseAlterPublicationStatement(stmt: model.AlterPublicationStatement, start: number) {
-
+    stmt.publication = this.identifier()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseAlterSubscriptionStatement(stmt: model.AlterSubscriptionStatement, start: number) {
-
+    stmt.subscription = this.identifier()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseAlterServerStatement(stmt: model.AlterServerStatement, start: number) {
-
+    stmt.server = this.identifier()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseAlterTablespaceStatement(stmt: model.AlterTablespaceStatement, start: number) {
-
-  }
-
-  private parseAlterTypeStatement(stmt: model.AlterTypeStatement, start: number) {
-
+    stmt.tablespace = this.identifier()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseAlterRoleStatement(stmt: model.AlterRoleStatement, start: number) {
-
+    if (this.consumeIf(Keyword.CURRENT_USER)) {
+      stmt.role.alias = model.CURRENT_USER
+    } else if (this.consumeIf(Keyword.SESSION_USER)) {
+      stmt.role.alias = model.SESSION_USER
+    } else if (this.consumeIf(Keyword.ALL)) {
+      stmt.role.alias = model.ALL
+    } else {
+      stmt.role.name = this.identifier()
+    }
+    if (this.consumeIf(Keyword.IN)) {
+      this.consume(Keyword.DATABASE)
+      stmt.database = this.identifier()
+    }
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseAlterUserMappingStatement(stmt: model.AlterUserMappingStatement, start: number) {
-
+    this.consume(Keyword.FOR)
+    if (this.consumeIf(Keyword.USER) || this.consumeIf(Keyword.CURRENT_USER)) {
+      stmt.user.alias = model.CURRENT_USER
+    } else if (this.consumeIf(Keyword.SESSION_USER)) {
+      stmt.user.alias = model.SESSION_USER
+    } else if (this.consumeIf(Keyword.PUBLIC)) {
+      stmt.user.alias = model.PUBLIC
+    } else {
+      stmt.user.name = this.identifier()
+    }
+    this.consume(Keyword.SERVER)
+    stmt.server = this.identifier()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseAlterLargeObjectStatement(stmt: model.AlterLargeObjectStatement, start: number) {
-
+    this.consume(TokenType.Number)
+    stmt.largeObject = this.token(-1).text
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseAlterSchemaStatement(stmt: model.AlterSchemaStatement, start: number) {
+    stmt.schema = this.identifier()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
+  }
 
+  private parseAlterTypeStatement(stmt: model.AlterTypeStatement, start: number) {
+    stmt.type = this.identifier()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseAlterCollationStatement(stmt: model.AlterCollationStatement, start: number) {
-
+    stmt.collation = this.schemaObject()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseAlterDefaultPrivilegesStatement(stmt: model.AlterDefaultPrivilegesStatement, start: number) {
-
+    if (this.consumeIf(Keyword.FOR)) {
+      if (this.consumeIf(Keyword.ROLE) || this.consumeIf(Keyword.USER)) {
+        for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+          const role = new model.Role()
+          role.name = this.identifier()
+          stmt.roles.push(role)
+        }
+      } else {
+        throw this.createParseError()
+      }
+    }
+    if (this.consumeIf(Keyword.IN)) {
+      this.consume(Keyword.SCHEMA)
+      for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+        stmt.schemas.push(this.identifier())
+      }
+    }
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseAlterConversionStatement(stmt: model.AlterConversionStatement, start: number) {
-
+    stmt.conversion = this.schemaObject()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseAlterDomainStatement(stmt: model.AlterDomainStatement, start: number) {
-
+    stmt.domain = this.schemaObject()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseAlterOperatorClassStatement(stmt: model.AlterOperatorClassStatement, start: number) {
-
+    stmt.operatorClass = this.schemaObject()
+    this.consume(Keyword.USING)
+    stmt.indexAccessMethod = this.identifier()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseAlterOperatorFamilyStatement(stmt: model.AlterOperatorFamilyStatement, start: number) {
-
+    stmt.operatorFamily = this.schemaObject()
+    this.consume(Keyword.USING)
+    stmt.indexAccessMethod = this.identifier()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseAlterOperatorStatement(stmt: model.AlterOperatorStatement, start: number) {
-
+    stmt.operator = this.customOperator()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseAlterStatisticsStatement(stmt: model.AlterStatisticsStatement, start: number) {
-
+    stmt.statistic = this.schemaObject()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseAlterTableStatement(stmt: model.AlterTableStatement, start: number) {
-
-  }
-
-  private parseAlterSequenceStatement(stmt: model.AlterSequenceStatement, start: number) {
-
-  }
-
-  private parseAlterViewStatement(stmt: model.AlterViewStatement, start: number) {
-
-  }
-
-  private parseAlterMaterializedViewStatement(stmt: model.AlterMaterializedViewStatement, start: number) {
-
-  }
-
-  private parseAlterProcedureStatement(stmt: model.AlterProcedureStatement, start: number) {
-
-  }
-
-  private parseAlterFunctionStatement(stmt: model.AlterFunctionStatement, start: number) {
-
-  }
-
-  private parseAlterAggregateStatement(stmt: model.AlterAggregateStatement, start: number) {
-
-  }
-
-  private parseAlterTriggerStatement(stmt: model.AlterTriggerStatement, start: number) {
-
-  }
-
-  private parseAlterRuleStatement(stmt: model.AlterRuleStatement, start: number) {
-
-  }
-
-  private parseAlterForeignDataWrapperStatement(stmt: model.AlterForeignDataWrapperStatement, start: number) {
-
+    if (this.consumeIf(Keyword.ALL)) {
+      this.consume(Keyword.IN, Keyword.TABLESPACE)
+      stmt.tablespace = this.identifier()
+    } else {
+      if (this.consumeIf(Keyword.IF)) {
+        this.consume(Keyword.EXISTS)
+        stmt.ifExists = true
+      }
+      if (this.consumeIf(Keyword.ONLY)) {
+        stmt.only = true
+      }
+      stmt.table = this.schemaObject()
+    }
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseAlterForeignTableStatement(stmt: model.AlterForeignTableStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    if (this.consumeIf(Keyword.ONLY)) {
+      stmt.only = true
+    }
+    stmt.foreignTable = this.schemaObject()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
+  }
 
+  private parseAlterSequenceStatement(stmt: model.AlterSequenceStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    stmt.sequence = this.schemaObject()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
+  }
+
+  private parseAlterViewStatement(stmt: model.AlterViewStatement, start: number) {
+    if (this.consumeIf(Keyword.IF)) {
+      this.consume(Keyword.EXISTS)
+      stmt.ifExists = true
+    }
+    stmt.view = this.schemaObject()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
+  }
+
+  private parseAlterMaterializedViewStatement(stmt: model.AlterMaterializedViewStatement, start: number) {
+    if (this.consumeIf(Keyword.ALL)) {
+      this.consume(Keyword.IN, Keyword.TABLESPACE)
+      stmt.tablespace = this.identifier()
+    } else {
+      if (this.consumeIf(Keyword.IF)) {
+        this.consume(Keyword.EXISTS)
+        stmt.ifExists = true
+      }
+      stmt.materializedView = this.schemaObject()
+    }
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
+  }
+
+  private parseAlterProcedureStatement(stmt: model.AlterProcedureStatement, start: number) {
+    stmt.procedure = this.callable(CallableType.PROCEDURE)
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
+  }
+
+  private parseAlterFunctionStatement(stmt: model.AlterFunctionStatement, start: number) {
+    stmt.function = this.callable(CallableType.FUNCTION)
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
+  }
+
+  private parseAlterAggregateStatement(stmt: model.AlterAggregateStatement, start: number) {
+    stmt.aggregate = this.callable(CallableType.AGGREGATE)
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseAlterRoutineStatement(stmt: model.AlterRoutineStatement, start: number) {
+    stmt.routine = this.callable(CallableType.FUNCTION)
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
+  }
 
+  private parseAlterForeignDataWrapperStatement(stmt: model.AlterForeignDataWrapperStatement, start: number) {
+    stmt.foreignDataWrapper = this.identifier()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseAlterTextSearchConfigurationStatement(stmt: model.AlterTextSearchConfigurationStatement, start: number) {
-
+    stmt.textSearchConfiguration = this.schemaObject()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseAlterTextSearchDictionaryStatement(stmt: model.AlterTextSearchDictionaryStatement, start: number) {
-
+    stmt.textSearchDictionary = this.schemaObject()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseAlterTextSearchParserStatement(stmt: model.AlterTextSearchParserStatement, start: number) {
-
+    stmt.textSearchParser = this.schemaObject()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseAlterTextSearchTemplateStatement(stmt: model.AlterTextSearchTemplateStatement, start: number) {
-
+    stmt.textSearchTemplate = this.schemaObject()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseAlterPolicyStatement(stmt: model.AlterPolicyStatement, start: number) {
+    stmt.name = this.identifier()
+    this.consume(Keyword.ON)
+    stmt.table = this.schemaObject()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
+  }
 
+  private parseAlterRuleStatement(stmt: model.AlterRuleStatement, start: number) {
+    stmt.rule = this.identifier()
+    this.consume(Keyword.ON)
+    stmt.table = this.schemaObject()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
+  }
+
+  private parseAlterTriggerStatement(stmt: model.AlterTriggerStatement, start: number) {
+    stmt.trigger = this.identifier()
+    this.consume(Keyword.ON)
+    stmt.table = this.schemaObject()
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseAlterIndexStatement(stmt: model.AlterIndexStatement, start: number) {
-
+    if (this.consumeIf(Keyword.ALL)) {
+      this.consume(Keyword.IN, Keyword.TABLESPACE)
+      stmt.tablespace = this.identifier()
+    } else {
+      if (this.consumeIf(Keyword.IF)) {
+        this.consume(Keyword.EXISTS)
+        stmt.ifExists = true
+      }
+      stmt.index = this.schemaObject()
+    }
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      this.consume()
+    }
   }
 
   private parseDropOwnedStatement(stmt: model.DropOwnedStatement, start: number) {
@@ -2062,7 +2275,7 @@ export class PostgresParser extends Parser {
       this.consume(Keyword.EXISTS)
       stmt.ifExists = true
     }
-    stmt.name = this.identifier()
+    stmt.rule = this.identifier()
     this.consume(Keyword.ON)
     stmt.table = this.schemaObject()
     if (this.consumeIf(Keyword.CASCADE)) {
@@ -2570,7 +2783,8 @@ export class PostgresParser extends Parser {
     cobj.name = this.identifier()
     if (
       type === CallableType.AGGREGATE && this.consume(TokenType.LeftParen) ||
-      this.consumeIf(TokenType.LeftParen)) {
+      this.consumeIf(TokenType.LeftParen)
+    ) {
       for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
         if (type === CallableType.AGGREGATE && this.consumeIf(Keyword.OPE_ASTER)) {
           break
