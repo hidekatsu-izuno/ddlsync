@@ -1,3 +1,4 @@
+import Decimal from "decimal.js"
 import { Statement } from "../models"
 import {
   ITokenType,
@@ -48,6 +49,7 @@ export class Keyword implements ITokenType {
   static ACCESS = new Keyword("ACCESS")
   static AGGREGATE = new Keyword("AGGREGATE")
   static ALL = new Keyword("ALL", { reserved: true })
+  static ALLOW_CONNECTIONS = new Keyword("ALLOW_CONNECTIONS")
   static ALTER = new Keyword("ALTER")
   static ANALYSE = new Keyword("ANALYSE", { reserved: true })
   static ANALYZE = new Keyword("ANALYZE", { reserved: true })
@@ -78,6 +80,7 @@ export class Keyword implements ITokenType {
   static COMMIT = new Keyword("COMMIT")
   static CONCURRENTLY = new Keyword("CONCURRENTLY")
   static CONFIGURATION = new Keyword("CONFIGURATION")
+  static CONNECTION = new Keyword("CONNECTION")
   static CONSTRAINT = new Keyword("CONSTRAINT", { reserved: true })
   static CONVERSION = new Keyword("CONVERSION")
   static COPY = new Keyword("COPY")
@@ -105,6 +108,7 @@ export class Keyword implements ITokenType {
   static DOMAIN = new Keyword("DOMAIN")
   static DROP = new Keyword("DROP")
   static ELSE = new Keyword("ELSE", { reserved: true })
+  static ENCODING = new Keyword("ENCODING")
   static END = new Keyword("END", { reserved: true })
   static EVENT = new Keyword("EVENT")
   static EXCEPT = new Keyword("EXCEPT", { reserved: true })
@@ -137,12 +141,15 @@ export class Keyword implements ITokenType {
   static INTERSECT = new Keyword("INTERSECT", { reserved: true })
   static INTO = new Keyword("INTO", { reserved: true })
   static IS = new Keyword("IS")
+  static IS_TEMPLATE = new Keyword("IS_TEMPLATE")
   static ISNULL = new Keyword("ISNULL")
   static JOIN = new Keyword("JOIN")
   static LABEL = new Keyword("LABEL")
   static LANGUAGE = new Keyword("LANGUAGE")
   static LATERAL = new Keyword("LATERAL", { reserved: true })
   static LARGE = new Keyword("LARGE")
+  static LC_COLLATE = new Keyword("LC_COLLATE")
+  static LC_CTYPE = new Keyword("LC_CTYPE")
   static LEADING = new Keyword("LEADING", { reserved: true })
   static LEFT = new Keyword("LEFT")
   static LIKE = new Keyword("LIKE")
@@ -175,6 +182,7 @@ export class Keyword implements ITokenType {
   static OUTER = new Keyword("OUTER")
   static OVERLAPS = new Keyword("OVERLAPS")
   static OWNED = new Keyword("OWNED")
+  static OWNER = new Keyword("OWNER")
   static PARSER = new Keyword("PARSER")
   static PLACING = new Keyword("PLACING", { reserved: true })
   static POLICY = new Keyword("POLICY")
@@ -255,6 +263,9 @@ export class Keyword implements ITokenType {
   static WINDOW = new Keyword("WINDOW", { reserved: true })
   static WITH = new Keyword("WITH", { reserved: true })
 
+  static OPE_EQ = new Keyword("=")
+  static OPE_PLUS = new Keyword("+")
+  static OPE_MINUS = new Keyword("-")
   static OPE_ASTER = new Keyword("*")
 
   constructor(
@@ -1220,7 +1231,57 @@ export class PostgresParser extends Parser {
   }
 
   private parseCreateDatabaseStatement(stmt: model.CreateDatabaseStatement) {
-
+    stmt.name = this.identifier()
+    this.consumeIf(Keyword.WITH)
+    while (this.token() && !this.peekIf(TokenType.SemiColon)) {
+      if (this.consumeIf(Keyword.OWNER)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        if (this.consumeIf(Keyword.DEFAULT)) {
+          // no handle
+        } else {
+          stmt.owner = this.identifier()
+        }
+      } else if (this.consumeIf(Keyword.TEMPLATE)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        if (!this.consumeIf(Keyword.DEFAULT)) {
+          // no handle
+        } else {
+          stmt.template = this.stringValue()
+        }
+      } else if (this.consumeIf(Keyword.ENCODING)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        if (!this.consumeIf(Keyword.DEFAULT)) {
+          // no handle
+        } else {
+          stmt.encoding = this.stringValue()
+        }
+      } else if (this.consumeIf(Keyword.LC_COLLATE)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        stmt.lcCollate = this.stringValue()
+      } else if (this.consumeIf(Keyword.LC_CTYPE)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        stmt.lcCtype = this.stringValue()
+      } else if (this.consumeIf(Keyword.TABLESPACE)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        if (!this.consumeIf(Keyword.DEFAULT)) {
+          // no handle
+        } else {
+          stmt.tablespace = this.stringValue()
+        }
+      } else if (this.consumeIf(Keyword.ALLOW_CONNECTIONS)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        stmt.allowConnections = this.booleanValue()
+      } else if (this.consumeIf(Keyword.CONNECTION)) {
+        this.consume(Keyword.LIMIT)
+        this.consumeIf(Keyword.OPE_EQ)
+        stmt.connectionLimit = this.numberValue()
+      } else if (this.consumeIf(Keyword.IS_TEMPLATE)) {
+        this.consumeIf(Keyword.OPE_EQ)
+        stmt.isTemplate = this.booleanValue()
+      } else {
+        break
+      }
+    }
   }
 
   private parseCreateAccessMethodStatement(stmt: model.CreateAccessMethodStatement) {
@@ -2857,6 +2918,37 @@ export class PostgresParser extends Parser {
       return lcase(this.token(-1).text)
     } else if (this.consumeIf(TokenType.QuotedIdentifier)) {
       return unescape(dequote(this.token(-1).text))
+    } else {
+      throw this.createParseError()
+    }
+  }
+
+  stringValue() {
+    if (this.consumeIf(TokenType.String)) {
+      return unescape(dequote(this.token(-1).text))
+    } else {
+      throw this.createParseError()
+    }
+  }
+
+  numberValue() {
+    let text
+    if (this.consumeIf(Keyword.OPE_PLUS) || this.consumeIf(Keyword.OPE_MINUS)) {
+      text = this.token(-1).text
+      this.consume(TokenType.Number)
+      text += this.token(-1).text
+    } else {
+      this.consume(TokenType.Number)
+      text = this.token(-1).text
+    }
+    return new Decimal(text).toString()
+  }
+
+  booleanValue() {
+    if (this.consumeIf(Keyword.TRUE)) {
+      return true
+    } else if (this.consumeIf(Keyword.FALSE)) {
+      return false
     } else {
       throw this.createParseError()
     }

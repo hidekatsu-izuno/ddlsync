@@ -38,6 +38,17 @@ export class DropOwnedStatement extends Statement {
 
 export class CreateDatabaseStatement extends Statement {
   name = ""
+
+  // options
+  owner?: string
+  template?: string
+  encoding?: string
+  lcCollate?: string
+  lcCtype?: string
+  tablespace?: string
+  allowConnections = true
+  connectionLimit?: string
+  isTemplate = false
 }
 
 export class AlterDatabaseStatement extends Statement {

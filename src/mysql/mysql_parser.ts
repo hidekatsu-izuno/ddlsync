@@ -4343,25 +4343,23 @@ export class MysqlParser extends Parser {
   }
 
   stringValue() {
-    let text
     if (this.consumeIf(TokenType.String)) {
-      text = unescape(dequote(this.token(-1).text))
+      return unescape(dequote(this.token(-1).text))
     } else if (!this.sqlMode.has("ANSI_QUOTE") && this.consumeIf(TokenType.QuotedValue)) {
-      text = unescape(dequote(this.token(-1).text))
+      return unescape(dequote(this.token(-1).text))
     } else if (this.consumeIf(Keyword.VAR_GLOBAL)) {
       this.consume(TokenType.Dot, TokenType.Identifier)
-      text = "@@GLOBAL." + lcase(this.token(-1).text)
+      return "@@GLOBAL." + lcase(this.token(-1).text)
     } else if (this.consumeIf(Keyword.VAR_LOCAL) || this.consumeIf(Keyword.VAR_SESSION)) {
       this.consume(TokenType.Dot, TokenType.Identifier)
-      text = "@@SESSION." + lcase(this.token(-1).text)
+      return "@@SESSION." + lcase(this.token(-1).text)
     } else if (this.consumeIf(TokenType.SessionVariable)) {
-      text = lcase(this.token(-1).text)
+      return lcase(this.token(-1).text)
     } else if (this.consumeIf(TokenType.UserDefinedVariable)) {
-      text = lcase(this.token(-1).text)
+      return lcase(this.token(-1).text)
     } else {
       throw this.createParseError()
     }
-    return text
   }
 
   sizeValue() {
