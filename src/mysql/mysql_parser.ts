@@ -1787,40 +1787,11 @@ export class MysqlParser extends Parser {
       if (this.consumeIf(Keyword.NONE)) {
         // no handle
       } else {
-        for (let i = 0; true; i++) {
-          if (i > 0) {
-            this.consumeIf(Keyword.AND)
-          }
-          if (this.consumeIf(Keyword.SSL)) {
-            stmt.tlsOptions.push({ key: "SSL", value: true })
-          } else if (this.consumeIf(Keyword.X509)) {
-            stmt.tlsOptions.push({ key: "X509", value: true })
-          } else if (this.consumeIf(Keyword.ISSUER)) {
-            stmt.tlsOptions.push({ key: "ISSUER", value: this.stringValue() })
-          } else if (this.consumeIf(Keyword.SUBJECT)) {
-            stmt.tlsOptions.push({ key: "SUBJECT", value: this.stringValue() })
-          } else if (this.consumeIf(Keyword.CIPHER)) {
-            stmt.tlsOptions.push({ key: "CIPHER", value: this.stringValue() })
-          } else {
-            break
-          }
-        }
+        stmt.tlsOptions = this.tlsOptions()
       }
     }
     if (this.consumeIf(Keyword.WITH)) {
-      while (true) {
-        if (this.consumeIf(Keyword.MAX_QUERIES_PER_HOUR)) {
-          stmt.resourceOptions.push({ key: "MAX_QUERIES_PER_HOUR", value: this.numberValue() })
-        } else if (this.consumeIf(Keyword.MAX_UPDATES_PER_HOUR)) {
-          stmt.resourceOptions.push({ key: "MAX_UPDATES_PER_HOUR", value: this.numberValue() })
-        } else if (this.consumeIf(Keyword.MAX_CONNECTIONS_PER_HOUR)) {
-          stmt.resourceOptions.push({ key: "MAX_CONNECTIONS_PER_HOUR", value: this.numberValue() })
-        } else if (this.consumeIf(Keyword.MAX_USER_CONNECTIONS)) {
-          stmt.resourceOptions.push({ key: "MAX_USER_CONNECTIONS", value: this.numberValue() })
-        } else {
-          break
-        }
-      }
+      stmt.resourceOptions = this.resourceOptions()
     }
     while (this.token()) {
       if (this.consumeIf(Keyword.PASSWORD)) {
@@ -1871,9 +1842,9 @@ export class MysqlParser extends Parser {
         }
       } else if (this.consumeIf(Keyword.ACCOUNT)) {
         if (this.consumeIf(Keyword.LOCK)) {
-          stmt.lockOptions.push({ key: "ACCOUNT LOCK", value: true })
+          stmt.accountLock = true
         } else if (this.consumeIf(Keyword.UNLOCK)) {
-          stmt.lockOptions.push({ key: "ACCOUNT UNLOCK", value: true })
+          stmt.accountLock = false
         } else {
           throw this.createParseError()
         }
@@ -3533,7 +3504,48 @@ export class MysqlParser extends Parser {
     }
   }
 
-  tableOptions() {
+  private tlsOptions() {
+    const options = new model.TlsOptions()
+    for (let i = 0; true; i++) {
+      if (i > 0) {
+        this.consumeIf(Keyword.AND)
+      }
+      if (this.consumeIf(Keyword.SSL)) {
+        options.ssl = true
+      } else if (this.consumeIf(Keyword.X509)) {
+        options.x509 = true
+      } else if (this.consumeIf(Keyword.ISSUER)) {
+        options.issuer = this.stringValue()
+      } else if (this.consumeIf(Keyword.SUBJECT)) {
+        options.subject = this.stringValue()
+      } else if (this.consumeIf(Keyword.CIPHER)) {
+        options.cipher = this.stringValue()
+      } else {
+        break
+      }
+    }
+    return options
+  }
+
+  private resourceOptions() {
+    const options = new model.ResourceOptions()
+    while (true) {
+      if (this.consumeIf(Keyword.MAX_QUERIES_PER_HOUR)) {
+        options.maxQueriesPerHour = this.numberValue()
+      } else if (this.consumeIf(Keyword.MAX_UPDATES_PER_HOUR)) {
+        options.maxUpdatesPerHour = this.numberValue()
+      } else if (this.consumeIf(Keyword.MAX_CONNECTIONS_PER_HOUR)) {
+        options.maxConnectionsPerHour = this.numberValue()
+      } else if (this.consumeIf(Keyword.MAX_USER_CONNECTIONS)) {
+        options.maxUserConnections = this.numberValue()
+      } else {
+        break
+      }
+    }
+    return options
+  }
+
+  private tableOptions() {
     const options = new Array<{ key: string, value: any }>()
     for (let i = 0; i === 0 || !this.consumeIf(TokenType.Delimiter); i++) {
       this.consumeIf(TokenType.Comma)

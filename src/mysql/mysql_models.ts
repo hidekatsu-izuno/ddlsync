@@ -277,15 +277,33 @@ export class DropRoleStatement extends Statement {
   ifExists = false
 }
 
+export class TlsOptions {
+  ssl = false
+  x509 = false
+  issuer?: string
+  subject?: string
+  cipher?: string
+}
+
+export class ResourceOptions {
+  maxQueriesPerHour?: string
+  maxUpdatesPerHour?: string
+  maxConnectionsPerHour?: string
+  maxUserConnections?: string
+}
+
+export class PasswordOptions {
+}
+
 export class CreateUserStatement extends Statement {
   users = new Array<UserRole>()
   orReplace = false
   ifNotExists = false
   defaultRoles = new Array<UserRole>()
-  tlsOptions = new Array<{ key: string, value: any }>()
-  resourceOptions = new Array<{ key: string, value: any }>()
+  tlsOptions?: TlsOptions
+  resourceOptions?: ResourceOptions
   passwordOptions = new Array<{ key: string, value: any }>()
-  lockOptions = new Array<{ key: string, value: any }>()
+  accountLock = false
   comment?: string
   attribute?: string
 }
