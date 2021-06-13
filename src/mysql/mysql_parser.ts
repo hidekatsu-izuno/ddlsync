@@ -1797,48 +1797,51 @@ export class MysqlParser extends Parser {
       if (this.consumeIf(Keyword.PASSWORD)) {
         if (this.consumeIf(Keyword.EXPIRE)) {
           if (this.consumeIf(Keyword.DEFAULT)) {
-            stmt.passwordOptions.push({ key: "PASSWORD EXPIRE", value: model.DEFAULT })
+            stmt.passwordExpire = model.DEFAULT
           } else if (this.consumeIf(Keyword.NEVER)) {
-            stmt.passwordOptions.push({ key: "PASSWORD EXPIRE", value: model.NEVER })
+            stmt.passwordExpire = model.NEVER
           } else if (this.consumeIf(Keyword.INTERVAL)) {
-            stmt.passwordOptions.push({ key: "PASSWORD EXPIRE", value: this.numberValue() })
+            stmt.passwordExpire = this.numberValue()
             this.consumeIf(Keyword.DAY)
           } else {
-            stmt.passwordOptions.push({ key: "PASSWORD EXPIRE", value: true })
+            stmt.passwordExpire = true
           }
         } else if (this.consumeIf(Keyword.HISTORY)) {
           if (this.consumeIf(Keyword.DEFAULT)) {
-            stmt.passwordOptions.push({ key: "PASSWORD HISTORY", value: model.DEFAULT })
+            stmt.passwordHistory = model.DEFAULT
           } else {
-            stmt.passwordOptions.push({ key: "PASSWORD HISTORY", value: this.numberValue() })
+            stmt.passwordHistory = this.numberValue()
           }
         } else if (this.consumeIf(Keyword.REUSE)) {
           this.consume(Keyword.INTERVAL)
           if (this.consumeIf(Keyword.DEFAULT)) {
-            stmt.passwordOptions.push({ key: "PASSWORD REUSE INTERVAL", value: model.DEFAULT })
+            stmt.passwordReuseInterval = model.DEFAULT
           } else {
-            stmt.passwordOptions.push({ key: "PASSWORD REUSE INTERVAL", value: this.numberValue() })
+            const interval = new model.IntervalValue()
+            interval.quantity = this.numberValue()
             this.consumeIf(Keyword.DAY)
+            interval.unit = model.DAY
+            stmt.passwordReuseInterval = interval
           }
         } else if (this.consumeIf(Keyword.REQUIRE)) {
           this.consumeIf(Keyword.CURRENT)
           if (this.consumeIf(Keyword.DEFAULT)) {
-            stmt.passwordOptions.push({ key: "PASSWORD REQUIRE CURRENT", value: model.DEFAULT })
+            stmt.passwordRequireCurrent = model.DEFAULT
           } else if (this.consumeIf(Keyword.OPTIONAL)) {
-            stmt.passwordOptions.push({ key: "PASSWORD REQUIRE CURRENT", value: model.OPTIONAL })
+            stmt.passwordRequireCurrent = model.OPTIONAL
           } else {
-            stmt.passwordOptions.push({ key: "PASSWORD REQUIRE CURRENT", value: true })
+            stmt.passwordRequireCurrent = true
           }
         } else {
           throw this.createParseError()
         }
       } else if (this.consumeIf(Keyword.FAILED_LOGIN_ATTEMPTS)) {
-        stmt.passwordOptions.push({ key: "FAILED_LOGIN_ATTEMPTS", value: this.numberValue() })
+        stmt.failedLoginAttempts = this.numberValue()
       } else if (this.consumeIf(Keyword.PASSWORD_LOCK_TIME)) {
         if (this.consumeIf(Keyword.UNBOUNDED)) {
-          stmt.passwordOptions.push({ key: "PASSWORD_LOCK_TIME", value: model.UNBOUNDED })
+          stmt.passwordLockTime = model.UNBOUNDED
         } else {
-          stmt.passwordOptions.push({ key: "PASSWORD_LOCK_TIME", value: this.numberValue() })
+          stmt.passwordLockTime = this.numberValue()
         }
       } else if (this.consumeIf(Keyword.ACCOUNT)) {
         if (this.consumeIf(Keyword.LOCK)) {
@@ -3848,8 +3851,10 @@ export class MysqlParser extends Parser {
       userRole.name = unescape(dequote(this.token(-1).text))
     } else if (this.consumeIf(TokenType.Identifier)) {
       userRole.name = lcase(this.token(-1).text)
-    } else if (this.consumeIf(Keyword.CURRENT_USER) || this.consumeIf(Keyword.CURRENT_ROLE)) {
-      userRole.expr = [ this.token(-1) ]
+    } else if (this.consumeIf(Keyword.CURRENT_USER)) {
+      userRole.alias = model.CURRENT_USER
+    } else if (this.consumeIf(Keyword.CURRENT_ROLE)) {
+      userRole.alias = model.CURRENT_ROLE
     } else {
       throw this.createParseError()
     }
@@ -4316,7 +4321,7 @@ export class MysqlParser extends Parser {
   }
 
   intervalValue() {
-    const interval = new model.Interval()
+    const interval = new model.IntervalValue()
     interval.quantity = this.numberValue()
     if (this.consumeIf(Keyword.YEAR)) {
       interval.unit = model.YEAR

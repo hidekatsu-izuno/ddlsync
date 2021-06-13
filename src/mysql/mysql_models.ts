@@ -1,8 +1,12 @@
-import { Statement, VDatabase } from "../models"
+import { IExpression, Statement, VDatabase } from "../models"
 import { Token } from "../parser"
 
 // Common
 export const DEFAULT = "DEFAULT"
+
+// User alias
+export const CURRENT_USER = "CURRENT_USER"
+export const CURRENT_ROLE = "CURRENT_ROLE"
 
 // View Algortihm
 export const UNDEFINED = "UNDEFINED"
@@ -165,12 +169,24 @@ export const SET_NULL = "SET NULL"
 export const NO_ACTION = "NO ACTION"
 export const SET_DEFAULT = "SET DEFAULT"
 
-export class Interval {
+export class Expression implements IExpression {
+  children = new Array<IExpression>()
+}
+
+export class IntervalValue implements IExpression {
   quantity = ""
   unit: "YEAR" | "QUARTER" | "MONTH" | "DAY" |
     "HOUR" | "MINUTE" | "WEEK" | "SECOND" |
     "YEAR_MONTH" | "DAY_HOUR" | "DAY_MINUTE" | "DAY_SECOND" |
-    "HOUR_MINUTE" | "HOUR_SECOND" | "MINUTE_SECOND" = "YEAR"
+    "HOUR_MINUTE" | "HOUR_SECOND" | "MINUTE_SECOND" = YEAR
+}
+
+export class StringValue implements IExpression {
+  text = ""
+}
+
+export class NumericValue implements IExpression {
+  text = ""
 }
 
 export abstract class Constraint {
@@ -251,7 +267,7 @@ export class DropDatabaseStatement extends Statement {
 
 export class UserRole {
   name?: string
-  expr?: Array<Token>
+  alias?: string
   host?: string
   authPlugin?: string
   randowmPassword = false
@@ -291,10 +307,6 @@ export class ResourceOptions {
   maxConnectionsPerHour?: string
   maxUserConnections?: string
 }
-
-export class PasswordOptions {
-}
-
 export class CreateUserStatement extends Statement {
   users = new Array<UserRole>()
   orReplace = false
@@ -302,7 +314,12 @@ export class CreateUserStatement extends Statement {
   defaultRoles = new Array<UserRole>()
   tlsOptions?: TlsOptions
   resourceOptions?: ResourceOptions
-  passwordOptions = new Array<{ key: string, value: any }>()
+  passwordExpire: "DEFAULT" | "NEVER" | string | boolean = DEFAULT
+  passwordHistory: "DEFAULT" | string = DEFAULT
+  passwordReuseInterval: "DEFAULT" | IntervalValue = DEFAULT
+  passwordRequireCurrent: "DEFAULT"  | "OPTIONAL" | boolean = DEFAULT
+  failedLoginAttempts?: string
+  passwordLockTime?: "UNBOUNDED" | string
   accountLock = false
   comment?: string
   attribute?: string
@@ -1057,7 +1074,7 @@ export class CreateEventStatement extends Statement {
   definer?: UserRole
   ifNotExists = false
   at?: Array<Token>
-  every?: Interval
+  every?: IntervalValue
   starts?: Array<Token>
   ends?: Array<Token>
   onCompletionPreserve = false
