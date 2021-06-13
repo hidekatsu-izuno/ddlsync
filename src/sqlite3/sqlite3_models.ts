@@ -319,7 +319,6 @@ export class ReindexStatement extends Statement {
 
 export class VacuumStatement extends Statement {
   schema?: string
-  file?: string
 
   process(vdb: VDatabase) {
     if (this.schema) {
