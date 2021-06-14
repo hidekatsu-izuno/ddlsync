@@ -1626,13 +1626,15 @@ export class MysqlParser extends Parser {
     }
     if (this.consumeIf(Keyword.VCPU)) {
       this.consumeIf(Keyword.OPE_EQ)
+      const start = this.pos
       for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-        stmt.vcpu.push(this.expression([
+        this.expression([
           Keyword.THREAD_PRIORITY,
           Keyword.ENABLE,
           Keyword.DISABLE,
-        ]))
+        ])
       }
+      stmt.vcpu = model.Expression.fromTokens(this.tokens, start, this.pos)
     }
     if (this.consumeIf(Keyword.THREAD_PRIORITY)) {
       this.consumeIf(Keyword.OPE_EQ)
@@ -4412,9 +4414,26 @@ export class MysqlParser extends Parser {
   }
 
   sizeValue() {
-    if (this.peekIf(TokenType.Number) || this.peekIf(TokenType.Size)) {
-      this.consume()
-      return this.token(-1).text
+    if (this.consumeIf(TokenType.Number)) {
+      return model.Expression.numeric(this.token(-1).text)
+    } else if (this.peekIf(TokenType.Size)) {
+      const text = this.token(-1).text
+      let num = BigInt(text.substring(0, text.length - 1))
+      switch (ucase(text.charAt(text.length - 1))) {
+        case "K":
+          num = num * BigInt(1024)
+          break
+        case "M":
+          num = num * BigInt(1024 * 1024)
+          break
+        case "G":
+          num = num * BigInt(1024 * 1024 * 1024)
+          break
+        case "T":
+          num = num * BigInt(1024 * 1024 * 1024 * 1024)
+          break
+      }
+      return model.Expression.numeric(num.toString())
     } else {
       throw this.createParseError()
     }

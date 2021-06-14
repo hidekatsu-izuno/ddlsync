@@ -1,10 +1,10 @@
 import mariadb from "mariadb"
 import { Statement, VDatabase, VObject, VSchema } from "../models"
 import { DdlSyncProcessor } from "../processor"
-import { MysqlParser } from "./mysql_parser"
+import { MysqlLexer, MysqlParser } from "./mysql_parser"
 import * as model from "./mysql_models"
 import { Token } from "../parser"
-import { bquote } from "../util/functions"
+import { bquote, formatDateTime, squote } from "../util/functions"
 
 export default class MysqlProcessor extends DdlSyncProcessor {
   static create = async (config: { [key: string]: any }) => {
@@ -204,6 +204,52 @@ export default class MysqlProcessor extends DdlSyncProcessor {
   }
 
   async runCreateTablespaceStatement(seq: number, stmt: model.CreateTablespaceStatement) {
+    const oldStmt = new model.CreateTablespaceStatement()
+    let rows
+    if ((rows = await this.con.query(
+      `SELECT * FROM information_schema.TABLESPACES WHERE TABLESPACE_NAME = ${bquote(stmt.name)}`
+    ) as any[]).length) {
+      oldStmt.autoextendSize = rows[0].AUTOEXTEND_SIZE
+      oldStmt.fileBlockSize = rows[0].FILE_BLOCK_SIZE //TODO
+      oldStmt.encryption = rows[0].ENCRYPTION && model.Expression.string(rows[0].ENCRYPTION)
+      oldStmt.useLogfileGroup = rows[0].LOGFILE_GROUP_NAME
+      oldStmt.extentSize = rows[0].EXTENT_SIZE
+      oldStmt.initialSize = rows[0].INITIAL_SIZE //TODO
+      oldStmt.maxSize = rows[0].MAXIMUM_SIZE
+      oldStmt.nodeGroup = rows[0].NODE_GROUP_ID
+      oldStmt.wait = false
+      oldStmt.comment = rows[0].TABLESPACE_COMMENT
+      oldStmt.engine = rows[0].ENGINE
+      oldStmt.engineAttribute = rows[0].ENGINE_ATTRIBUTE && model.Expression.string(rows[0].ENGINE_ATTRIBUTE) //TODO
+
+      if ((rows = await this.con.query(
+        `SELECT * FROM information_schema.FILES WHERE TABLESPACE_NAME = ${bquote(stmt.name)}`
+      ) as any[]).length) {
+        oldStmt.undo = /UNDO LOG/.test(rows[0].FILE_TYPE)
+        oldStmt.addDataFile = model.Expression.string(rows[0].FILE_NAME)
+      }
+    } else {
+      await this.runScript(Token.concat(stmt.tokens))
+      return
+    }
+
+    if (oldStmt.undo !== stmt.undo || !model.Expression.eq(oldStmt.addDataFile, stmt.addDataFile)) {
+      const backupTableName = `~${this.timestamp(seq)} ${stmt.name}`
+      await this.runScript(`ALTER TABLESPACE ${bquote(stmt.name)}` +
+        ` RENAME TO ${bquote(backupTableName)}`)
+      await this.runScript(Token.concat(stmt.tokens))
+      return
+    }
+
+    const sopts = []
+    if ((oldStmt.autoextendSize || "0") !== (stmt.autoextendSize || "0")) {
+      sopts.push(`AUTOEXTEND_SIZE ${stmt.autoextendSize}`)
+    } else {
+      console.log(`-- skip: schema ${stmt.name} is unchangeed`)
+      return
+    }
+
+    await this.runScript(`ALTER TABLESPACE ${bquote(stmt.name)} ${sopts.join(" ")}`)
   }
 
   async runCreateServerStatement(seq: number, stmt: model.CreateServerStatement) {
@@ -255,24 +301,28 @@ export default class MysqlProcessor extends DdlSyncProcessor {
   }
 
   async runCreateResourceGroupStatement(seq: number, stmt: model.CreateResourceGroupStatement) {
-    let rows, oldStmt
+    const oldStmt = new model.CreateResourceGroupStatement()
+    let rows
     if ((rows = await this.con.query(
       `SELECT * FROM information_schema.RESOURCE_GROUPS WHERE RESOURCE_GROUP_NAME = ${bquote(stmt.name)}`
     ) as any[]).length) {
-      oldStmt = rows[0] || {}
+      oldStmt.type = rows[0].RESOURCE_GROUP_TYPE
+      oldStmt.disable = rows[0].RESOURCE_GROUP_ENABLED !== 1
+      oldStmt.vcpu = model.Expression.fromTokens(new MysqlLexer().lex(rows[0].VCPU))
+      oldStmt.threadPriority = model.Expression.numeric(rows[0].THREAD_PRIORITY)
     } else {
       await this.runScript(Token.concat(stmt.tokens))
       return
     }
 
     const sopts = []
-    if (oldStmt.RESOURCE_GROUP_TYPE !== stmt.type) {
+    if (oldStmt.type !== stmt.type) {
       sopts.push(`TYPE = ${stmt.type}`)
-    } else if ((oldStmt.RESOURCE_GROUP_ENABLED.toString() !== "1") !== stmt.disable) {
+    } else if (oldStmt.disable !== stmt.disable) {
       sopts.push(stmt.disable ? "DISABLED" : "ENABLED")
-    } else if ((oldStmt.VCPU || "") !== (stmt.vcpu || "")) {
+    } else if (!model.Expression.eq(oldStmt.vcpu, stmt.vcpu)) {
       sopts.push(`VCPU = ${stmt.vcpu}`)
-    } else if (oldStmt.THREAD_PRIORITY !== stmt.threadPriority) {
+    } else if (!model.Expression.eq(oldStmt.threadPriority, stmt.threadPriority)) {
       sopts.push(`THREAD_PRIORITY = ${stmt.threadPriority}`)
     } else {
       console.log(`-- skip: resource group ${stmt.name} is unchangeed`)
@@ -283,6 +333,7 @@ export default class MysqlProcessor extends DdlSyncProcessor {
   }
 
   async runCreateLogfileGroupStatement(seq: number, stmt: model.CreateLogfileGroupStatement) {
+    //TODO
   }
 
   async runCreateSpatialReferenceSystemStatement(seq: number, stmt: model.CreateSpatialReferenceSystemStatement) {
@@ -318,6 +369,10 @@ export default class MysqlProcessor extends DdlSyncProcessor {
   private async getCurrentSchema() {
     const result = await this.con?.query("SELECT database() ad schema") as any[]
     return result[0]?.schema
+  }
+
+  private timestamp(seq: number) {
+    return formatDateTime(this.startTime, "uuuuMMddHHmmss") + ("0000" + seq).slice(-4)
   }
 }
 

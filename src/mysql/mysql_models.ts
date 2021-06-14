@@ -205,7 +205,7 @@ export class Expression extends Array<string> {
     return new Expression("'" + value.replace(/'/g, "''") + "'")
   }
 
-  static fromTokens(tokens: Array<Token>, start: number, end: number) {
+  static fromTokens(tokens: Array<Token>, start: number = 0, end: number = tokens.length) {
     const expr = new Expression()
     for (let i = start; i < end; i++) {
       let text = tokens[i].text
@@ -392,13 +392,13 @@ export class CreateTablespaceStatement extends Statement {
   name = ""
   undo = false
   addDataFile?: Expression
-  autoextendSize?: string
-  fileBlockSize?: string
+  autoextendSize = Expression.numeric("0")
+  fileBlockSize?: Expression
   encryption?: Expression
   useLogfileGroup?: string
-  extentSize?: string
-  initialSize?: string
-  maxSize?: string
+  extentSize = Expression.numeric("1232896")
+  initialSize = Expression.numeric("134217728")
+  maxSize?: Expression
   nodeGroup?: Expression
   wait = false
   comment?: Expression
@@ -457,8 +457,8 @@ export class CreateResourceGroupStatement extends Statement {
   name = ""
   orReplace = false
   type: "SYSTEM" | "USER" = SYSTEM
-  vcpu = new Array<Expression>()
-  threadPriority = new Expression("0")
+  vcpu?: Expression
+  threadPriority = Expression.numeric("0")
   disable = false
 }
 
@@ -478,9 +478,9 @@ export class DropResourceGroupStatement extends Statement {
 export class CreateLogfileGroupStatement extends Statement {
   name = ""
   undofile = new Expression()
-  initialSize?: string
-  undoBufferSize?: string
-  redoBufferSize?: string
+  initialSize?: Expression
+  undoBufferSize?: Expression
+  redoBufferSize?: Expression
   nodeGroup?: Expression
   wait = false
   comment?: Expression
