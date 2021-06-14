@@ -28,10 +28,6 @@ export abstract class Statement {
   }
 }
 
-export interface IExpression {
-
-}
-
 export class VDatabase {
   defaultSchema?: string
   private schemas = new Map<string, VSchema>()

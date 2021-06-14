@@ -1,11 +1,10 @@
 import mariadb from "mariadb"
-import semver from "semver"
-import { Statement, VCollation, VDatabase, VObject, VSchema } from "../models"
+import { Statement, VDatabase, VObject, VSchema } from "../models"
 import { DdlSyncProcessor } from "../processor"
 import { MysqlParser } from "./mysql_parser"
 import * as model from "./mysql_models"
-import { lcase, ucamel } from "../util/functions"
 import { Token } from "../parser"
+import { bquote } from "../util/functions"
 
 export default class MysqlProcessor extends DdlSyncProcessor {
   static create = async (config: { [key: string]: any }) => {
@@ -160,30 +159,36 @@ export default class MysqlProcessor extends DdlSyncProcessor {
       throw new Error(`Failed to get metadata: ${ref.name}`)
     }
 
-    let defaultCharacterSet = ""
+    let defaultCharacterSet = "latin1"
     if ((rows = await this.con.query("SHOW SESSION VARIABLES LIKE 'character_set_server'") as any[]).length) {
-      defaultCharacterSet = rows[0].Value || ""
+      if (rows[0].Value) {
+        defaultCharacterSet = rows[0].Value
+      }
     }
 
-    let defaultCollate = ""
+    let defaultCollate = "latin1_swedish_ci"
     if ((rows = await this.con.query("SHOW SESSION VARIABLES LIKE 'collation_server'") as any[]).length) {
-      defaultCollate = rows[0].Value || ""
+      if (rows[0].Value) {
+        defaultCollate = rows[0].Value
+      }
     }
 
-    let defaultEncryption = ""
+    let defaultEncryption = model.Expression.string("N")
     if ((rows = await this.con.query("SHOW GLOBAL VARIABLES LIKE 'default_table_encryption'") as any[]).length) {
-      defaultEncryption = rows[0].Value === "ON" ? "Y" : rows[0].Value === "OFF" ? "N" : ""
+      if (rows[0].Value === "ON") {
+        defaultEncryption = model.Expression.string("Y")
+      }
     }
 
     const sopts = []
     if ((oldStmt.characterSet || defaultCharacterSet) !== (stmt.characterSet || defaultCharacterSet)) {
-      sopts.push(`CHARACTER SET = ${squote(stmt.characterSet || defaultCharacterSet)}`)
+      sopts.push(`CHARACTER SET = ${stmt.characterSet ? stmt.characterSet : defaultCharacterSet}`)
     } else if ((oldStmt.collate || defaultCollate) !== (stmt.collate || defaultCollate)) {
-      sopts.push(`COLLATE = ${squote(stmt.collate || defaultCollate)}`)
-    } else if ((oldStmt.encryption || defaultEncryption) !== (stmt.encryption || defaultEncryption)) {
-      sopts.push(`ENCRYPTION = ${squote(stmt.encryption || defaultEncryption)}`)
-    } else if ((oldStmt.comment || "") !== (stmt.comment || "")) {
-      sopts.push(`COMMENT = ${squote(stmt.comment || "")}`)
+      sopts.push(`COLLATE = ${stmt.collate || defaultCollate}`)
+    } else if (!model.Expression.eq(oldStmt.encryption || defaultEncryption, stmt.encryption || defaultEncryption)) {
+      sopts.push(`ENCRYPTION = ${stmt.encryption || defaultEncryption}`)
+    } else if (!model.Expression.eq(oldStmt.comment, stmt.comment)) {
+      sopts.push(`COMMENT = ${stmt.comment ? stmt.comment : "''"}`)
     } else {
       console.log(`-- skip: schema ${ref.name} is unchangeed`)
       return
@@ -202,37 +207,45 @@ export default class MysqlProcessor extends DdlSyncProcessor {
   }
 
   async runCreateServerStatement(seq: number, stmt: model.CreateServerStatement) {
-    let rows, oldStmt
+    const oldStmt = new model.CreateServerStatement()
+    let rows
     if ((rows = await this.con.query(
       `SELECT * FROM mysql.servers WHERE Server_name = ${bquote(stmt.name)}`
     ) as any[]).length) {
-      oldStmt = rows[0] || {}
+      oldStmt.wrapper = rows[0].Wrapper
+      oldStmt.host = rows[0].Host && model.Expression.string(rows[0].Host)
+      oldStmt.database = rows[0].Db && model.Expression.string(rows[0].Db)
+      oldStmt.user = rows[0].Username && model.Expression.string(rows[0].Username)
+      oldStmt.password = rows[0].Password && model.Expression.string(rows[0].Password)
+      oldStmt.port = rows[0].Port && model.Expression.string(rows[0].Port)
+      oldStmt.socket = rows[0].Socket && model.Expression.string(rows[0].Socket)
+      oldStmt.owner = rows[0].Owner && model.Expression.string(rows[0].Owner)
     } else {
       await this.runScript(Token.concat(stmt.tokens))
       return
     }
 
-    if ((oldStmt.Wrapper || "") !== (stmt.wrapper || "")) {
+    if ((oldStmt.wrapper || "") !== (stmt.wrapper || "")) {
       await this.runScript(`DROP SERVER ${bquote(stmt.name)}`)
       await this.runScript(Token.concat(stmt.tokens))
       return
     }
 
     const sopts = []
-    if ((oldStmt.Host || "") !== (stmt.host || "")) {
-      sopts.push(`HOST ${squote(stmt.host || "")}`)
-    } else if ((oldStmt.Db || "") !== (stmt.database || "")) {
-      sopts.push(`DATABASE ${squote(stmt.database || "")}`)
-    } else if ((oldStmt.Username || "") !== (stmt.user || "")) {
-      sopts.push(`USER ${squote(stmt.user || "")}`)
-    } else if ((oldStmt.Password || "") !== (stmt.password || "")) {
-      sopts.push(`PASSWORD ${squote(stmt.password || "")}`)
-    } else if ((oldStmt.Port) !== (stmt.port)) {
-      sopts.push(`PORT ${stmt.port}`)
-    } else if ((oldStmt.Socket || "") !== (stmt.socket || "")) {
-      sopts.push(`SOCKET ${squote(stmt.socket || "")}`)
-    } else if ((oldStmt.Owner || "") !== (stmt.owner || "")) {
-      sopts.push(`OWNER ${squote(stmt.owner || "")}`)
+    if (!model.Expression.eq(oldStmt.host, stmt.host)) {
+      sopts.push(`HOST ${stmt.host || "''"}`)
+    } else if (!model.Expression.eq(oldStmt.database, stmt.database)) {
+      sopts.push(`DATABASE ${stmt.database || "''"}`)
+    } else if (!model.Expression.eq(oldStmt.user, stmt.user)) {
+      sopts.push(`USER ${stmt.user || "''"}`)
+    } else if (!model.Expression.eq(oldStmt.password, stmt.password)) {
+      sopts.push(`PASSWORD ${stmt.password || "''"}`)
+    } else if (!model.Expression.eq(oldStmt.port, stmt.port)) {
+      sopts.push(`PORT ${stmt.port || "''"}`)
+    } else if (!model.Expression.eq(oldStmt.socket, stmt.socket)) {
+      sopts.push(`SOCKET ${stmt.socket || "''"}`)
+    } else if (!model.Expression.eq(oldStmt.owner, stmt.owner)) {
+      sopts.push(`OWNER ${stmt.owner || "''"}`)
     } else {
       console.log(`-- skip: schema ${stmt.name} is unchangeed`)
       return
@@ -312,12 +325,4 @@ enum ResultType {
   NONE,
   COUNT,
   ROWS,
-}
-
-function squote(text: string) {
-  return "'" + text.replace(/'/g, "''") + "'"
-}
-
-function bquote(text: string) {
-  return "`" + text.replace(/`/g, "``") + "`"
 }

@@ -32,6 +32,41 @@ export function ucamel(text: string) {
   })
 }
 
+export function squote(text: string) {
+  return '"' + text.replace(/"/g, '""') + '"'
+}
+
+export function dquote(text: string) {
+  return '"' + text.replace(/"/g, '""') + '"'
+}
+
+export function bquote(text: string) {
+  return "`" + text.replace(/`/g, "``") + "`"
+}
+
+export function dequote(text: string) {
+  if (text.length >= 2) {
+    const sc = text.charAt(0)
+    const ec = text.charAt(text.length-1)
+    if (sc === "[" && ec === "]" || sc === ec) {
+      let value = text.substring(1, text.length - 1)
+      switch (sc) {
+        case '"':
+          value = value.replace(/""/g, sc)
+          break
+        case "'":
+          value = value.replace(/''/g, sc)
+          break
+        case "`":
+          value = value.replace(/``/g, sc)
+          break
+      }
+      return value
+    }
+  }
+  return text
+}
+
 export function escapeRegExp(text: string) {
   return text.replace(/[.*+?^=!:${}()|[\]\/\\]/g, '\\$&')
 }

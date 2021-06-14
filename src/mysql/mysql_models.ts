@@ -1,5 +1,8 @@
-import { IExpression, Statement, VDatabase } from "../models"
+import Decimal from "decimal.js"
+import { Statement, VDatabase } from "../models"
 import { Token } from "../parser"
+import { TokenType } from "../sqlite3/sqlite3_parser"
+import { lcase } from "../util/functions"
 
 // Common
 export const DEFAULT = "DEFAULT"
@@ -117,6 +120,9 @@ export const INSERT = "INSERT"
 export const UPDATE = "UPDATE"
 export const DELETE = "DELETE"
 
+// Event disable
+export const ON_SLAVE = "ON SLAVE"
+
 // Interval unit
 export const YEAR = "YEAR"
 export const QUARTER = "QUARTER"
@@ -169,32 +175,66 @@ export const SET_NULL = "SET NULL"
 export const NO_ACTION = "NO ACTION"
 export const SET_DEFAULT = "SET DEFAULT"
 
-export class Expression implements IExpression {
-  children = new Array<IExpression>()
+// Sequence default value
+export const NOMINVALUE = "NOMINVALUE"
+export const NOMAXVALUE = "NOMAXVALUE"
+export const NOCACHE = "NOCACHE"
+
+export class Expression extends Array<string> {
+  static eq(val1?: Expression, val2?: Expression) {
+    if (val1 == null) {
+      return val2 == null || val2.length === 0
+    } else if (val2 == null) {
+      return val1.length === 0
+    } else if (val1.length !== val2.length) {
+      return false
+    }
+    for (let i = 0; i < val1.length; i++) {
+      if (val1[i] !== val2[i]) {
+        return false
+      }
+    }
+    return true
+  }
+
+  static numeric(value: string) {
+    return new Expression(new Decimal(value).toString())
+  }
+
+  static string(value: string) {
+    return new Expression("'" + value.replace(/'/g, "''") + "'")
+  }
+
+  static fromTokens(tokens: Array<Token>, start: number, end: number) {
+    const expr = new Expression()
+    for (let i = start; i < end; i++) {
+      let text = tokens[i].text
+      if (tokens[i].type === TokenType.Identifier) {
+        text = lcase(text)
+      } else if (tokens[i].type === TokenType.String) {
+
+      }
+      expr.push(text)
+    }
+    return expr
+  }
+
+  constructor(...elem: Array<string>) {
+    super(...elem)
+  }
+
+  toString() {
+    return this.join(" ")
+  }
 }
 
-export class IntervalValue implements IExpression {
-  quantity = ""
-  unit: "YEAR" | "QUARTER" | "MONTH" | "DAY" |
-    "HOUR" | "MINUTE" | "WEEK" | "SECOND" |
-    "YEAR_MONTH" | "DAY_HOUR" | "DAY_MINUTE" | "DAY_SECOND" |
-    "HOUR_MINUTE" | "HOUR_SECOND" | "MINUTE_SECOND" = YEAR
-}
-
-export class StringValue implements IExpression {
-  text = ""
-}
-
-export class NumericValue implements IExpression {
-  text = ""
-}
 
 export abstract class Constraint {
   name?: string
 }
 
 export abstract class Partition {
-  num?: string
+  num?: Expression
   subpartition?: Partition
   defs = new Array<PartitionDef>()
 }
@@ -202,14 +242,14 @@ export abstract class Partition {
 export class PartitionDef {
   name = ""
   storageEngine?: string
-  comment?: string
-  dataDirectory?: string
-  indexDirectory?: string
-  maxRows?: string
-  minRows?: string
-  tablespace?: string
-  lessThanValues?: Array<Array<Token> | "MAXVALUE">
-  inValues?: Array<Array<Token>>
+  comment?: Expression
+  dataDirectory?: Expression
+  indexDirectory?: Expression
+  maxRows?: Expression
+  minRows?: Expression
+  tablespace?: Expression
+  lessThanValues?: Array<Expression | "MAXVALUE">
+  inValues?: Array<Expression>
   subdefs = new Array<PartitionDef>()
 }
 
@@ -224,8 +264,8 @@ export class CreateDatabaseStatement extends Statement {
   ifNotExists = false
   characterSet?: string
   collate?: string
-  comment?: string
-  encryption?: string
+  comment?: Expression
+  encryption?: Expression
 
   process(vdb: VDatabase) {
     const schema = vdb.getSchema(this.name)
@@ -272,7 +312,7 @@ export class UserRole {
   authPlugin?: string
   randowmPassword = false
   asPassword = false
-  password?: string
+  password?: Expression
   discardOldPassword = false
 }
 
@@ -296,17 +336,18 @@ export class DropRoleStatement extends Statement {
 export class TlsOptions {
   ssl = false
   x509 = false
-  issuer?: string
-  subject?: string
-  cipher?: string
+  issuer?: Expression
+  subject?: Expression
+  cipher?: Expression
 }
 
 export class ResourceOptions {
-  maxQueriesPerHour?: string
-  maxUpdatesPerHour?: string
-  maxConnectionsPerHour?: string
-  maxUserConnections?: string
+  maxQueriesPerHour?: Expression
+  maxUpdatesPerHour?: Expression
+  maxConnectionsPerHour?: Expression
+  maxUserConnections?: Expression
 }
+
 export class CreateUserStatement extends Statement {
   users = new Array<UserRole>()
   orReplace = false
@@ -314,15 +355,15 @@ export class CreateUserStatement extends Statement {
   defaultRoles = new Array<UserRole>()
   tlsOptions?: TlsOptions
   resourceOptions?: ResourceOptions
-  passwordExpire: "DEFAULT" | "NEVER" | string | boolean = DEFAULT
-  passwordHistory: "DEFAULT" | string = DEFAULT
-  passwordReuseInterval: "DEFAULT" | IntervalValue = DEFAULT
+  passwordExpire: "DEFAULT" | "NEVER" | Expression | boolean = DEFAULT
+  passwordHistory: "DEFAULT" | Expression = DEFAULT
+  passwordReuseInterval: "DEFAULT" | Expression = DEFAULT
   passwordRequireCurrent: "DEFAULT"  | "OPTIONAL" | boolean = DEFAULT
-  failedLoginAttempts?: string
-  passwordLockTime?: "UNBOUNDED" | string
+  failedLoginAttempts?: Expression
+  passwordLockTime?: "UNBOUNDED" | Expression
   accountLock = false
-  comment?: string
-  attribute?: string
+  comment?: Expression
+  attribute?: Expression
 }
 
 export class AlterUserStatement extends Statement {
@@ -350,28 +391,28 @@ export class DropUserStatement extends Statement {
 export class CreateTablespaceStatement extends Statement {
   name = ""
   undo = false
-  addDataFile?: string
+  addDataFile?: Expression
   autoextendSize?: string
   fileBlockSize?: string
-  encryption?: string
+  encryption?: Expression
   useLogfileGroup?: string
   extentSize?: string
   initialSize?: string
   maxSize?: string
-  nodeGroup?: string
+  nodeGroup?: Expression
   wait = false
-  comment?: string
+  comment?: Expression
   engine?: string
-  engineAttribute?: string
+  engineAttribute?: Expression
 }
 
 export class AlterTablespaceStatement extends Statement {
-  name = ""
+  tablespace = ""
   undo = false
 }
 
 export class DropTablespaceStatement extends Statement {
-  name = ""
+  tablespace = ""
   undo = false
 }
 
@@ -379,13 +420,13 @@ export class CreateServerStatement extends Statement {
   name = ""
   orReplace = false
   wrapper = ""
-  host?: string
-  database?: string
-  user?: string
-  password?: string
-  socket?: string
-  owner?: string
-  port = ""
+  host?: Expression
+  database?: Expression
+  user?: Expression
+  password?: Expression
+  socket?: Expression
+  owner?: Expression
+  port?: Expression
 
   validate() {
     if (this.wrapper === "mysql") {
@@ -393,11 +434,11 @@ export class CreateServerStatement extends Statement {
         throw new Error(`Can't create federated table. Foreign data src error: either HOST or SOCKET must be set`)
       }
       if (!this.port) {
-        this.port = "3306"
+        this.port = Expression.numeric("3306")
       }
     } else {
       if (!this.port) {
-        this.port = "0"
+        this.port = Expression.numeric("0")
       }
     }
   }
@@ -416,8 +457,8 @@ export class CreateResourceGroupStatement extends Statement {
   name = ""
   orReplace = false
   type: "SYSTEM" | "USER" = SYSTEM
-  vcpu = new Array<string | { min: string, max: string }>()
-  threadPriority = "0"
+  vcpu = new Array<Expression>()
+  threadPriority = new Expression("0")
   disable = false
 }
 
@@ -436,39 +477,39 @@ export class DropResourceGroupStatement extends Statement {
 
 export class CreateLogfileGroupStatement extends Statement {
   name = ""
-  undofile = ""
+  undofile = new Expression()
   initialSize?: string
   undoBufferSize?: string
   redoBufferSize?: string
-  nodeGroup?: string
+  nodeGroup?: Expression
   wait = false
-  comment?: string
+  comment?: Expression
   engine?: string
 }
 
 export class AlterLogfileGroupStatement extends Statement {
-  name = ""
+  logfileGroup = ""
 }
 
 export class DropLogfileGroupStatement extends Statement {
-  name = ""
+  logfileGroup = ""
   engine = ""
 }
 
 export class CreateSpatialReferenceSystemStatement extends Statement {
-  srid = ""
+  srid = new Expression()
   orReplace = false
   ifNotExists = false
 
   validate() {
-    if (this.srid.includes(".")) {
+    if (this.srid.some(elem => elem.includes("."))) {
       throw new Error(`Only integers allowed as number here near '${this.srid}'`)
     }
   }
 }
 
 export class DropSpatialReferenceSystemStatement extends Statement {
-  srid = ""
+  srid = new Expression()
   ifExists = false
 }
 
@@ -478,37 +519,37 @@ export class SchemaObject {
 }
 
 export class LinearHashPartition extends Partition {
-  num?: string
-  expression = new Array<Token>()
+  num?: Expression
+  expression = new Expression()
 }
 
 export class LinearKeyPartition extends Partition {
-  num?: string
-  algorithm?: string
+  num?: Expression
+  algorithm?: Expression
   columns = new Array<string>()
 }
 
 export class RangePartition extends Partition {
-  num?: string
-  expression?: Array<Token>
+  num?: Expression
+  expression?: Expression
   columns?: Array<string>
 }
 
 export class ListPartition extends Partition {
-  num?: string
-  expression?: Array<Token>
+  num?: Expression
+  expression?: Expression
   columns?: Array<string>
 }
 
 export class KeyPart {
-  expression?: Array<Token>
+  expression?: Expression
   column?: string
   sortOrder: "ASC" | "DESC" = ASC
 }
 
 export class GeneratedColumn {
   storeType: "VIRTUAL" | "STORED" = VIRTUAL
-  expression = new Array<Token>()
+  expression = new Expression()
 }
 
 export class References {
@@ -523,15 +564,15 @@ export class TableColumn {
   name = ""
   dataType: DataType = new DataType()
   notNull = false
-  defaultValue?: Array<Token>
+  defaultValue?: Expression
   visible = true
   collate?: string
   autoIncrement = false
   indexType?: "PRIMARY KEY" | "UNIQUE" | "FULLTEXT" | "SPATIAL"
-  comment?: string
+  comment?: Expression
   columnFormat?: "FIXED" | "DYNAMIC" | "DEFAULT"
-  engineAttribute?: string
-  secondaryEngineAttribute?: string
+  engineAttribute?: Expression
+  secondaryEngineAttribute?: Expression
   storageType?: "DISK" | "MEMORY"
   generatedColumn?: GeneratedColumn
   references?: References
@@ -558,7 +599,7 @@ export class IndexConstraint extends Constraint {
 }
 
 export class CheckConstraint extends Constraint {
-  expression = new Array<Token>()
+  expression = new Expression()
   enforced = true
 }
 
@@ -692,11 +733,11 @@ export class CreateSequenceStatement extends Statement {
   orReplace = false
   temporary = false
   ifNotExists = false
-  increment?: string
-  minvalue?: string
-  maxvalue?: string
-  start?: string
-  cache?: string
+  increment = Expression.numeric("1")
+  minvalue?: "NOMINVALUE" | Expression
+  maxvalue?: "NOMAXVALUE" | Expression
+  start?: Expression
+  cache: "NOCACHE" | Expression = NOCACHE
   noCycle = false
   tableOptions = new Array<{ key: string, value: any }>()
 
@@ -730,7 +771,7 @@ export class DropSequenceStatement extends Statement {
 
 export class IndexColumn {
   name?: string
-  expression?: Token[]
+  expr?: Expression
   sortOrder: "ASC" | "DESC" = ASC
 }
 
@@ -861,7 +902,7 @@ export class CreatePackageStatement extends Statement {
   orReplace = false
   ifNotExists = false
   definer?: UserRole
-  comment?: string
+  comment?: Expression
   sqlSecurity: "DEFINER" | "INVOKER" = DEFINER
 
   process(vdb: VDatabase) {
@@ -894,7 +935,7 @@ export class CreatePackageBodyStatement extends Statement {
   orReplace = false
   ifNotExists = false
   definer?: UserRole
-  comment?: string
+  comment?: Expression
   sqlSecurity: "DEFINER" | "INVOKER" = DEFINER
 
   process(vdb: VDatabase) {
@@ -927,7 +968,7 @@ export class CreateProcedureStatement extends Statement {
   orReplace = false
   definer?: UserRole
   params = new Array<ProcedureParam>()
-  comment?: string
+  comment?: Expression
   language: "SQL" = "SQL"
   deterministic = false
   characteristic: "CONTAINS SQL" | "NO SQL" | "READS SQL DATA" | "MODIFIES SQL DATA" = CONTAINS_SQL
@@ -984,7 +1025,7 @@ export class CreateFunctionStatement extends Statement {
   ifNotExists = false
   params = new Array<FunctionParam>()
   returnDataType = new DataType()
-  comment?: string
+  comment?: Expression
   language: "SQL" = "SQL"
   deterministic = false
   characteristic: "CONTAINS SQL" | "NO SQL" | "READS SQL DATA" | "MODIFIES SQL DATA" = CONTAINS_SQL
@@ -1073,13 +1114,13 @@ export class CreateEventStatement extends Statement {
   orReplace = false
   definer?: UserRole
   ifNotExists = false
-  at?: Array<Token>
-  every?: IntervalValue
-  starts?: Array<Token>
-  ends?: Array<Token>
+  at?: Expression
+  every?: Expression
+  starts?: Expression
+  ends?: Expression
   onCompletionPreserve = false
   disable: boolean | "ON SLAVE" = false
-  comment?: string
+  comment?: Expression
 
   process(vdb: VDatabase) {
     return processCreateStatement(vdb, {
@@ -1414,7 +1455,7 @@ export class SetStatement extends Statement {
 export class VariableAssignment {
   type?: "GLOBAL" | "SESSION" | "USER_DEFINED"
   name = ""
-  value?: Token[]
+  value?: Expression
 }
 
 export class SelectStatement extends Statement {

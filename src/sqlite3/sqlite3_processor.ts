@@ -1,13 +1,14 @@
 import fs from 'fs'
 import path from "path"
 import sqlite3 from "better-sqlite3"
-import { Statement, VCollation, VDatabase, VObject, VSchema } from "../models"
+import { Statement, VDatabase, VObject, VSchema } from "../models"
 import { Token } from "../parser"
 import { DdlSyncProcessor } from "../processor"
 import * as model from "./sqlite3_models";
 import { Sqlite3Parser, TokenType } from "./sqlite3_parser"
-import { formatDateTime, lcase, ucase } from "../util/functions"
+import { formatDateTime, lcase, ucase, dquote, bquote } from "../util/functions"
 import { writeGzippedCsv } from "../util/io"
+import { AffinityType, getAffinityType } from './sqlite3_utils'
 
 export default class Sqlite3Processor extends DdlSyncProcessor {
   static create = async (config: { [key: string]: any }) => {
@@ -375,36 +376,3 @@ enum ResultType {
   COUNT,
   ROWS,
 }
-
-function dquote(text: string) {
-  return '"' + text.replace(/"/g, '""') + '"'
-}
-
-function bquote(text: string) {
-  return "`" + text.replace(/`/g, "``") + "`"
-}
-
-enum AffinityType {
-  INTEGER = "INTEGER",
-  TEXT = "TEXT",
-  BLOB = "BLOB",
-  REAL = "REAL",
-  NUMERIC = "NUMERIC",
-}
-
-function getAffinityType(type?: string) {
-  if (!type) {
-    return AffinityType.BLOB
-  } else if (/INT/i.test(type)) {
-    return AffinityType.INTEGER
-  } else if (/CHAR|CLOB|TEXT/i.test(type)) {
-    return AffinityType.TEXT
-  } else if (/BLOB/i.test(type)) {
-    return AffinityType.BLOB
-  } else if (/REAL|FLOA|DOUB/i.test(type)) {
-    return AffinityType.REAL
-  } else {
-    return AffinityType.NUMERIC
-  }
-}
-

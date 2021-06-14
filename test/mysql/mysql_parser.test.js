@@ -214,6 +214,8 @@ describe("test mysql_parser", () => {
       { name: "x" }],
     ["CREATE EVENT main.x ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 HOUR DO UPDATE x SET x = x + 1",
       { schema: "main", name: "x" }],
+    ["CREATE EVENT x ON SCHEDULE EVERY 1 HOUR COMMENT 'aaa' DO UPDATE x SET x = x + 1",
+      { name: "x" }],
   ])("create trigger %#", (input, expected) => {
     const result = new MysqlParser(input, {}).root()
     expect(result.length).toBe(1)
