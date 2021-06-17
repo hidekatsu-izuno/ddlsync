@@ -93,13 +93,13 @@ export default class MysqlProcessor extends DdlSyncProcessor {
           await this.runCommandStatement(i, stmt as model.CommandStatement)
           break
         case model.CreateDatabaseStatement:
-          await this.runCreateDatabaseStatement(i, stmt as model.CreateDatabaseStatement, refs[i] as VSchema)
+          await this.runCreateDatabaseStatement(i, stmt as model.CreateDatabaseStatement)
           break
         case model.CreateRoleStatement:
-          await this.runCreateRoleStatement(i, stmt as model.CreateRoleStatement, refs[i] as Array<VUser>)
+          await this.runCreateRoleStatement(i, stmt as model.CreateRoleStatement)
           break
         case model.CreateUserStatement:
-          await this.runCreateUserStatement(i, stmt as model.CreateUserStatement, refs[i] as Array<VUser>)
+          await this.runCreateUserStatement(i, stmt as model.CreateUserStatement)
           break
         case model.CreateTablespaceStatement:
           await this.runCreateTablespaceStatement(i, stmt as model.CreateTablespaceStatement)
@@ -156,7 +156,7 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     }
   }
 
-  async runCreateDatabaseStatement(seq: number, stmt: model.CreateDatabaseStatement, ref: VSchema) {
+  async runCreateDatabaseStatement(seq: number, stmt: model.CreateDatabaseStatement) {
     let oldStmt
     let rows
     if ((rows = await this.con.query(`SHOW CREATE DATABASE ${bquote(stmt.name)}`) as any[]).length) {
@@ -206,13 +206,13 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     }
 
     if (sopts.length === 0) {
-      console.log(`-- skip: schema ${ref.name} is unchangeed`)
+      console.log(`-- skip: schema ${stmt.name} is unchangeed`)
     } else {
       await this.runScript(`ALTER TABLE ${bquote(stmt.name)} ${sopts.join(" ")}`)
     }
   }
 
-  async runCreateRoleStatement(seq: number, stmt: model.CreateRoleStatement, ref: Array<VUser>) {
+  async runCreateRoleStatement(seq: number, stmt: model.CreateRoleStatement) {
     const newRoles = new Array<string>()
     for (const [i, role] of stmt.roles.entries()) {
       let roleName = role.name.toString()
@@ -263,12 +263,16 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     }
 
     if (newRoles.length === 0) {
-      if (ref.length > 1) {
-        console.log(`-- skip: roles are unchangeed`)
+      if (stmt.roles.length === 1) {
+        let roleName = stmt.roles[0].name.toString()
+        if (stmt.roles[0].host) {
+          roleName += stmt.roles[0].host
+        }
+        console.log(`-- skip: role ${roleName} is unchangeed`)
       } else {
-        console.log(`-- skip: role ${ref[0].name.replace("\0", "@")} is unchangeed`)
+        console.log(`-- skip: roles are unchangeed`)
       }
-    } else if (newRoles.length === ref.length) {
+    } else if (newRoles.length === stmt.roles.length) {
       await this.runScript(Token.concat(stmt.tokens))
     } else {
       for (const newRole of newRoles) {
@@ -277,7 +281,7 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     }
   }
 
-  async runCreateUserStatement(seq: number, stmt: model.CreateUserStatement, ref: Array<VUser>) {
+  async runCreateUserStatement(seq: number, stmt: model.CreateUserStatement) {
     const newUsers = new Array<string>()
     for (const [i, user] of stmt.users.entries()) {
       let userName = user.name.toString()
@@ -421,12 +425,16 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     }
 
     if (newUsers.length === 0) {
-      if (ref.length > 1) {
-        console.log(`-- skip: users are unchangeed`)
+      if (stmt.users.length === 1) {
+        let userName = stmt.users[0].name.toString()
+        if (stmt.users[0].host) {
+          userName += stmt.users[0].host
+        }
+        console.log(`-- skip: user ${userName} is unchangeed`)
       } else {
-        console.log(`-- skip: user ${ref[0].name.replace("\0", "@")} is unchangeed`)
+        console.log(`-- skip: roles are unchangeed`)
       }
-    } else if (newUsers.length === ref.length) {
+    } else if (newUsers.length === stmt.users.length) {
       await this.runScript(Token.concat(stmt.tokens))
     } else {
       for (const newUser of newUsers) {
@@ -584,6 +592,7 @@ export default class MysqlProcessor extends DdlSyncProcessor {
   }
 
   async runCreateObjectStatement(seq: number, stmt: Statement, ref: VObject) {
+
   }
 
   private async runStatement(seq: number, stmt: Statement, type?: ResultType) {

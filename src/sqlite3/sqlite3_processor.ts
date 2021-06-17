@@ -62,7 +62,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
         case model.CreateViewStatement:
         case model.CreateTriggerStatement:
         case model.CreateIndexStatement:
-          await this.runCreateObjectStatement(i, stmt, refs[i] as VObject)
+          await this.runCreateObjectStatement(i, stmt)
           break
         case model.InsertStatement:
         case model.UpdateStatement:
@@ -87,20 +87,39 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
     console.log(`-- skip: command "${stmt.name}" is not`)
   }
 
-  private async runCreateObjectStatement(seq: number, stmt: Statement, obj: VObject) {
-    if (obj.dropped) {
-      console.log(`-- skip: ${obj.type} ${obj.schema.name}.${obj.name} is dropped`)
-    } else if (lcase(obj.schema.name) === "temp") {
+  private async runCreateObjectStatement(seq: number, stmt: any) {
+    const type = lcase(/^Create(.+)Statement$/.exec(stmt.constructor.name)?.[1] || "")
+    if (!type) {
+      throw new Error(`Unsupported statement: ${stmt.constructor.name}`)
+    }
+    let meta
+    let schema
+    if (type === "index") {
+      if (stmt.table.schema) {
+        schema = stmt.table.schema
+        meta = this.getTableMetaData(schema, stmt.name)
+      } else {
+        meta = this.getTableMetaData("temp", stmt.name)
+        schema = meta ? "temp" : "main"
+      }
+    } else {
+      schema = stmt.schema || stmt.temporary ? "temp" : "main"
+    }
+
+    if (!meta) {
+      meta = this.getTableMetaData(schema, stmt.name)
+    }
+
+    if (lcase(schema) === "temp") {
       this.runScript(Token.concat(stmt.tokens))
     } else {
-      const meta = this.getTableMetaData(obj.schema.name, obj.name)
       if (!meta) {
         // create new object if not exists
         this.runScript(Token.concat(stmt.tokens))
       } else {
         const oldStmt = new Sqlite3Parser(meta.sql || "").root()[0]
         if (!oldStmt) {
-          throw new Error(`Failed to get metadata: ${obj.schema.name}.${obj.name}`)
+          throw new Error(`Failed to get metadata: ${schema}.${stmt.name}`)
         }
 
         if (!this.isSame(stmt, oldStmt)) {
@@ -108,36 +127,36 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
             stmt instanceof model.CreateTableStatement && !stmt.virtual && !(stmt as any).asSelect &&
             oldStmt instanceof model.CreateTableStatement && !oldStmt.virtual
           ) {
-            if (this.hasData(obj.schema.name, obj.name)) {
+            if (this.hasData(schema, stmt.name)) {
               const columnMappings = this.mapColumns(stmt, oldStmt)
-              const backupTableName = `~${this.timestamp(seq)} ${obj.name}`
+              const backupTableName = `~${this.timestamp(seq)} ${stmt.name}`
 
               if (!columnMappings.compatible && this.config.backupMode === "file") {
-                const backupFilename = await this.backupTableData(seq, obj.schema.name, obj.name)
-                console.log(`-- backup: ${obj.type} ${obj.schema.name}.${obj.name} is backuped to ${dquote(backupFilename)}. you may need to resolve manually`)
+                const backupFilename = await this.backupTableData(seq, schema, stmt.name)
+                console.log(`-- backup: ${type} ${schema}.${stmt.name} is backuped to ${dquote(backupFilename)}. you may need to resolve manually`)
               }
 
               // backup src table
-              this.runScript(`ALTER TABLE ${bquote(obj.schema.name)}.${bquote(obj.name)} RENAME TO ${bquote(backupTableName)}`)
+              this.runScript(`ALTER TABLE ${bquote(schema)}.${bquote(stmt.name)} RENAME TO ${bquote(backupTableName)}`)
               if (!columnMappings.compatible && this.config.backupMode === "table") {
-                console.log(`-- backup: ${obj.type} ${obj.schema.name}.${obj.name} is backuped as table ${dquote(backupTableName)}. you may need to resolve manually`)
+                console.log(`-- backup: ${type} ${schema}.${stmt.name} is backuped as table ${dquote(backupTableName)}. you may need to resolve manually`)
               }
 
               // create new table
               this.runScript(Token.concat(stmt.tokens))
               // restore data
-              this.runScript(`INSERT INTO ${bquote(obj.schema.name)}.${bquote(obj.name)} ` +
+              this.runScript(`INSERT INTO ${bquote(schema)}.${bquote(stmt.name)} ` +
                 `(${columnMappings.destColumns.join(", ")}) ` +
                 `SELECT ${columnMappings.srcColumns.join(", ")} ` +
-                `FROM ${bquote(obj.schema.name)}.${bquote(backupTableName)} ` +
+                `FROM ${bquote(schema)}.${bquote(backupTableName)} ` +
                 `ORDER BY ${columnMappings.sortColumns.join(", ")}`, ResultType.COUNT)
               if (columnMappings.compatible || this.config.backupMode === "file") {
                 // drop backup table
-                this.runScript(`DROP TABLE IF EXISTS ${bquote(obj.schema.name)}.${bquote(backupTableName)}`)
+                this.runScript(`DROP TABLE IF EXISTS ${bquote(schema)}.${bquote(backupTableName)}`)
               }
             } else {
               // drop object
-              this.runScript(`DROP ${ucase(meta.type)} IF EXISTS ${bquote(obj.schema.name)}.${bquote(obj.name)}`)
+              this.runScript(`DROP ${ucase(meta.type)} IF EXISTS ${bquote(schema)}.${bquote(stmt.name)}`)
               // create new object
               this.runScript(Token.concat(stmt.tokens))
             }
@@ -145,30 +164,30 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
             // backup src table if object is a normal table
             if (
               oldStmt instanceof model.CreateTableStatement && !oldStmt.virtual &&
-              this.hasData(obj.schema.name, obj.name)
+              this.hasData(schema, stmt.name)
             ) {
               // backup src table
               if (this.config.backupMode === "file") {
-                const backupFilename = await this.backupTableData(seq, obj.schema.name, obj.name)
-                console.log(`-- backup: ${obj.type} ${obj.schema.name}.${obj.name} is backuped to ${dquote(backupFilename)}. you may need to resolve manually`)
-                this.runScript(`DROP ${ucase(meta.type)} IF EXISTS ${bquote(obj.schema.name)}.${bquote(obj.name)}`)
+                const backupFilename = await this.backupTableData(seq, schema, stmt.name)
+                console.log(`-- backup: ${type} ${schema}.${stmt.name} is backuped to ${dquote(backupFilename)}. you may need to resolve manually`)
+                this.runScript(`DROP ${ucase(meta.type)} IF EXISTS ${bquote(schema)}.${bquote(stmt.name)}`)
               } else {
-                const backupTableName = `~${this.timestamp(seq)} ${obj.name}`
-                this.runScript(`ALTER TABLE ${bquote(obj.schema.name)}.${bquote(obj.name)} RENAME TO ${bquote(backupTableName)}`)
-                console.log(`-- backup: ${obj.type} ${obj.schema.name}.${obj.name} is backuped as table ${dquote(backupTableName)}. you may need to resolve manually`)
+                const backupTableName = `~${this.timestamp(seq)} ${stmt.name}`
+                this.runScript(`ALTER TABLE ${bquote(schema)}.${bquote(stmt.name)} RENAME TO ${bquote(backupTableName)}`)
+                console.log(`-- backup: ${type} ${schema}.${stmt.name} is backuped as table ${dquote(backupTableName)}. you may need to resolve manually`)
               }
 
               // create new object
               this.runScript(Token.concat(stmt.tokens))
             } else {
               // drop object
-              this.runScript(`DROP ${ucase(meta.type)} IF EXISTS ${bquote(obj.schema.name)}.${bquote(obj.name)}`)
+              this.runScript(`DROP ${ucase(meta.type)} IF EXISTS ${bquote(schema)}.${bquote(stmt.name)}`)
               // create new object
               this.runScript(Token.concat(stmt.tokens))
             }
           }
         } else {
-          console.log(`-- skip: ${obj.type} ${obj.schema.name}.${obj.name} is unchangeed`)
+          console.log(`-- skip: ${type} ${schema}.${stmt.name} is unchangeed`)
         }
       }
     }
