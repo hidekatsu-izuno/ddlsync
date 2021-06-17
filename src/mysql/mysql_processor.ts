@@ -6,6 +6,7 @@ import { MysqlLexer, MysqlParser, toExpression } from "./mysql_parser"
 import * as model from "./mysql_models"
 import { Token } from "../parser"
 import { bquote, eqSet, formatDateTime, squote } from "../util/functions"
+import { backslashed } from "./mysql_utils"
 
 export default class MysqlProcessor extends DdlSyncProcessor {
   static create = async (config: { [key: string]: any }) => {
@@ -213,6 +214,67 @@ export default class MysqlProcessor extends DdlSyncProcessor {
 
   async runCreateRoleStatement(seq: number, stmt: model.CreateRoleStatement, ref: Array<VUser>) {
     const newRoles = new Array<string>()
+    for (const [i, role] of stmt.roles.entries()) {
+      let roleName = role.name.toString()
+      if (role.host) {
+        roleName += role.host
+      }
+
+      const oldStmt = new model.CreateRoleStatement()
+      let query = `SELECT * FROM mysql.user WHERE User = ${role.name}`
+      if (role.host) {
+        query += ` AND Host = ${squote(backslashed(role.host.value))}`
+      } else {
+        query += " AND is_role = 'Y'"
+      }
+
+      let rows
+      if ((rows = await this.con.query(query) as any[]).length) {
+        if (!rows[0].Host) {
+          if (!rows[0].Host && (rows = await this.con.query(
+            `SELECT * FROM mysql.roles_mapping` +
+            ` WHERE Role = ${roleName}` +
+            ` AND Admin_option = 'Y'`
+          ) as any[]).length) {
+            for (const row of rows) {
+              await this.runScript(`REVOKE ADMIN OPTION FOR ${roleName} FROM ${squote(backslashed(row.User))}@${squote(backslashed(row.Host))}`)
+            }
+          }
+          if (stmt.admin) {
+            await this.runScript(`GRANT ${roleName} TO ${stmt.admin.name}${stmt.admin.host} WITH ADMIN OPTION`)
+          }
+        }
+      } else {
+        let ddl = "CREATE ROLE"
+        const roleStart = stmt.markers.get(`roleStart.${i}`)
+        const roleEnd = stmt.markers.get(`roleEnd.${i}`)
+        if (roleStart != null && roleEnd != null && roleStart < roleEnd) {
+          ddl += " " + Token.concat(stmt.tokens.slice(roleStart, roleEnd))
+        } else {
+          ddl += roleName
+        }
+        const optionsStart = stmt.markers.get("optionsStart")
+        const optionsEnd = stmt.markers.get("optionsEnd")
+        if (optionsStart != null && optionsEnd != null && optionsStart < optionsEnd) {
+          ddl += " " + Token.concat(stmt.tokens.slice(optionsStart, optionsEnd))
+        }
+        newRoles.push(ddl)
+      }
+    }
+
+    if (newRoles.length === 0) {
+      if (ref.length > 1) {
+        console.log(`-- skip: roles are unchangeed`)
+      } else {
+        console.log(`-- skip: role ${ref[0].name.replace("\0", "@")} is unchangeed`)
+      }
+    } else if (newRoles.length === ref.length) {
+      await this.runScript(Token.concat(stmt.tokens))
+    } else {
+      for (const newRole of newRoles) {
+        await this.runScript(newRole)
+      }
+    }
   }
 
   async runCreateUserStatement(seq: number, stmt: model.CreateUserStatement, ref: Array<VUser>) {
@@ -220,7 +282,7 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     for (const [i, user] of stmt.users.entries()) {
       let userName = user.name.toString()
       if (user.host) {
-        userName += "@" + user.host
+        userName += user.host
       }
 
       let oldStmt
@@ -341,20 +403,20 @@ export default class MysqlProcessor extends DdlSyncProcessor {
           }
         }
       } else {
+        let ddl = "CREATE USER"
         const userStart = stmt.markers.get(`userStart.${i}`)
         const userEnd = stmt.markers.get(`userEnd.${i}`)
-        if (userStart != null && userEnd != null) {
-          let text = "CREATE USER " + Token.concat(stmt.tokens.slice(userStart, userEnd))
-          const optionsStart = stmt.markers.get("optionsStart")
-          const optionsEnd = stmt.markers.get("optionsEnd")
-          if (optionsStart != null && optionsEnd != null) {
-            text += " " + Token.concat(stmt.tokens.slice(optionsStart, optionsEnd))
-          }
-          newUsers.push(text)
+        if (userStart != null && userEnd != null && userStart < userEnd) {
+          ddl += " " + Token.concat(stmt.tokens.slice(userStart, userEnd))
         } else {
-          throw new Error(`Failed to get user marker: ${user.name}`)
+          ddl += userName
         }
-        return
+        const optionsStart = stmt.markers.get("optionsStart")
+        const optionsEnd = stmt.markers.get("optionsEnd")
+        if (optionsStart != null && optionsEnd != null && optionsStart < optionsEnd) {
+          ddl += " " + Token.concat(stmt.tokens.slice(optionsStart, optionsEnd))
+        }
+        newUsers.push(ddl)
       }
     }
 
@@ -414,12 +476,13 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     const sopts = []
     if ((oldStmt.autoextendSize || "0") !== (stmt.autoextendSize || "0")) {
       sopts.push(`AUTOEXTEND_SIZE ${stmt.autoextendSize}`)
-    } else {
-      console.log(`-- skip: schema ${stmt.name} is unchangeed`)
-      return
     }
 
-    await this.runScript(`ALTER TABLESPACE ${bquote(stmt.name)} ${sopts.join(" ")}`)
+    if (sopts.length === 0) {
+      console.log(`-- skip: schema ${stmt.name} is unchangeed`)
+    } else {
+      await this.runScript(`ALTER TABLESPACE ${bquote(stmt.name)} ${sopts.join(" ")}`)
+    }
   }
 
   async runCreateServerStatement(seq: number, stmt: model.CreateServerStatement) {
@@ -450,24 +513,31 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     const sopts = []
     if (!ematches(oldStmt.host, stmt.host)) {
       sopts.push(`HOST ${stmt.host || "''"}`)
-    } else if (!ematches(oldStmt.database, stmt.database)) {
+    }
+    if (!ematches(oldStmt.database, stmt.database)) {
       sopts.push(`DATABASE ${stmt.database || "''"}`)
-    } else if (!ematches(oldStmt.user, stmt.user)) {
+    }
+    if (!ematches(oldStmt.user, stmt.user)) {
       sopts.push(`USER ${stmt.user || "''"}`)
-    } else if (!ematches(oldStmt.password, stmt.password)) {
+    }
+    if (!ematches(oldStmt.password, stmt.password)) {
       sopts.push(`PASSWORD ${stmt.password || "''"}`)
-    } else if (!ematches(oldStmt.port, stmt.port)) {
+    }
+    if (!ematches(oldStmt.port, stmt.port)) {
       sopts.push(`PORT ${stmt.port || "''"}`)
-    } else if (!ematches(oldStmt.socket, stmt.socket)) {
+    }
+    if (!ematches(oldStmt.socket, stmt.socket)) {
       sopts.push(`SOCKET ${stmt.socket || "''"}`)
-    } else if (!ematches(oldStmt.owner, stmt.owner)) {
+    }
+    if (!ematches(oldStmt.owner, stmt.owner)) {
       sopts.push(`OWNER ${stmt.owner || "''"}`)
-    } else {
-      console.log(`-- skip: schema ${stmt.name} is unchangeed`)
-      return
     }
 
-    await this.runScript(`ALTER SERVER ${bquote(stmt.name)} OPTIONS (${sopts.join(",")})`)
+    if (sopts.length === 0) {
+      console.log(`-- skip: schema ${stmt.name} is unchangeed`)
+    } else {
+      await this.runScript(`ALTER SERVER ${bquote(stmt.name)} OPTIONS (${sopts.join(",")})`)
+    }
   }
 
   async runCreateResourceGroupStatement(seq: number, stmt: model.CreateResourceGroupStatement) {
@@ -488,18 +558,22 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     const sopts = []
     if (oldStmt.type !== stmt.type) {
       sopts.push(`TYPE = ${stmt.type}`)
-    } else if (oldStmt.disable !== stmt.disable) {
+    }
+    if (oldStmt.disable !== stmt.disable) {
       sopts.push(stmt.disable ? "DISABLED" : "ENABLED")
-    } else if (!ematches(oldStmt.vcpu, stmt.vcpu)) {
+    }
+    if (!ematches(oldStmt.vcpu, stmt.vcpu)) {
       sopts.push(`VCPU = ${stmt.vcpu}`)
-    } else if (!ematches(oldStmt.threadPriority, stmt.threadPriority)) {
+    }
+    if (!ematches(oldStmt.threadPriority, stmt.threadPriority)) {
       sopts.push(`THREAD_PRIORITY = ${stmt.threadPriority}`)
-    } else {
-      console.log(`-- skip: resource group ${stmt.name} is unchangeed`)
-      return
     }
 
-    await this.runScript(`ALTER RESOURCE GROUP ${bquote(stmt.name)} ${sopts.join(" ")}`)
+    if (sopts.length === 0) {
+      console.log(`-- skip: resource group ${stmt.name} is unchangeed`)
+    } else {
+      await this.runScript(`ALTER RESOURCE GROUP ${bquote(stmt.name)} ${sopts.join(" ")}`)
+    }
   }
 
   async runCreateLogfileGroupStatement(seq: number, stmt: model.CreateLogfileGroupStatement) {

@@ -995,7 +995,7 @@ export class MysqlParser extends Parser {
           this.consume(Keyword.OPE_EQ)
           stmt.definer = this.userRole()
           if (this.consumeIf(TokenType.UserVariable)) {
-            stmt.definer.host = new model.UserVariable(this.token(-1).text)
+            stmt.definer.host = new model.UserVariable(lcase(this.token(-1).text))
           } else {
             stmt.definer.host = new model.UserVariable("%", true)
           }
@@ -1009,7 +1009,7 @@ export class MysqlParser extends Parser {
         this.consume(Keyword.OPE_EQ)
         const definer = this.userRole()
         if (this.consumeIf(TokenType.UserVariable)) {
-          definer.host = new model.UserVariable(this.token(-1).text)
+          definer.host = new model.UserVariable(lcase(this.token(-1).text))
         } else {
           definer.host = new model.UserVariable("%", true)
         }
@@ -1151,7 +1151,7 @@ export class MysqlParser extends Parser {
           this.consume(Keyword.OPE_EQ)
           stmt.definer = this.userRole()
           if (this.consumeIf(TokenType.UserVariable)) {
-            stmt.definer.host = new model.UserVariable(this.token(-1).text)
+            stmt.definer.host = new model.UserVariable(lcase(this.token(-1).text))
           } else {
             stmt.definer.host = new model.UserVariable("%", true)
           }
@@ -1165,7 +1165,7 @@ export class MysqlParser extends Parser {
         this.consume(Keyword.OPE_EQ)
         const definer = this.userRole()
         if (this.consumeIf(TokenType.UserVariable)) {
-          definer.host = new model.UserVariable(this.token(-1).text)
+          definer.host = new model.UserVariable(lcase(this.token(-1).text))
         } else {
           definer.host = new model.UserVariable("%", true)
         }
@@ -1763,9 +1763,9 @@ export class MysqlParser extends Parser {
       stmt.markers.set(`roleStart.0`, this.pos - this.stmtStart)
       stmt.roles.push(this.userRole())
       stmt.markers.set(`roleEnd.0`, this.pos - this.stmtStart)
-      if (this.peekIf(Keyword.WITH)) {
-        stmt.markers.set("optionsStart", this.pos - this.stmtStart)
-        this.consume(Keyword.WITH, Keyword.ADMIN)
+      stmt.markers.set("optionsStart", this.pos - this.stmtStart)
+      if (this.consumeIf(Keyword.WITH)) {
+        this.consume(Keyword.ADMIN)
         if (this.consumeIf(Keyword.CURRENT_USER)) {
           const admin = new model.UserRole()
           admin.name = model.CURRENT_USER
@@ -1777,19 +1777,19 @@ export class MysqlParser extends Parser {
         } else {
           stmt.admin = this.userRole()
           if (this.consumeIf(TokenType.UserVariable)) {
-            stmt.admin.host = new model.UserVariable(this.token(-1).text)
+            stmt.admin.host = new model.UserVariable(lcase(this.token(-1).text))
           } else {
             stmt.admin.host = new model.UserVariable("%", true)
           }
         }
-        stmt.markers.set("optionsEnd", this.pos - this.stmtStart)
       }
+      stmt.markers.set("optionsEnd", this.pos - this.stmtStart)
     } else {
       for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
         stmt.markers.set(`roleStart.${i}`, this.pos - this.stmtStart)
         const role = this.userRole()
         if (this.consumeIf(TokenType.UserVariable)) {
-          role.host = new model.UserVariable(this.token(-1).text)
+          role.host = new model.UserVariable(lcase(this.token(-1).text))
         } else {
           role.host = new model.UserVariable("%", true)
         }
@@ -1808,7 +1808,7 @@ export class MysqlParser extends Parser {
       stmt.markers.set(`userStart.${i}`, this.pos - this.stmtStart)
       const user = this.userRole()
       if (this.consumeIf(TokenType.UserVariable)) {
-        user.host = new model.UserVariable(this.token(-1).text)
+        user.host = new model.UserVariable(lcase(this.token(-1).text))
       } else {
         user.host = new model.UserVariable("%", true)
       }
@@ -1844,7 +1844,7 @@ export class MysqlParser extends Parser {
       for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
         const role = this.userRole()
         if (this.consumeIf(TokenType.UserVariable)) {
-          role.host = new model.UserVariable(this.token(-1).text)
+          role.host = new model.UserVariable(lcase(this.token(-1).text))
         } else {
           role.host = new model.UserVariable("%", true)
         }
@@ -2813,7 +2813,7 @@ export class MysqlParser extends Parser {
         } else {
           const user = this.userRole()
           if (this.consumeIf(TokenType.UserVariable)) {
-            user.host = new model.UserVariable(this.token(-1).text)
+            user.host = new model.UserVariable(lcase(this.token(-1).text))
           } else {
             user.host = new model.UserVariable("%", true)
           }
@@ -2897,14 +2897,14 @@ export class MysqlParser extends Parser {
       const pair = new model.RenameUserPair()
       pair.user = this.userRole()
       if (this.consumeIf(TokenType.UserVariable)) {
-        pair.user.host = new model.UserVariable(this.token(-1).text)
+        pair.user.host = new model.UserVariable(lcase(this.token(-1).text))
       } else {
         pair.user.host = new model.UserVariable("%", true)
       }
       this.consumeIf(Keyword.TO)
       pair.newUser = this.userRole()
       if (this.consumeIf(TokenType.UserVariable)) {
-        pair.newUser.host = new model.UserVariable(this.token(-1).text)
+        pair.newUser.host = new model.UserVariable(lcase(this.token(-1).text))
       } else {
         pair.newUser.host = new model.UserVariable("%", true)
       }
@@ -2968,7 +2968,7 @@ export class MysqlParser extends Parser {
       } else {
         const user = this.userRole()
         if (this.consumeIf(TokenType.UserVariable)) {
-          user.host = new model.UserVariable(this.token(-1).text)
+          user.host = new model.UserVariable(lcase(this.token(-1).text))
         } else {
           user.host = new model.UserVariable("%", true)
         }
@@ -2985,7 +2985,7 @@ export class MysqlParser extends Parser {
     for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
       const user = this.userRole()
       if (this.consumeIf(TokenType.UserVariable)) {
-        user.host = new model.UserVariable(this.token(-1).text)
+        user.host = new model.UserVariable(lcase(this.token(-1).text))
       } else {
         user.host = new model.UserVariable("%", true)
       }
@@ -4048,7 +4048,7 @@ export class MysqlParser extends Parser {
     ) {
       userRole.name = new model.Text(this.token(-1).text)
     } else if (this.consumeIf(TokenType.Identifier)) {
-      userRole.name = new model.Text(lcase(this.token(-1).text), true)
+      userRole.name = new model.Text(this.token(-1).text, true)
     } else {
       throw this.createParseError()
     }
