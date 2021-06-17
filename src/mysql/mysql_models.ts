@@ -603,13 +603,18 @@ export class DropLogfileGroupStatement extends Statement {
 }
 
 export class CreateSpatialReferenceSystemStatement extends Statement {
-  srid = new Numeric("0")
+  id = new Numeric("0")
   orReplace = false
   ifNotExists = false
+  name?: Text
+  definition?: Text
+  orgName?: Text
+  orgId?: Numeric
+  description?: Text
 
   validate() {
-    if (!this.srid.isInteger) {
-      throw new Error(`Only integers allowed as number here near '${this.srid}'`)
+    if (!this.id.isInteger) {
+      throw new Error(`Only integers allowed as number here near '${this.id}'`)
     }
   }
 }

@@ -563,24 +563,24 @@ export default class MysqlProcessor extends DdlSyncProcessor {
       return
     }
 
-    const sopts = []
+    const opts = []
     if (oldStmt.type !== stmt.type) {
-      sopts.push(`TYPE = ${stmt.type}`)
+      opts.push(`TYPE = ${stmt.type}`)
     }
     if (oldStmt.disable !== stmt.disable) {
-      sopts.push(stmt.disable ? "DISABLED" : "ENABLED")
+      opts.push(stmt.disable ? "DISABLED" : "ENABLED")
     }
     if (!ematches(oldStmt.vcpu, stmt.vcpu)) {
-      sopts.push(`VCPU = ${stmt.vcpu}`)
+      opts.push(`VCPU = ${stmt.vcpu}`)
     }
     if (!ematches(oldStmt.threadPriority, stmt.threadPriority)) {
-      sopts.push(`THREAD_PRIORITY = ${stmt.threadPriority}`)
+      opts.push(`THREAD_PRIORITY = ${stmt.threadPriority}`)
     }
 
-    if (sopts.length === 0) {
+    if (opts.length === 0) {
       console.log(`-- skip: resource group ${stmt.name} is unchangeed`)
     } else {
-      await this.runScript(`ALTER RESOURCE GROUP ${bquote(stmt.name)} ${sopts.join(" ")}`)
+      await this.runScript(`ALTER RESOURCE GROUP ${bquote(stmt.name)} ${opts.join(" ")}`)
     }
   }
 
@@ -589,6 +589,47 @@ export default class MysqlProcessor extends DdlSyncProcessor {
   }
 
   async runCreateSpatialReferenceSystemStatement(seq: number, stmt: model.CreateSpatialReferenceSystemStatement) {
+    const oldStmt = new model.CreateSpatialReferenceSystemStatement()
+    let rows
+    if ((rows = await this.con.query(
+      `SELECT * FROM information_schema.ST_SPATIAL_REFERENCE_SYSTEMS WHERE SRS_ID = ${stmt.id}`
+    ) as any[]).length) {
+      if (rows[0].SRS_NAME != null) oldStmt.name = new model.Text(rows[0].SRS_NAME, true)
+      if (rows[0].ORGANIZATION != null) oldStmt.orgName = new model.Text(rows[0].ORGANIZATION, true)
+      if (rows[0].ORGANIZATION_COORDSYS_ID != null) oldStmt.orgId = new model.Numeric(rows[0].ORGANIZATION_COORDSYS_ID)
+      if (rows[0].DEFINITION != null) oldStmt.definition = new model.Text(rows[0].DEFINITION)
+      if (rows[0].DESCRIPTION != null) oldStmt.description = new model.Text(rows[0].DESCRIPTION)
+    } else {
+      await this.runScript(Token.concat(stmt.tokens))
+      return
+    }
+
+    const opts = []
+    if (!ematches(oldStmt.name, stmt.name)) {
+      opts.push(`NAME ${stmt.name || "''"}`)
+    }
+    if (!ematches(oldStmt.definition, stmt.definition)) {
+      opts.push(`DEFINITION ${stmt.definition || "''"}`)
+    }
+    if (
+      !ematches(oldStmt.orgName, stmt.orgName) ||
+      !ematches(oldStmt.orgId, stmt.orgId)
+    ) {
+      if (stmt.orgName) {
+        opts.push(`ORGANIZATION ${stmt.orgName} IDENTIFIED BY ${stmt.orgId}`)
+      } else {
+        opts.push("ORGANIZATION ''")
+      }
+    }
+    if (!ematches(oldStmt.description, stmt.description)) {
+      opts.push(`DESCRIPTION ${stmt.description || "''"}`)
+    }
+
+    if (opts.length === 0) {
+      console.log(`-- skip: spatial reference systems ${stmt.id} is unchangeed`)
+    } else {
+      console.log(`-- skip: the spatial reference systems altering operation is unsupported`)
+    }
   }
 
   async runCreateObjectStatement(seq: number, stmt: Statement, ref: VObject) {
