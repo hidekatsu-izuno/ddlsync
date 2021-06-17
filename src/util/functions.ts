@@ -48,20 +48,14 @@ export function dequote(text: string) {
   if (text.length >= 2) {
     const sc = text.charAt(0)
     const ec = text.charAt(text.length-1)
-    if (sc === "[" && ec === "]" || sc === ec) {
-      let value = text.substring(1, text.length - 1)
-      switch (sc) {
-        case '"':
-          value = value.replace(/""/g, sc)
-          break
-        case "'":
-          value = value.replace(/''/g, sc)
-          break
-        case "`":
-          value = value.replace(/``/g, sc)
-          break
-      }
-      return value
+    if (sc === "[" && ec === "]") {
+      return text.substring(1, text.length - 1)
+    } else if (sc === "`" && sc === ec) {
+      return text.substring(1, text.length - 1).replace(/``/g, sc)
+    } else if (sc === '"' && sc === ec) {
+      return text.substring(1, text.length - 1).replace(/""/g, sc)
+    } else if (sc === "'" && sc === ec) {
+      return text.substring(1, text.length - 1).replace(/''/g, sc)
     }
   }
   return text

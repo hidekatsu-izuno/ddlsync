@@ -190,11 +190,10 @@ export class Text implements IValue {
   constructor(text: string, isValue = false) {
     if (isValue) {
       this.value = text
-      this.text = squote(backslashed(text))
     } else {
-      this.text = text
       this.value = unbackslashed(dequote(text))
     }
+    this.text = squote(backslashed(this.value))
   }
 
   toString() {
@@ -258,7 +257,7 @@ export class UserVariable implements IValue {
     } else {
       const m = /^@(.+)$/.exec(text)
       if (m) {
-        this.value = unbackslashed(dequote(m[1]))
+        this.value = /^['"`]/.test(m[1]) ? unbackslashed(dequote(m[1])) : m[1]
       } else {
         throw new Error(`Failed to parse session variable: ${text}`)
       }
@@ -267,7 +266,7 @@ export class UserVariable implements IValue {
     if (/^[a-zA-Z0-9$_\u0080-\uFFFF]+$/.test(this.value)) {
       this.text = `@${this.value}`
     } else {
-      this.text = `@${bquote(this.value)}`
+      this.text = `@${squote(this.value)}`
     }
   }
 

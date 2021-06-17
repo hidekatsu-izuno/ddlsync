@@ -65,6 +65,48 @@ describe("test mysql_parser", () => {
   })
 
   test.each([
+    ["CREATE USER x",
+      { users: [
+        Object.assign(new model.UserRole(), { name: new model.Text("x", true), host: new model.UserVariable("%", true) })
+      ] }],
+    ["CREATE USER x@192.168.1.1, 'x'   @'192.168.1.1', `x y`   @`test%`",
+      { users: [
+        Object.assign(new model.UserRole(), { name: new model.Text("x", true), host: new model.UserVariable("192.168.1.1", true) }),
+        Object.assign(new model.UserRole(), { name: new model.Text("x", true), host: new model.UserVariable("192.168.1.1", true) }),
+        Object.assign(new model.UserRole(), { name: new model.Text("x y", true), host: new model.UserVariable("test%", true) }),
+      ] }],
+  ])("create user %#", (input, expected) => {
+    const result = new MysqlParser(input, {}).root()
+    expect(result.length).toBe(1)
+    expect(result[0]).toBeInstanceOf(model.CreateUserStatement)
+    expect(result[0].users.length).toBe(expected.users.length)
+    expect(result[0].users[0]).toStrictEqual(expected.users[0])
+    expect(result[0].users[1]).toStrictEqual(expected.users[1])
+    expect(result[0].users[2]).toStrictEqual(expected.users[2])
+  })
+
+  test.each([
+    ["DROP USER x",
+    { users: [
+      Object.assign(new model.UserRole(), { name: new model.Text("x", true), host: new model.UserVariable("%", true) })
+    ] }],
+  ["DROP USER x@192.168.1.1, 'x'   @'192.168.1.1', `x y`   @`test%`",
+    { users: [
+      Object.assign(new model.UserRole(), { name: new model.Text("x", true), host: new model.UserVariable("192.168.1.1", true) }),
+      Object.assign(new model.UserRole(), { name: new model.Text("x", true), host: new model.UserVariable("192.168.1.1", true) }),
+      Object.assign(new model.UserRole(), { name: new model.Text("x y", true), host: new model.UserVariable("test%", true) }),
+    ] }],
+  ])("drop user %#", (input, expected) => {
+    const result = new MysqlParser(input, {}).root()
+    expect(result.length).toBe(1)
+    expect(result[0]).toBeInstanceOf(model.DropUserStatement)
+    expect(result[0].users.length).toBe(expected.users.length)
+    expect(result[0].users[0]).toStrictEqual(expected.users[0])
+    expect(result[0].users[1]).toStrictEqual(expected.users[1])
+    expect(result[0].users[2]).toStrictEqual(expected.users[2])
+  })
+
+  test.each([
     ["CREATE TABLE x (x int)",
       { name: "x", columns: [ { name: "x", dataType: { name: "INT" } } ]}],
     ["create table if not exists x (x date)",

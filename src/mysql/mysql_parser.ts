@@ -666,8 +666,8 @@ export class MysqlLexer extends Lexer {
       { type: TokenType.QuotedValue, re: /([bBnN]|_[a-zA-Z]+)?"([^"]|"")*"/y },
       { type: TokenType.QuotedIdentifier, re: /`([^`]|``)*`/y },
       { type: TokenType.BindVariable, re: /\?/y },
-      { type: TokenType.SessionVariable, re: /@@[a-zA-Z0-9._$\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*|`([^`]|``)*`|'([^']|'')*'|"([^"]|"")*"/y },
-      { type: TokenType.UserVariable, re: /@[a-zA-Z0-9._$\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*|`([^`]|``)*`|'([^']|'')*'|"([^"]|"")*"/y },
+      { type: TokenType.SessionVariable, re: /@@([a-zA-Z0-9._$\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]+|`([^`]|``)*`|'([^']|'')*'|"([^"]|"")*")/y },
+      { type: TokenType.UserVariable, re: /@([a-zA-Z0-9._$\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]+|`([^`]|``)*`|'([^']|'')*'|"([^"]|"")*")/y },
       { type: TokenType.Identifier, re: /[a-zA-Z_$\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_$#\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*/y },
       { type: TokenType.Operator, re: /\|\|&&|<=>|<<|>>|<>|->>?|[=<>!:]=?|[~&|^*/%+-]/y },
       { type: TokenType.Error, re: /./y },
@@ -4041,14 +4041,14 @@ export class MysqlParser extends Parser {
       this.consumeIf(TokenType.QuotedValue) ||
       (this.sqlMode.has("ANSI_QUOTE") && this.consumeIf(TokenType.QuotedValue))
     ) {
-      userRole.name = dequote(this.token(-1).text)
+      userRole.name = new model.Text(dequote(this.token(-1).text), true)
     } else if (
       this.consumeIf(TokenType.String) ||
       (!this.sqlMode.has("ANSI_QUOTE") && this.consumeIf(TokenType.QuotedValue))
     ) {
-      userRole.name = unbackslashed(dequote(this.token(-1).text))
+      userRole.name = new model.Text(this.token(-1).text)
     } else if (this.consumeIf(TokenType.Identifier)) {
-      userRole.name = lcase(this.token(-1).text)
+      userRole.name = new model.Text(lcase(this.token(-1).text), true)
     } else {
       throw this.createParseError()
     }
