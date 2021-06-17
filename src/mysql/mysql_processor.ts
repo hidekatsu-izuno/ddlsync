@@ -1,10 +1,11 @@
+import os from "os"
 import mariadb from "mariadb"
-import { Statement, VDatabase, VObject, VSchema } from "../models"
+import { Statement, VDatabase, VObject, VRole, VSchema, VUser } from "../models"
 import { DdlSyncProcessor } from "../processor"
-import { MysqlLexer, MysqlParser } from "./mysql_parser"
+import { MysqlLexer, MysqlParser, toExpression } from "./mysql_parser"
 import * as model from "./mysql_models"
 import { Token } from "../parser"
-import { bquote, formatDateTime, squote } from "../util/functions"
+import { bquote, eqSet, formatDateTime, squote } from "../util/functions"
 
 export default class MysqlProcessor extends DdlSyncProcessor {
   static create = async (config: { [key: string]: any }) => {
@@ -70,6 +71,15 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     vdb.addSchema("performance_schema", true)
     vdb.defaultSchema = await this.getCurrentSchema()
 
+    vdb.addUser("root\0localhost", true)
+    vdb.addUser("root\0127.0.0.1", true)
+    vdb.addUser("root\0::1", true)
+    vdb.addUser("root\0%", true)
+    const hostname = os.hostname()
+    if (hostname && !vdb.getUser(`root\0${hostname}`)) {
+      vdb.addUser(`root\0${hostname}`, true)
+    }
+
     const refs = []
     for (const [i, stmt] of stmts.entries()) {
       refs[i] = stmt.process(vdb)
@@ -85,10 +95,10 @@ export default class MysqlProcessor extends DdlSyncProcessor {
           await this.runCreateDatabaseStatement(i, stmt as model.CreateDatabaseStatement, refs[i] as VSchema)
           break
         case model.CreateRoleStatement:
-          await this.runCreateRoleStatement(i, stmt as model.CreateRoleStatement)
+          await this.runCreateRoleStatement(i, stmt as model.CreateRoleStatement, refs[i] as Array<VUser>)
           break
         case model.CreateUserStatement:
-          await this.runCreateUserStatement(i, stmt as model.CreateUserStatement)
+          await this.runCreateUserStatement(i, stmt as model.CreateUserStatement, refs[i] as Array<VUser>)
           break
         case model.CreateTablespaceStatement:
           await this.runCreateTablespaceStatement(i, stmt as model.CreateTablespaceStatement)
@@ -146,17 +156,17 @@ export default class MysqlProcessor extends DdlSyncProcessor {
   }
 
   async runCreateDatabaseStatement(seq: number, stmt: model.CreateDatabaseStatement, ref: VSchema) {
-    let rows, ddl
-    if ((rows = await this.con.query(`SHOW CREATE DATABASE ${bquote(ref.name)}`) as any[]).length) {
-      ddl = rows[0]["Create Database"] || ""
+    let oldStmt
+    let rows
+    if ((rows = await this.con.query(`SHOW CREATE DATABASE ${bquote(stmt.name)}`) as any[]).length) {
+      const column = (rows as any).meta[0].name()
+      if (rows[0][column]) oldStmt = new MysqlParser(rows[0][column]).root()[0]
+      if (!(oldStmt instanceof model.CreateDatabaseStatement)) {
+        throw new Error(`Failed to get metadata: ${stmt.name}`)
+      }
     } else {
       await this.runScript(Token.concat(stmt.tokens))
       return
-    }
-
-    const oldStmt = new MysqlParser(ddl).root()[0]
-    if (!(oldStmt instanceof model.CreateDatabaseStatement)) {
-      throw new Error(`Failed to get metadata: ${ref.name}`)
     }
 
     let defaultCharacterSet = "latin1"
@@ -173,34 +183,194 @@ export default class MysqlProcessor extends DdlSyncProcessor {
       }
     }
 
-    let defaultEncryption = model.Expression.string("N")
+    let defaultEncryption = new model.Text("'N'")
     if ((rows = await this.con.query("SHOW GLOBAL VARIABLES LIKE 'default_table_encryption'") as any[]).length) {
       if (rows[0].Value === "ON") {
-        defaultEncryption = model.Expression.string("Y")
+        defaultEncryption = new model.Text("'Y'")
       }
     }
 
     const sopts = []
     if ((oldStmt.characterSet || defaultCharacterSet) !== (stmt.characterSet || defaultCharacterSet)) {
       sopts.push(`CHARACTER SET = ${stmt.characterSet ? stmt.characterSet : defaultCharacterSet}`)
-    } else if ((oldStmt.collate || defaultCollate) !== (stmt.collate || defaultCollate)) {
+    }
+    if ((oldStmt.collate || defaultCollate) !== (stmt.collate || defaultCollate)) {
       sopts.push(`COLLATE = ${stmt.collate || defaultCollate}`)
-    } else if (!model.Expression.eq(oldStmt.encryption || defaultEncryption, stmt.encryption || defaultEncryption)) {
+    }
+    if (ematches(oldStmt.encryption || defaultEncryption, stmt.encryption || defaultEncryption)) {
       sopts.push(`ENCRYPTION = ${stmt.encryption || defaultEncryption}`)
-    } else if (!model.Expression.eq(oldStmt.comment, stmt.comment)) {
+    }
+    if (!ematches(oldStmt.comment, stmt.comment)) {
       sopts.push(`COMMENT = ${stmt.comment ? stmt.comment : "''"}`)
-    } else {
-      console.log(`-- skip: schema ${ref.name} is unchangeed`)
-      return
     }
 
-    await this.runScript(`ALTER TABLE ${bquote(ref.name)} ${sopts.join(" ")}`)
+    if (sopts.length === 0) {
+      console.log(`-- skip: schema ${ref.name} is unchangeed`)
+    } else {
+      await this.runScript(`ALTER TABLE ${bquote(stmt.name)} ${sopts.join(" ")}`)
+    }
   }
 
-  async runCreateRoleStatement(seq: number, stmt: model.CreateRoleStatement) {
+  async runCreateRoleStatement(seq: number, stmt: model.CreateRoleStatement, ref: Array<VUser>) {
+    const newRoles = new Array<string>()
   }
 
-  async runCreateUserStatement(seq: number, stmt: model.CreateUserStatement) {
+  async runCreateUserStatement(seq: number, stmt: model.CreateUserStatement, ref: Array<VUser>) {
+    const newUsers = new Array<string>()
+    for (const [i, user] of stmt.users.entries()) {
+      let userName = user.name.toString()
+      if (user.host) {
+        userName += "@" + user.host
+      }
+
+      let oldStmt
+      let rows
+      if ((rows = await this.con.query(`SHOW CREATE USER ${userName}`) as any[]).length) {
+        const column = (rows as any).meta[0].name()
+        if (rows[0][column]) oldStmt = new MysqlParser(rows[0][column]).root()[0]
+        if (!(oldStmt instanceof model.CreateUserStatement)) {
+          throw new Error(`Failed to get metadata: ${userName}`)
+        }
+
+        const oldUser = oldStmt.users[0]
+        let opts = ""
+
+        const uopts = []
+        if (user.randowmPassword || user.password) {
+          let auth = "IDENTIFIED"
+          if (user.authPlugin) {
+            auth += ` WITH ${bquote(user.authPlugin)}`
+          }
+          if (user.randowmPassword) {
+            auth += " BY RANDOM PASSWORD"
+          } else if (user.asPassword) {
+            auth += ` AS ${user.password}`
+          } else {
+            auth += ` BY ${user.password}`
+          }
+          uopts.push(auth)
+        } else if (oldUser.randowmPassword || oldUser.password) {
+          uopts.push("DISCARD OLD PASSWORD")
+        }
+        if (uopts.length) {
+          opts += " " + uopts.join(" ")
+        }
+
+        if (
+          (oldStmt.tlsOptions?.ssl || false) !== (stmt.tlsOptions?.ssl || false) ||
+          (oldStmt.tlsOptions?.x509 || false) !== (stmt.tlsOptions?.x509 || false) ||
+          !ematches(oldStmt.tlsOptions?.issuer, stmt.tlsOptions?.issuer) ||
+          !ematches(oldStmt.tlsOptions?.subject, stmt.tlsOptions?.subject) ||
+          !ematches(oldStmt.tlsOptions?.cipher, stmt.tlsOptions?.cipher)
+        ) {
+          if (stmt.tlsOptions) {
+            const topts = []
+            if (stmt.tlsOptions?.ssl) topts.push("SSL")
+            if (stmt.tlsOptions?.x509) topts.push("X509")
+            if (stmt.tlsOptions?.issuer) topts.push(`ISSUER ${stmt.tlsOptions?.issuer}`)
+            if (stmt.tlsOptions?.subject) topts.push(`SUBJECT ${stmt.tlsOptions?.subject}`)
+            if (stmt.tlsOptions?.cipher) topts.push(`CIPHER ${stmt.tlsOptions?.cipher}`)
+            opts += ` REQUIRE ${topts.join(" ")}`
+          } else {
+            opts += " REQUIRE NONE"
+          }
+        }
+
+        if (
+          !ematches(oldStmt.resourceOptions.maxQueriesPerHour, stmt.resourceOptions.maxQueriesPerHour) ||
+          !ematches(oldStmt.resourceOptions.maxUpdatesPerHour, stmt.resourceOptions.maxUpdatesPerHour) ||
+          !ematches(oldStmt.resourceOptions.maxConnectionsPerHour, stmt.resourceOptions.maxConnectionsPerHour) ||
+          !ematches(oldStmt.resourceOptions.maxUserConnections, stmt.resourceOptions.maxUserConnections)
+        ) {
+          const ropts = []
+          ropts.push(`MAX_QUERIES_PER_HOUR ${stmt.resourceOptions?.maxQueriesPerHour || 0}`)
+          ropts.push(`MAX_UPDATES_PER_HOUR ${stmt.resourceOptions?.maxUpdatesPerHour || 0}`)
+          ropts.push(`MAX_CONNECTIONS_PER_HOUR ${stmt.resourceOptions?.maxConnectionsPerHour || 0}`)
+          ropts.push(`MAX_USER_CONNECTIONS ${stmt.resourceOptions?.maxUserConnections || 0}`)
+          opts += ` WITH ${ropts.join(" ")}`
+        }
+
+        if (!ematches(oldStmt.passwordExpire, stmt.passwordExpire)) {
+          if (stmt.passwordExpire === true) {
+            opts += ` PASSWORD EXPIRE`
+          } else {
+            opts += ` PASSWORD EXPIRE ${stmt.passwordExpire}`
+          }
+        }
+        if (!ematches(oldStmt.passwordHistory, stmt.passwordHistory)) {
+          opts += ` PASSWORD EXPIRE ${stmt.passwordHistory}`
+        }
+        if (!ematches(oldStmt.failedLoginAttempts, stmt.failedLoginAttempts)) {
+          opts += ` FAILED_LOGIN_ATTEMPTS ${stmt.failedLoginAttempts}`
+        }
+        if (!ematches(oldStmt.passwordLockTime, stmt.passwordLockTime)) {
+          opts += ` PASSWORD_LOCK_TIME ${stmt.passwordLockTime}`
+        }
+        if (oldStmt.accountLock !== stmt.accountLock) {
+          opts += ` ACCOUNT ${stmt.accountLock ? "LOCK" : "UNLOCK"}`
+        }
+
+        if (
+          !ematches(oldStmt.comment, stmt.comment) ||
+          !ematches(oldStmt.attribute, stmt.attribute)
+        ) {
+          if (stmt.comment) {
+            opts += ` COMMENT ${stmt.comment}`
+          } else if (stmt.attribute) {
+            opts += ` ATTRIBUTE ${stmt.attribute}`
+          } else {
+            opts += " ATTRIBUTE ''"
+          }
+        }
+
+        if (opts.length > 0) {
+          await this.runScript(`ALTER USER ${userName}${opts}`)
+        }
+
+        if (!eqSet(
+          oldStmt.defaultRoles.map(role => role.host ? `${role.name}@${role.host}` : `${role.name}`),
+          stmt.defaultRoles.map(role => role.host ? `${role.name}@${role.host}` : `${role.name}`),
+        )) {
+          if (!stmt.defaultRoles) {
+            await this.runScript(`ALTER USER ${userName} NONE`)
+          } else {
+            await this.runScript(`ALTER USER ${userName} DEFAULT ROLE ${stmt.defaultRoles
+              .map(role => role.host ? `${role.name}@${role.host}` : `${role.name}`)
+              .join(",")
+            }`)
+          }
+        }
+      } else {
+        const userStart = stmt.markers.get(`userStart.${i}`)
+        const userEnd = stmt.markers.get(`userEnd.${i}`)
+        if (userStart != null && userEnd != null) {
+          let text = "CREATE USER " + Token.concat(stmt.tokens.slice(userStart, userEnd))
+          const optionsStart = stmt.markers.get("optionsStart")
+          const optionsEnd = stmt.markers.get("optionsEnd")
+          if (optionsStart != null && optionsEnd != null) {
+            text += " " + Token.concat(stmt.tokens.slice(optionsStart, optionsEnd))
+          }
+          newUsers.push(text)
+        } else {
+          throw new Error(`Failed to get user marker: ${user.name}`)
+        }
+        return
+      }
+    }
+
+    if (newUsers.length === 0) {
+      if (ref.length > 1) {
+        console.log(`-- skip: users are unchangeed`)
+      } else {
+        console.log(`-- skip: user ${ref[0].name.replace("\0", "@")} is unchangeed`)
+      }
+    } else if (newUsers.length === ref.length) {
+      await this.runScript(Token.concat(stmt.tokens))
+    } else {
+      for (const newUser of newUsers) {
+        await this.runScript(newUser)
+      }
+    }
   }
 
   async runCreateTablespaceStatement(seq: number, stmt: model.CreateTablespaceStatement) {
@@ -211,7 +381,7 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     ) as any[]).length) {
       oldStmt.autoextendSize = rows[0].AUTOEXTEND_SIZE
       oldStmt.fileBlockSize = rows[0].FILE_BLOCK_SIZE //TODO
-      oldStmt.encryption = rows[0].ENCRYPTION && model.Expression.string(rows[0].ENCRYPTION)
+      oldStmt.encryption = rows[0].ENCRYPTION && new model.Text(rows[0].ENCRYPTION, false)
       oldStmt.useLogfileGroup = rows[0].LOGFILE_GROUP_NAME
       oldStmt.extentSize = rows[0].EXTENT_SIZE
       oldStmt.initialSize = rows[0].INITIAL_SIZE //TODO
@@ -220,20 +390,20 @@ export default class MysqlProcessor extends DdlSyncProcessor {
       oldStmt.wait = false
       oldStmt.comment = rows[0].TABLESPACE_COMMENT
       oldStmt.engine = rows[0].ENGINE
-      oldStmt.engineAttribute = rows[0].ENGINE_ATTRIBUTE && model.Expression.string(rows[0].ENGINE_ATTRIBUTE) //TODO
+      oldStmt.engineAttribute = rows[0].ENGINE_ATTRIBUTE && new model.Text(rows[0].ENGINE_ATTRIBUTE, false) //TODO
 
       if ((rows = await this.con.query(
         `SELECT * FROM information_schema.FILES WHERE TABLESPACE_NAME = ${bquote(stmt.name)}`
       ) as any[]).length) {
         oldStmt.undo = /UNDO LOG/.test(rows[0].FILE_TYPE)
-        oldStmt.addDataFile = model.Expression.string(rows[0].FILE_NAME)
+        oldStmt.addDataFile = new model.Text(rows[0].FILE_NAME, true)
       }
     } else {
       await this.runScript(Token.concat(stmt.tokens))
       return
     }
 
-    if (oldStmt.undo !== stmt.undo || !model.Expression.eq(oldStmt.addDataFile, stmt.addDataFile)) {
+    if (oldStmt.undo !== stmt.undo || !ematches(oldStmt.addDataFile, stmt.addDataFile)) {
       const backupTableName = `~${this.timestamp(seq)} ${stmt.name}`
       await this.runScript(`ALTER TABLESPACE ${bquote(stmt.name)}` +
         ` RENAME TO ${bquote(backupTableName)}`)
@@ -258,14 +428,14 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     if ((rows = await this.con.query(
       `SELECT * FROM mysql.servers WHERE Server_name = ${bquote(stmt.name)}`
     ) as any[]).length) {
-      oldStmt.wrapper = rows[0].Wrapper
-      oldStmt.host = rows[0].Host && model.Expression.string(rows[0].Host)
-      oldStmt.database = rows[0].Db && model.Expression.string(rows[0].Db)
-      oldStmt.user = rows[0].Username && model.Expression.string(rows[0].Username)
-      oldStmt.password = rows[0].Password && model.Expression.string(rows[0].Password)
-      oldStmt.port = rows[0].Port && model.Expression.string(rows[0].Port)
-      oldStmt.socket = rows[0].Socket && model.Expression.string(rows[0].Socket)
-      oldStmt.owner = rows[0].Owner && model.Expression.string(rows[0].Owner)
+      if (rows[0].Wrapper != null) oldStmt.wrapper = rows[0].Wrapper
+      if (rows[0].Host != null) oldStmt.host = new model.Text(rows[0].Host, true)
+      if (rows[0].Db != null) oldStmt.database = new model.Text(rows[0].Db, true)
+      if (rows[0].Username != null) oldStmt.user = new model.Text(rows[0].Username, true)
+      if (rows[0].Password != null) oldStmt.password = new model.Text(rows[0].Password, true)
+      if (rows[0].Port != null) oldStmt.port = new model.Numeric(rows[0].Port)
+      if (rows[0].Socket != null) oldStmt.socket = new model.Text(rows[0].Socket, true)
+      if (rows[0].Owner != null) oldStmt.owner = new model.Text(rows[0].Owner, true)
     } else {
       await this.runScript(Token.concat(stmt.tokens))
       return
@@ -278,19 +448,19 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     }
 
     const sopts = []
-    if (!model.Expression.eq(oldStmt.host, stmt.host)) {
+    if (!ematches(oldStmt.host, stmt.host)) {
       sopts.push(`HOST ${stmt.host || "''"}`)
-    } else if (!model.Expression.eq(oldStmt.database, stmt.database)) {
+    } else if (!ematches(oldStmt.database, stmt.database)) {
       sopts.push(`DATABASE ${stmt.database || "''"}`)
-    } else if (!model.Expression.eq(oldStmt.user, stmt.user)) {
+    } else if (!ematches(oldStmt.user, stmt.user)) {
       sopts.push(`USER ${stmt.user || "''"}`)
-    } else if (!model.Expression.eq(oldStmt.password, stmt.password)) {
+    } else if (!ematches(oldStmt.password, stmt.password)) {
       sopts.push(`PASSWORD ${stmt.password || "''"}`)
-    } else if (!model.Expression.eq(oldStmt.port, stmt.port)) {
+    } else if (!ematches(oldStmt.port, stmt.port)) {
       sopts.push(`PORT ${stmt.port || "''"}`)
-    } else if (!model.Expression.eq(oldStmt.socket, stmt.socket)) {
+    } else if (!ematches(oldStmt.socket, stmt.socket)) {
       sopts.push(`SOCKET ${stmt.socket || "''"}`)
-    } else if (!model.Expression.eq(oldStmt.owner, stmt.owner)) {
+    } else if (!ematches(oldStmt.owner, stmt.owner)) {
       sopts.push(`OWNER ${stmt.owner || "''"}`)
     } else {
       console.log(`-- skip: schema ${stmt.name} is unchangeed`)
@@ -306,10 +476,10 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     if ((rows = await this.con.query(
       `SELECT * FROM information_schema.RESOURCE_GROUPS WHERE RESOURCE_GROUP_NAME = ${bquote(stmt.name)}`
     ) as any[]).length) {
-      oldStmt.type = rows[0].RESOURCE_GROUP_TYPE
-      oldStmt.disable = rows[0].RESOURCE_GROUP_ENABLED !== 1
-      oldStmt.vcpu = model.Expression.fromTokens(new MysqlLexer().lex(rows[0].VCPU))
-      oldStmt.threadPriority = model.Expression.numeric(rows[0].THREAD_PRIORITY)
+      if (rows[0].RESOURCE_GROUP_TYPE != null) oldStmt.type = rows[0].RESOURCE_GROUP_TYPE
+      if (rows[0].RESOURCE_GROUP_ENABLED != null) oldStmt.disable = rows[0].RESOURCE_GROUP_ENABLED !== 1
+      if (rows[0].VCPU != null) oldStmt.vcpu = toExpression(new MysqlLexer().lex(rows[0].VCPU))
+      if (rows[0].THREAD_PRIORITY != null) oldStmt.threadPriority = new model.Numeric(rows[0].THREAD_PRIORITY)
     } else {
       await this.runScript(Token.concat(stmt.tokens))
       return
@@ -320,9 +490,9 @@ export default class MysqlProcessor extends DdlSyncProcessor {
       sopts.push(`TYPE = ${stmt.type}`)
     } else if (oldStmt.disable !== stmt.disable) {
       sopts.push(stmt.disable ? "DISABLED" : "ENABLED")
-    } else if (!model.Expression.eq(oldStmt.vcpu, stmt.vcpu)) {
+    } else if (!ematches(oldStmt.vcpu, stmt.vcpu)) {
       sopts.push(`VCPU = ${stmt.vcpu}`)
-    } else if (!model.Expression.eq(oldStmt.threadPriority, stmt.threadPriority)) {
+    } else if (!ematches(oldStmt.threadPriority, stmt.threadPriority)) {
       sopts.push(`THREAD_PRIORITY = ${stmt.threadPriority}`)
     } else {
       console.log(`-- skip: resource group ${stmt.name} is unchangeed`)
@@ -380,4 +550,44 @@ enum ResultType {
   NONE,
   COUNT,
   ROWS,
+}
+
+export function ematches(
+  val1?: model.Expression | model.IValue | string | boolean,
+  val2?: model.Expression | model.IValue | string | boolean,
+) {
+  const v1 = !(val1 instanceof model.Expression) ? val1 : val1.length > 1 ? val1[0] : val1
+  const v2 = !(val2 instanceof model.Expression) ? val2 : val2.length > 1 ? val2[0] : val1
+
+  if (!v1) {
+    return !v2
+  } else if (!v2) {
+    return false
+  } else if (v1.constructor !== v2.constructor) {
+    return false
+  }
+
+  if (v1 instanceof model.Expression && v2 instanceof model.Expression) {
+    if (v1.length !== v2.length) {
+      return false
+    }
+    for (let i = 0; i < v1.length; i++) {
+      if (v1[i].constructor !== v2[i].constructor || v1[i].value !== v2[i].value) {
+        return false
+      }
+    }
+  } else if (
+    (typeof v1 === "string" && typeof v2 === "string") ||
+    (typeof v1 === "boolean" && typeof v2 === "boolean")
+  ) {
+    if (v1 !== v2) {
+      return false
+    }
+  } else {
+    if ((v1 as model.IValue).value !== (v2 as model.IValue).value) {
+      return false
+    }
+  }
+
+  return true
 }

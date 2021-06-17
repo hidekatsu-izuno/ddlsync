@@ -32,7 +32,7 @@ export class TokenType implements ITokenType {
   static String = new TokenType("String")
   static BindVariable = new TokenType("BindVariable")
   static SessionVariable = new TokenType("SessionVariable")
-  static UserDefinedVariable = new TokenType("UserVariable")
+  static UserVariable = new TokenType("UserVariable")
   static QuotedValue = new TokenType("QuotedValue")
   static QuotedIdentifier = new TokenType("QuotedIdentifier")
   static Identifier = new TokenType("Identifier")
@@ -55,6 +55,7 @@ export class Keyword implements ITokenType {
   static ACTION = new Keyword("ACTION")
   static ACTIVE = new Keyword("ACTIVE")
   static ADD = new Keyword("ADD", { reserved: true })
+  static ADMIN = new Keyword("ADMIN")
   static AFTER = new Keyword("AFTER")
   static AGGREGATE = new Keyword("AGGREGATE")
   static ALGORITHM = new Keyword("ALGORITHM")
@@ -666,7 +667,7 @@ export class MysqlLexer extends Lexer {
       { type: TokenType.QuotedIdentifier, re: /`([^`]|``)*`/y },
       { type: TokenType.BindVariable, re: /\?/y },
       { type: TokenType.SessionVariable, re: /@@[a-zA-Z0-9._$\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*|`([^`]|``)*`|'([^']|'')*'|"([^"]|"")*"/y },
-      { type: TokenType.UserDefinedVariable, re: /@[a-zA-Z0-9._$\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*|`([^`]|``)*`|'([^']|'')*'|"([^"]|"")*"/y },
+      { type: TokenType.UserVariable, re: /@[a-zA-Z0-9._$\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*|`([^`]|``)*`|'([^']|'')*'|"([^"]|"")*"/y },
       { type: TokenType.Identifier, re: /[a-zA-Z_$\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF][a-zA-Z0-9_$#\u8000-\uFFEE\uFFF0-\uFFFD\uFFFF]*/y },
       { type: TokenType.Operator, re: /\|\|&&|<=>|<<|>>|<>|->>?|[=<>!:]=?|[~&|^*/%+-]/y },
       { type: TokenType.Error, re: /./y },
@@ -993,6 +994,11 @@ export class MysqlParser extends Parser {
         if (this.consumeIf(Keyword.DEFINER)) {
           this.consume(Keyword.OPE_EQ)
           stmt.definer = this.userRole()
+          if (this.consumeIf(TokenType.UserVariable)) {
+            stmt.definer.host = new model.UserVariable(this.token(-1).text)
+          } else {
+            stmt.definer.host = new model.UserVariable("%", true)
+          }
         }
         if (this.peekIf(Keyword.SQL)) {
           stmt.sqlSecurity = this.sqlSecurity()
@@ -1002,6 +1008,11 @@ export class MysqlParser extends Parser {
       } else if (this.peekIf(Keyword.DEFINER)) {
         this.consume(Keyword.OPE_EQ)
         const definer = this.userRole()
+        if (this.consumeIf(TokenType.UserVariable)) {
+          definer.host = new model.UserVariable(this.token(-1).text)
+        } else {
+          definer.host = new model.UserVariable("%", true)
+        }
         if (this.peekIf(Keyword.SQL)) {
           const sqlSecurity = this.sqlSecurity()
           this.consume(Keyword.VIEW)
@@ -1139,6 +1150,11 @@ export class MysqlParser extends Parser {
         if (this.consumeIf(Keyword.DEFINER)) {
           this.consume(Keyword.OPE_EQ)
           stmt.definer = this.userRole()
+          if (this.consumeIf(TokenType.UserVariable)) {
+            stmt.definer.host = new model.UserVariable(this.token(-1).text)
+          } else {
+            stmt.definer.host = new model.UserVariable("%", true)
+          }
         }
         if (this.peekIf(Keyword.SQL)) {
           stmt.sqlSecurity = this.sqlSecurity()
@@ -1148,6 +1164,11 @@ export class MysqlParser extends Parser {
       } else if (this.peekIf(Keyword.DEFINER)) {
         this.consume(Keyword.OPE_EQ)
         const definer = this.userRole()
+        if (this.consumeIf(TokenType.UserVariable)) {
+          definer.host = new model.UserVariable(this.token(-1).text)
+        } else {
+          definer.host = new model.UserVariable("%", true)
+        }
         if (this.peekIf(Keyword.SQL)) {
           const sqlSecurity = this.sqlSecurity()
           if (this.consumeIf(Keyword.VIEW)) {
@@ -1634,14 +1655,11 @@ export class MysqlParser extends Parser {
           Keyword.DISABLE,
         ])
       }
-      stmt.vcpu = model.Expression.fromTokens(this.tokens, start, this.pos)
+      stmt.vcpu = toExpression(this.tokens, start, this.pos)
     }
     if (this.consumeIf(Keyword.THREAD_PRIORITY)) {
       this.consumeIf(Keyword.OPE_EQ)
-      stmt.threadPriority = this.expression([
-        Keyword.ENABLE,
-        Keyword.DISABLE,
-      ])
+      stmt.threadPriority = this.numericValue()
     }
     if (this.consumeIf(Keyword.ENABLE)) {
       stmt.disable = false
@@ -1741,8 +1759,43 @@ export class MysqlParser extends Parser {
       this.consume(Keyword.NOT, Keyword.EXISTS)
       stmt.ifNotExists = true
     }
-    for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+    if (this.options.variant === "mariadb") {
+      stmt.markers.set(`roleStart.0`, this.pos - this.stmtStart)
       stmt.roles.push(this.userRole())
+      stmt.markers.set(`roleEnd.0`, this.pos - this.stmtStart)
+      if (this.peekIf(Keyword.WITH)) {
+        stmt.markers.set("optionsStart", this.pos - this.stmtStart)
+        this.consume(Keyword.WITH, Keyword.ADMIN)
+        if (this.consumeIf(Keyword.CURRENT_USER)) {
+          const admin = new model.UserRole()
+          admin.name = model.CURRENT_USER
+          stmt.admin = admin
+        } else if (this.consumeIf(Keyword.CURRENT_ROLE)) {
+          const admin = new model.UserRole()
+          admin.name = model.CURRENT_ROLE
+          stmt.admin = admin
+        } else {
+          stmt.admin = this.userRole()
+          if (this.consumeIf(TokenType.UserVariable)) {
+            stmt.admin.host = new model.UserVariable(this.token(-1).text)
+          } else {
+            stmt.admin.host = new model.UserVariable("%", true)
+          }
+        }
+        stmt.markers.set("optionsEnd", this.pos - this.stmtStart)
+      }
+    } else {
+      for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+        stmt.markers.set(`roleStart.${i}`, this.pos - this.stmtStart)
+        const role = this.userRole()
+        if (this.consumeIf(TokenType.UserVariable)) {
+          role.host = new model.UserVariable(this.token(-1).text)
+        } else {
+          role.host = new model.UserVariable("%", true)
+        }
+        stmt.roles.push(role)
+        stmt.markers.set(`roleEnd.${i}`, this.pos - this.stmtStart)
+      }
     }
   }
 
@@ -1752,7 +1805,13 @@ export class MysqlParser extends Parser {
       stmt.ifNotExists = true
     }
     for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
+      stmt.markers.set(`userStart.${i}`, this.pos - this.stmtStart)
       const user = this.userRole()
+      if (this.consumeIf(TokenType.UserVariable)) {
+        user.host = new model.UserVariable(this.token(-1).text)
+      } else {
+        user.host = new model.UserVariable("%", true)
+      }
       if (this.consumeIf(Keyword.IDENTIFIED)) {
         if (this.consumeIf(Keyword.BY)) {
           if (this.consumeIf(Keyword.RANDOM)) {
@@ -1777,11 +1836,19 @@ export class MysqlParser extends Parser {
         }
       }
       stmt.users.push(user)
+      stmt.markers.set(`userEnd.${i}`, this.pos - this.stmtStart)
     }
+    stmt.markers.set("optionsStart", this.pos - this.stmtStart)
     if (this.consumeIf(Keyword.DEFAULT)) {
       this.consume(Keyword.ROLE)
       for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-        stmt.defaultRoles.push(this.userRole())
+        const role = this.userRole()
+        if (this.consumeIf(TokenType.UserVariable)) {
+          role.host = new model.UserVariable(this.token(-1).text)
+        } else {
+          role.host = new model.UserVariable("%", true)
+        }
+        stmt.defaultRoles.push(role)
       }
     }
     if (this.consumeIf(Keyword.REQUIRE)) {
@@ -1806,7 +1873,7 @@ export class MysqlParser extends Parser {
             const start = this.pos
             if (this.consumeIf(TokenType.Number)) {
               this.consume(Keyword.DAY)
-              stmt.passwordExpire = model.Expression.fromTokens(this.tokens, start, this.pos)
+              stmt.passwordExpire = toExpression(this.tokens, start, this.pos)
             } else {
               throw this.createParseError()
             }
@@ -1817,7 +1884,7 @@ export class MysqlParser extends Parser {
           if (this.consumeIf(Keyword.DEFAULT)) {
             stmt.passwordHistory = model.DEFAULT
           } else if (this.consumeIf(TokenType.Number)) {
-            stmt.passwordHistory = model.Expression.numeric(this.token(-1).text)
+            stmt.passwordHistory = new model.Numeric(this.token(-1).text)
           } else {
             throw this.createParseError()
           }
@@ -1826,7 +1893,7 @@ export class MysqlParser extends Parser {
           if (this.consumeIf(Keyword.DEFAULT)) {
             stmt.passwordReuseInterval = model.DEFAULT
           } else if (this.consumeIf(TokenType.Number)) {
-            stmt.passwordReuseInterval = model.Expression.numeric(this.token(-1).text)
+            stmt.passwordReuseInterval = new model.Numeric(this.token(-1).text)
           } else {
             throw this.createParseError()
           }
@@ -1844,7 +1911,7 @@ export class MysqlParser extends Parser {
         }
       } else if (this.consumeIf(Keyword.FAILED_LOGIN_ATTEMPTS)) {
         if (this.consumeIf(TokenType.Number)) {
-          stmt.failedLoginAttempts = model.Expression.numeric(this.token(-1).text)
+          stmt.failedLoginAttempts = new model.Numeric(this.token(-1).text)
         } else {
           throw this.createParseError()
         }
@@ -1852,7 +1919,7 @@ export class MysqlParser extends Parser {
         if (this.consumeIf(Keyword.UNBOUNDED)) {
           stmt.passwordLockTime = model.UNBOUNDED
         } else if (this.consumeIf(TokenType.Number)) {
-          stmt.passwordLockTime = model.Expression.numeric(this.token(-1).text)
+          stmt.passwordLockTime = new model.Numeric(this.token(-1).text)
         } else {
           throw this.createParseError()
         }
@@ -1873,11 +1940,12 @@ export class MysqlParser extends Parser {
     } else if (this.consumeIf(Keyword.ATTRIBUTE)) {
       stmt.attribute = this.stringValue()
     }
+    stmt.markers.set("optionsEnd", this.pos - this.stmtStart)
   }
 
   private parseCreateSpatialReferenceSystemStatement(stmt: model.CreateSpatialReferenceSystemStatement) {
     if (this.consumeIf(TokenType.Number)) {
-      stmt.srid = model.Expression.numeric(this.token(-1).text)
+      stmt.srid = new model.Numeric(this.token(-1).text)
     }
   }
 
@@ -2330,7 +2398,7 @@ export class MysqlParser extends Parser {
       const expr = this.expression([Keyword.ASC, Keyword.DESC])
       if (expr.length === 1) {
         this.pos = start
-        column.name = this.identifier()
+        column.expr = this.identifier()
       } else {
         column.expr = expr
       }
@@ -2726,18 +2794,34 @@ export class MysqlParser extends Parser {
       this.consume(Keyword.EXISTS)
       stmt.ifExists = true
     }
-    if (this.consumeIf(Keyword.CURRENT_USER)) {
-      if (this.consumeIf(TokenType.LeftParen)) {
-        this.consumeIf(TokenType.RightParen)
-      }
+    if (this.consumeIf(Keyword.USER)) {
+      this.consume(TokenType.LeftParen)
+      this.consume(TokenType.RightParen)
+      const user = new model.UserRole()
+      user.name = model.USER
+      stmt.users = [user]
     } else {
       stmt.users = []
       for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-        const user = this.userRole()
+        if (this.consumeIf(Keyword.CURRENT_USER)) {
+          if (this.consumeIf(TokenType.LeftParen)) {
+            this.consumeIf(TokenType.RightParen)
+          }
+          const user = new model.UserRole()
+          user.name = model.CURRENT_USER
+          stmt.users.push(user)
+        } else {
+          const user = this.userRole()
+          if (this.consumeIf(TokenType.UserVariable)) {
+            user.host = new model.UserVariable(this.token(-1).text)
+          } else {
+            user.host = new model.UserVariable("%", true)
+          }
+          stmt.users.push(user)
+        }
         while (this.token() && !this.peekIf(TokenType.Delimiter) && !this.peekIf(TokenType.Comma)) {
           this.consume()
         }
-        stmt.users.push(user)
       }
     }
     while (this.token() && !this.peekIf(TokenType.Delimiter)) {
@@ -2812,8 +2896,18 @@ export class MysqlParser extends Parser {
     for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
       const pair = new model.RenameUserPair()
       pair.user = this.userRole()
+      if (this.consumeIf(TokenType.UserVariable)) {
+        pair.user.host = new model.UserVariable(this.token(-1).text)
+      } else {
+        pair.user.host = new model.UserVariable("%", true)
+      }
       this.consumeIf(Keyword.TO)
       pair.newUser = this.userRole()
+      if (this.consumeIf(TokenType.UserVariable)) {
+        pair.newUser.host = new model.UserVariable(this.token(-1).text)
+      } else {
+        pair.newUser.host = new model.UserVariable("%", true)
+      }
       stmt.pairs.push(pair)
     }
   }
@@ -2869,7 +2963,17 @@ export class MysqlParser extends Parser {
       stmt.ifExists = true
     }
     for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-      stmt.roles.push(this.userRole())
+      if (this.options.variant === "mariadb") {
+        stmt.roles.push(this.userRole())
+      } else {
+        const user = this.userRole()
+        if (this.consumeIf(TokenType.UserVariable)) {
+          user.host = new model.UserVariable(this.token(-1).text)
+        } else {
+          user.host = new model.UserVariable("%", true)
+        }
+        stmt.roles.push(user)
+      }
     }
   }
 
@@ -2879,7 +2983,13 @@ export class MysqlParser extends Parser {
       stmt.ifExists = true
     }
     for (let i = 0; i === 0 || this.consumeIf(TokenType.Comma); i++) {
-      stmt.users.push(this.userRole())
+      const user = this.userRole()
+      if (this.consumeIf(TokenType.UserVariable)) {
+        user.host = new model.UserVariable(this.token(-1).text)
+      } else {
+        user.host = new model.UserVariable("%", true)
+      }
+      stmt.users.push(user)
     }
   }
 
@@ -3373,7 +3483,7 @@ export class MysqlParser extends Parser {
         const name = this.token(-1).text.substring(2)
         va.type = model.SESSION
         va.name = /^['"`]/.test(name) ? unbackslashed(dequote(name)) : lcase(name)
-      } else if (this.consumeIf(TokenType.UserDefinedVariable)) {
+      } else if (this.consumeIf(TokenType.UserVariable)) {
         const name = this.token(-1).text.substring(1)
         va.type = model.USER_DEFINED
         va.name = /^['"`]/.test(name) ? unbackslashed(dequote(name)) : lcase(name)
@@ -3387,9 +3497,9 @@ export class MysqlParser extends Parser {
       }
       stmt.variableAssignments.push(va)
 
-      if (va.type !== model.USER_DEFINED && va.name === "sql_mode") {
-        if (va.value.length === 1 && va.value[0].startsWith("'")) {
-          this.setSqlMode(unbackslashed(dequote(va.value[0])))
+      if (va.type !== model.USER_DEFINED && va.name === "sql_mode" && va.value) {
+        if (va.value.length === 1 && va.value instanceof model.Text) {
+          this.setSqlMode(va.value.value)
         }
       }
     }
@@ -3568,22 +3678,19 @@ export class MysqlParser extends Parser {
   private resourceOptions() {
     const options = new model.ResourceOptions()
 
-    const stopped = [
-      Keyword.MAX_QUERIES_PER_HOUR,
-      Keyword.MAX_UPDATES_PER_HOUR,
-      Keyword.MAX_CONNECTIONS_PER_HOUR,
-      Keyword.MAX_USER_CONNECTIONS,
-    ]
-
     while (true) {
       if (this.consumeIf(Keyword.MAX_QUERIES_PER_HOUR)) {
-        options.maxQueriesPerHour = this.expression(stopped)
-      } else if (this.consumeIf(Keyword.MAX_UPDATES_PER_HOUR)) {
-        options.maxUpdatesPerHour = this.expression(stopped)
+        this.consume(TokenType.Number)
+        options.maxQueriesPerHour = new model.Numeric(this.token(-1).text)
+    } else if (this.consumeIf(Keyword.MAX_UPDATES_PER_HOUR)) {
+      this.consume(TokenType.Number)
+      options.maxUpdatesPerHour = new model.Numeric(this.token(-1).text)
       } else if (this.consumeIf(Keyword.MAX_CONNECTIONS_PER_HOUR)) {
-        options.maxConnectionsPerHour = this.expression(stopped)
+        this.consume(TokenType.Number)
+        options.maxConnectionsPerHour = new model.Numeric(this.token(-1).text)
       } else if (this.consumeIf(Keyword.MAX_USER_CONNECTIONS)) {
-        options.maxUserConnections = this.expression(stopped)
+        this.consume(TokenType.Number)
+        options.maxUserConnections = new model.Numeric(this.token(-1).text)
       } else {
         break
       }
@@ -3932,21 +4039,18 @@ export class MysqlParser extends Parser {
     if (
       this.consumeIf(TokenType.QuotedIdentifier) ||
       this.consumeIf(TokenType.QuotedValue) ||
-      this.consumeIf(TokenType.String)
+      (this.sqlMode.has("ANSI_QUOTE") && this.consumeIf(TokenType.QuotedValue))
+    ) {
+      userRole.name = dequote(this.token(-1).text)
+    } else if (
+      this.consumeIf(TokenType.String) ||
+      (!this.sqlMode.has("ANSI_QUOTE") && this.consumeIf(TokenType.QuotedValue))
     ) {
       userRole.name = unbackslashed(dequote(this.token(-1).text))
     } else if (this.consumeIf(TokenType.Identifier)) {
       userRole.name = lcase(this.token(-1).text)
-    } else if (this.consumeIf(Keyword.CURRENT_USER)) {
-      userRole.alias = model.CURRENT_USER
-    } else if (this.consumeIf(Keyword.CURRENT_ROLE)) {
-      userRole.alias = model.CURRENT_ROLE
     } else {
       throw this.createParseError()
-    }
-
-    if (this.consumeIf(TokenType.UserDefinedVariable)) {
-      userRole.host = dequote(this.token(-1).text.substring(1))
     }
     return userRole
   }
@@ -4035,11 +4139,11 @@ export class MysqlParser extends Parser {
           column.defaultValue = this.expression()
           this.consume(TokenType.RightParen)
         } else if (
-          this.peekIf(Keyword.OPE_PLUS) ||
-          this.peekIf(Keyword.OPE_MINUS) ||
-          this.peekIf(TokenType.Number)
+          this.consumeIf(Keyword.OPE_PLUS) ||
+          this.consumeIf(Keyword.OPE_MINUS)
         ) {
-          column.defaultValue = this.numericValue()
+          this.consume(TokenType.Number)
+          column.defaultValue = toExpression(this.tokens, start, this.pos)
         } else if (
           this.consumeIf(Keyword.DATE) ||
           this.consumeIf(Keyword.TIME) ||
@@ -4049,7 +4153,7 @@ export class MysqlParser extends Parser {
             this.consumeIf(TokenType.String) ||
             (!this.sqlMode.has("ANSI_QUOTE") && this.consumeIf(TokenType.QuotedValue))
           ) {
-            column.defaultValue = model.Expression.fromTokens(this.tokens, start, this.pos)
+            column.defaultValue = toExpression(this.tokens, start, this.pos)
           } else {
             throw this.createParseError()
           }
@@ -4059,7 +4163,7 @@ export class MysqlParser extends Parser {
               this.consumeIf(TokenType.String) ||
               (!this.sqlMode.has("ANSI_QUOTE") && this.consumeIf(TokenType.QuotedValue))
             ) {
-              column.defaultValue = model.Expression.fromTokens(this.tokens, start, this.pos)
+              column.defaultValue = toExpression(this.tokens, start, this.pos)
             } else {
               throw this.createParseError()
             }
@@ -4070,12 +4174,13 @@ export class MysqlParser extends Parser {
         } else if (
           this.consumeIf(TokenType.String) ||
           (!this.sqlMode.has("ANSI_QUOTE") && this.consumeIf(TokenType.QuotedValue)) ||
+          this.consume(TokenType.Number) ||
           this.consumeIf(Keyword.CURRENT_TIMESTAMP) ||
           this.consumeIf(Keyword.TRUE) ||
           this.consumeIf(Keyword.FALSE) ||
           this.consumeIf(Keyword.NULL)
         ) {
-          column.defaultValue = model.Expression.fromTokens(this.tokens, start, this.pos)
+          column.defaultValue = toExpression(this.tokens, start, this.pos)
         } else {
           throw this.createParseError()
         }
@@ -4350,7 +4455,7 @@ export class MysqlParser extends Parser {
         this.consume()
       }
     }
-    return model.Expression.fromTokens(this.tokens, start, this.pos)
+    return toExpression(this.tokens, start, this.pos)
   }
 
   identifierOrStringValue() {
@@ -4370,10 +4475,11 @@ export class MysqlParser extends Parser {
   identifier() {
     if (this.consumeIf(TokenType.Identifier)) {
       return lcase(this.token(-1).text)
-    } else if (this.consumeIf(TokenType.QuotedIdentifier)) {
-      return unbackslashed(dequote(this.token(-1).text))
-    } else if (!this.sqlMode.has("ANSI_QUOTES") && this.consumeIf(TokenType.QuotedValue)) {
-      return unbackslashed(dequote(this.token(-1).text))
+    } else if (
+      this.consumeIf(TokenType.QuotedIdentifier) ||
+      (!this.sqlMode.has("ANSI_QUOTES") && this.consumeIf(TokenType.QuotedValue))
+    ) {
+      return dequote(this.token(-1).text)
     } else {
       throw this.createParseError()
     }
@@ -4384,7 +4490,7 @@ export class MysqlParser extends Parser {
       this.consumeIf(TokenType.String) ||
       (!this.sqlMode.has("ANSI_QUOTE") && this.consumeIf(TokenType.QuotedValue))
     ) {
-      return model.Expression.string(unbackslashed(dequote(this.token(-1).text)))
+      return new model.Text(this.token(-1).text)
     } else {
       throw this.createParseError()
     }
@@ -4392,7 +4498,7 @@ export class MysqlParser extends Parser {
 
   unsignedIntegerValue() {
     if (this.consumeIf(TokenType.Number)) {
-      return model.Expression.numeric(this.token(-1).text)
+      return new model.Numeric(this.token(-1).text)
     } else {
       throw this.createParseError()
     }
@@ -4402,12 +4508,12 @@ export class MysqlParser extends Parser {
     const start = this.pos
     if (this.consumeIf(Keyword.OPE_MINUS)) {
       this.consume(TokenType.Number)
-      return model.Expression.fromTokens(this.tokens, start, this.pos)
+      return new model.Numeric(`-${this.token(-1).text}`)
     } else if (this.consumeIf(Keyword.OPE_PLUS)) {
       this.consume(TokenType.Number)
-      return model.Expression.numeric(this.token(-1).text)
+      return new model.Numeric(this.token(-1).text)
     } else if (this.consumeIf(TokenType.Number)) {
-      return model.Expression.numeric(this.token(-1).text)
+      return new model.Numeric(this.token(-1).text)
     } else {
       throw this.createParseError()
     }
@@ -4415,29 +4521,57 @@ export class MysqlParser extends Parser {
 
   sizeValue() {
     if (this.consumeIf(TokenType.Number)) {
-      return model.Expression.numeric(this.token(-1).text)
-    } else if (this.peekIf(TokenType.Size)) {
-      const text = this.token(-1).text
-      let num = BigInt(text.substring(0, text.length - 1))
-      switch (ucase(text.charAt(text.length - 1))) {
-        case "K":
-          num = num * BigInt(1024)
-          break
-        case "M":
-          num = num * BigInt(1024 * 1024)
-          break
-        case "G":
-          num = num * BigInt(1024 * 1024 * 1024)
-          break
-        case "T":
-          num = num * BigInt(1024 * 1024 * 1024 * 1024)
-          break
-      }
-      return model.Expression.numeric(num.toString())
+      return new model.Numeric(this.token(-1).text)
+    } else if (this.consumeIf(TokenType.Size)) {
+      return new model.Numeric(sizeToNumber(this.token(-1).text))
     } else {
       throw this.createParseError()
     }
   }
+}
+
+export function toExpression(tokens: Array<Token>, start: number = 0, end: number = tokens.length) {
+  const expr = new model.Expression()
+  for (let i = start; i < end; i++) {
+    let text = tokens[i].text
+    if (tokens[i].type === TokenType.Identifier) {
+      expr.push(new model.Identity(text))
+    } else if (tokens[i].type === TokenType.String) {
+      expr.push(new model.Text(text))
+    } else if (tokens[i].type === TokenType.Number) {
+      expr.push(new model.Numeric(text))
+    } else if (tokens[i].type === TokenType.Size) {
+      expr.push(new model.Numeric(sizeToNumber(text)))
+    } else if (tokens[i].type === TokenType.SessionVariable) {
+      expr.push(new model.SessionVariable(text))
+    } else if (tokens[i].type === TokenType.UserVariable) {
+      expr.push(new model.UserVariable(text))
+    } else {
+      expr.push(new model.Identity(text))
+    }
+  }
+  return expr
+}
+
+function sizeToNumber(text: string) {
+  let num = BigInt(text.substring(0, text.length - 1))
+  switch (ucase(text.charAt(text.length - 1))) {
+    case "K":
+      num = num * BigInt(1024)
+      break
+    case "M":
+      num = num * BigInt(1024 * 1024)
+      break
+    case "G":
+      num = num * BigInt(1024 * 1024 * 1024)
+      break
+    case "T":
+      num = num * BigInt(1024 * 1024 * 1024 * 1024)
+      break
+    defualt:
+      throw new Error(`Illegal size: ${text}`)
+  }
+  return num.toString()
 }
 
 function toSemverString(version: string) {

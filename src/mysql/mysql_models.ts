@@ -1,8 +1,7 @@
 import Decimal from "decimal.js"
 import { Statement, VDatabase } from "../models"
-import { Token } from "../parser"
-import { TokenType } from "../sqlite3/sqlite3_parser"
-import { lcase } from "../util/functions"
+import { bquote, dequote, lcase, squote } from "../util/functions"
+import { backslashed, unbackslashed } from "./mysql_utils"
 
 // Common
 export const DEFAULT = "DEFAULT"
@@ -180,61 +179,139 @@ export const NOMINVALUE = "NOMINVALUE"
 export const NOMAXVALUE = "NOMAXVALUE"
 export const NOCACHE = "NOCACHE"
 
-export class Expression extends Array<string> {
-  static eq(val1?: Expression, val2?: Expression) {
-    if (val1 == null) {
-      return val2 == null || val2.length === 0
-    } else if (val2 == null) {
-      return val1.length === 0
-    } else if (val1.length !== val2.length) {
-      return false
+export interface IValue {
+  value: string
+}
+
+export class Text implements IValue {
+  text: string
+  value: string
+
+  constructor(text: string, isValue = false) {
+    if (isValue) {
+      this.value = text
+      this.text = squote(backslashed(text))
+    } else {
+      this.text = text
+      this.value = unbackslashed(dequote(text))
     }
-    for (let i = 0; i < val1.length; i++) {
-      if (val1[i] !== val2[i]) {
-        return false
+  }
+
+  toString() {
+    return squote(this.value)
+  }
+}
+
+export class Numeric implements IValue {
+  value: string
+  isInteger = false
+
+  constructor(public text: string) {
+    if (/^(0|[1-9][0-9]*)$/.test(text)) {
+      this.value = text
+      this.isInteger = true
+    } else {
+      this.value = new Decimal(text).toString()
+    }
+  }
+
+  toString() {
+    return this.value
+  }
+}
+
+export class SessionVariable implements IValue {
+  text: string
+  value: string
+
+  constructor(text: string, isValue = false) {
+    if (isValue) {
+      this.value = text
+    } else {
+      const m = /^@@(.+)$/.exec(text)
+      if (m) {
+        this.value = unbackslashed(dequote(m[1]))
+      } else {
+        throw new Error(`Failed to parse session variable: ${text}`)
       }
     }
-    return true
-  }
 
-  static numeric(value: string) {
-    return new Expression(new Decimal(value).toString())
-  }
-
-  static string(value: string) {
-    return new Expression("'" + value.replace(/'/g, "''") + "'")
-  }
-
-  static fromTokens(tokens: Array<Token>, start: number = 0, end: number = tokens.length) {
-    const expr = new Expression()
-    for (let i = start; i < end; i++) {
-      let text = tokens[i].text
-      if (tokens[i].type === TokenType.Identifier) {
-        text = lcase(text)
-      } else if (tokens[i].type === TokenType.String) {
-
-      }
-      expr.push(text)
+    if (/^[a-zA-Z0-9$_\u0080-\uFFFF]+$/.test(this.value)) {
+      this.text = `@@${this.value}`
+    } else {
+      this.text = `@@${bquote(this.value)}`
     }
-    return expr
   }
 
-  constructor(...elem: Array<string>) {
+  toString() {
+    return this.text
+  }
+}
+
+export class UserVariable implements IValue {
+  text: string
+  value: string
+
+  constructor(text: string, isValue = false) {
+    if (isValue) {
+      this.value = text
+    } else {
+      const m = /^@(.+)$/.exec(text)
+      if (m) {
+        this.value = unbackslashed(dequote(m[1]))
+      } else {
+        throw new Error(`Failed to parse session variable: ${text}`)
+      }
+    }
+
+    if (/^[a-zA-Z0-9$_\u0080-\uFFFF]+$/.test(this.value)) {
+      this.text = `@${this.value}`
+    } else {
+      this.text = `@${bquote(this.value)}`
+    }
+  }
+
+  toString() {
+    return this.text
+  }
+}
+
+export class Identity implements IValue {
+  text: string
+  value: string
+
+  constructor(text: string, isValue = false) {
+    if (isValue) {
+      this.value = text
+    } else if (/^[`"]/.test(text)) {
+      this.value = dequote(text)
+    } else {
+      this.value = lcase(text)
+    }
+    if (/^[a-zA-Z0-9$_\u0080-\uFFFF]+$/.test(this.value)) {
+      this.text = this.value
+    } else {
+      this.text = bquote(this.value)
+    }
+  }
+}
+
+export class Expression extends Array<IValue> {
+  constructor(...elem: Array<IValue>) {
     super(...elem)
   }
 
   toString() {
-    return this.join(" ")
+    return this.map(elem => elem.toString()).join(" ")
   }
 }
-
 
 export abstract class Constraint {
   name?: string
 }
 
 export abstract class Partition {
-  num?: Expression
+  num?: Numeric
   subpartition?: Partition
   defs = new Array<PartitionDef>()
 }
@@ -242,12 +319,12 @@ export abstract class Partition {
 export class PartitionDef {
   name = ""
   storageEngine?: string
-  comment?: Expression
-  dataDirectory?: Expression
-  indexDirectory?: Expression
-  maxRows?: Expression
-  minRows?: Expression
-  tablespace?: Expression
+  comment?: Text
+  dataDirectory?: Text
+  indexDirectory?: Text
+  maxRows?: Numeric
+  minRows?: Numeric
+  tablespace?: Text
   lessThanValues?: Array<Expression | "MAXVALUE">
   inValues?: Array<Expression>
   subdefs = new Array<PartitionDef>()
@@ -264,8 +341,8 @@ export class CreateDatabaseStatement extends Statement {
   ifNotExists = false
   characterSet?: string
   collate?: string
-  comment?: Expression
-  encryption?: Expression
+  comment?: Text
+  encryption?: Text
 
   process(vdb: VDatabase) {
     const schema = vdb.getSchema(this.name)
@@ -306,20 +383,35 @@ export class DropDatabaseStatement extends Statement {
 }
 
 export class UserRole {
-  name?: string
-  alias?: string
-  host?: string
+  name: string | Text = ""
+  host?: UserVariable
   authPlugin?: string
   randowmPassword = false
   asPassword = false
-  password?: Expression
+  password?: Text
   discardOldPassword = false
 }
 
 export class CreateRoleStatement extends Statement {
   roles = new Array<UserRole>()
+  admin?: UserRole
   orReplace = false
   ifNotExists = false
+
+  process(vdb: VDatabase) {
+    const roles = []
+    for (const role of this.roles) {
+      if (role.name instanceof Text) {
+        const key = role.host ? `${role.name.value}\0${role.host.value}` : role.name.value
+        const vrole = vdb.getUser(key)
+        if (vrole) {
+          throw new Error(`role ${key} is already in use`)
+        }
+        roles.push(vdb.addUser(key))
+      }
+    }
+    return roles
+  }
 }
 
 export class SetDefaultRoleStatement extends Statement {
@@ -342,10 +434,10 @@ export class TlsOptions {
 }
 
 export class ResourceOptions {
-  maxQueriesPerHour?: Expression
-  maxUpdatesPerHour?: Expression
-  maxConnectionsPerHour?: Expression
-  maxUserConnections?: Expression
+  maxQueriesPerHour = new Numeric("0")
+  maxUpdatesPerHour = new Numeric("0")
+  maxConnectionsPerHour = new Numeric("0")
+  maxUserConnections = new Numeric("0")
 }
 
 export class CreateUserStatement extends Statement {
@@ -354,16 +446,31 @@ export class CreateUserStatement extends Statement {
   ifNotExists = false
   defaultRoles = new Array<UserRole>()
   tlsOptions?: TlsOptions
-  resourceOptions?: ResourceOptions
+  resourceOptions = new ResourceOptions()
   passwordExpire: "DEFAULT" | "NEVER" | Expression | boolean = DEFAULT
-  passwordHistory: "DEFAULT" | Expression = DEFAULT
-  passwordReuseInterval: "DEFAULT" | Expression = DEFAULT
+  passwordHistory: "DEFAULT" | Numeric = DEFAULT
+  passwordReuseInterval: "DEFAULT" | Numeric = DEFAULT
   passwordRequireCurrent: "DEFAULT"  | "OPTIONAL" | boolean = DEFAULT
-  failedLoginAttempts?: Expression
-  passwordLockTime?: "UNBOUNDED" | Expression
+  failedLoginAttempts = new Numeric("0")
+  passwordLockTime: "UNBOUNDED" | Numeric = new Numeric("0")
   accountLock = false
-  comment?: Expression
-  attribute?: Expression
+  comment?: Text
+  attribute?: Text
+
+  process(vdb: VDatabase) {
+    const users = []
+    for (const user of this.users) {
+      if (user.name instanceof Text) {
+        const key = `${user.name.value}@${user.host?.value || "%"}`
+        const vrole = vdb.getRole(key)
+        if (vrole) {
+          throw new Error(`user ${key} is already in use`)
+        }
+        users.push(vdb.addRole(key))
+      }
+    }
+    return users
+  }
 }
 
 export class AlterUserStatement extends Statement {
@@ -391,19 +498,19 @@ export class DropUserStatement extends Statement {
 export class CreateTablespaceStatement extends Statement {
   name = ""
   undo = false
-  addDataFile?: Expression
-  autoextendSize = Expression.numeric("0")
-  fileBlockSize?: Expression
-  encryption?: Expression
+  addDataFile?: Text
+  autoextendSize = new Numeric("0")
+  fileBlockSize?: Numeric
+  encryption?: Text
   useLogfileGroup?: string
-  extentSize = Expression.numeric("1232896")
-  initialSize = Expression.numeric("134217728")
-  maxSize?: Expression
-  nodeGroup?: Expression
+  extentSize = new Numeric("1232896")
+  initialSize = new Numeric("134217728")
+  maxSize?: Numeric
+  nodeGroup?: Numeric
   wait = false
-  comment?: Expression
+  comment?: Text
   engine?: string
-  engineAttribute?: Expression
+  engineAttribute?: Text
 }
 
 export class AlterTablespaceStatement extends Statement {
@@ -420,13 +527,13 @@ export class CreateServerStatement extends Statement {
   name = ""
   orReplace = false
   wrapper = ""
-  host?: Expression
-  database?: Expression
-  user?: Expression
-  password?: Expression
-  socket?: Expression
-  owner?: Expression
-  port?: Expression
+  host?: Text
+  database?: Text
+  user?: Text
+  password?: Text
+  socket?: Text
+  owner?: Text
+  port?: Numeric
 
   validate() {
     if (this.wrapper === "mysql") {
@@ -434,11 +541,11 @@ export class CreateServerStatement extends Statement {
         throw new Error(`Can't create federated table. Foreign data src error: either HOST or SOCKET must be set`)
       }
       if (!this.port) {
-        this.port = Expression.numeric("3306")
+        this.port = new Numeric("3306")
       }
     } else {
       if (!this.port) {
-        this.port = Expression.numeric("0")
+        this.port = new Numeric("0")
       }
     }
   }
@@ -458,7 +565,7 @@ export class CreateResourceGroupStatement extends Statement {
   orReplace = false
   type: "SYSTEM" | "USER" = SYSTEM
   vcpu?: Expression
-  threadPriority = Expression.numeric("0")
+  threadPriority = new Numeric("0")
   disable = false
 }
 
@@ -477,13 +584,13 @@ export class DropResourceGroupStatement extends Statement {
 
 export class CreateLogfileGroupStatement extends Statement {
   name = ""
-  undofile = new Expression()
-  initialSize?: Expression
-  undoBufferSize?: Expression
-  redoBufferSize?: Expression
-  nodeGroup?: Expression
+  undofile = new Text("")
+  initialSize?: Numeric
+  undoBufferSize?: Numeric
+  redoBufferSize?: Numeric
+  nodeGroup?: Numeric
   wait = false
-  comment?: Expression
+  comment?: Text
   engine?: string
 }
 
@@ -497,19 +604,19 @@ export class DropLogfileGroupStatement extends Statement {
 }
 
 export class CreateSpatialReferenceSystemStatement extends Statement {
-  srid = new Expression()
+  srid = new Numeric("0")
   orReplace = false
   ifNotExists = false
 
   validate() {
-    if (this.srid.some(elem => elem.includes("."))) {
+    if (!this.srid.isInteger) {
       throw new Error(`Only integers allowed as number here near '${this.srid}'`)
     }
   }
 }
 
 export class DropSpatialReferenceSystemStatement extends Statement {
-  srid = new Expression()
+  srid = new Numeric("0")
   ifExists = false
 }
 
@@ -519,24 +626,24 @@ export class SchemaObject {
 }
 
 export class LinearHashPartition extends Partition {
-  num?: Expression
+  num?: Numeric
   expression = new Expression()
 }
 
 export class LinearKeyPartition extends Partition {
-  num?: Expression
-  algorithm?: Expression
+  num?: Numeric
+  algorithm?: Numeric
   columns = new Array<string>()
 }
 
 export class RangePartition extends Partition {
-  num?: Expression
+  num?: Numeric
   expression?: Expression
   columns?: Array<string>
 }
 
 export class ListPartition extends Partition {
-  num?: Expression
+  num?: Numeric
   expression?: Expression
   columns?: Array<string>
 }
@@ -569,10 +676,10 @@ export class TableColumn {
   collate?: string
   autoIncrement = false
   indexType?: "PRIMARY KEY" | "UNIQUE" | "FULLTEXT" | "SPATIAL"
-  comment?: Expression
+  comment?: Text
   columnFormat?: "FIXED" | "DYNAMIC" | "DEFAULT"
-  engineAttribute?: Expression
-  secondaryEngineAttribute?: Expression
+  engineAttribute?: Text
+  secondaryEngineAttribute?: Text
   storageType?: "DISK" | "MEMORY"
   generatedColumn?: GeneratedColumn
   references?: References
@@ -733,11 +840,11 @@ export class CreateSequenceStatement extends Statement {
   orReplace = false
   temporary = false
   ifNotExists = false
-  increment = Expression.numeric("1")
-  minvalue?: "NOMINVALUE" | Expression
-  maxvalue?: "NOMAXVALUE" | Expression
-  start?: Expression
-  cache: "NOCACHE" | Expression = NOCACHE
+  increment = new Numeric("1")
+  minvalue?: "NOMINVALUE" | Numeric
+  maxvalue?: "NOMAXVALUE" | Numeric
+  start?: Numeric
+  cache: "NOCACHE" | Numeric = NOCACHE
   noCycle = false
   tableOptions = new Array<{ key: string, value: any }>()
 
@@ -770,8 +877,7 @@ export class DropSequenceStatement extends Statement {
 }
 
 export class IndexColumn {
-  name?: string
-  expr?: Expression
+  expr?: string | Expression
   sortOrder: "ASC" | "DESC" = ASC
 }
 
@@ -902,7 +1008,7 @@ export class CreatePackageStatement extends Statement {
   orReplace = false
   ifNotExists = false
   definer?: UserRole
-  comment?: Expression
+  comment?: Text
   sqlSecurity: "DEFINER" | "INVOKER" = DEFINER
 
   process(vdb: VDatabase) {
@@ -935,7 +1041,7 @@ export class CreatePackageBodyStatement extends Statement {
   orReplace = false
   ifNotExists = false
   definer?: UserRole
-  comment?: Expression
+  comment?: Text
   sqlSecurity: "DEFINER" | "INVOKER" = DEFINER
 
   process(vdb: VDatabase) {
@@ -968,7 +1074,7 @@ export class CreateProcedureStatement extends Statement {
   orReplace = false
   definer?: UserRole
   params = new Array<ProcedureParam>()
-  comment?: Expression
+  comment?: Text
   language: "SQL" = "SQL"
   deterministic = false
   characteristic: "CONTAINS SQL" | "NO SQL" | "READS SQL DATA" | "MODIFIES SQL DATA" = CONTAINS_SQL
@@ -1025,7 +1131,7 @@ export class CreateFunctionStatement extends Statement {
   ifNotExists = false
   params = new Array<FunctionParam>()
   returnDataType = new DataType()
-  comment?: Expression
+  comment?: Text
   language: "SQL" = "SQL"
   deterministic = false
   characteristic: "CONTAINS SQL" | "NO SQL" | "READS SQL DATA" | "MODIFIES SQL DATA" = CONTAINS_SQL
@@ -1120,7 +1226,7 @@ export class CreateEventStatement extends Statement {
   ends?: Expression
   onCompletionPreserve = false
   disable: boolean | "ON SLAVE" = false
-  comment?: Expression
+  comment?: Text
 
   process(vdb: VDatabase) {
     return processCreateStatement(vdb, {

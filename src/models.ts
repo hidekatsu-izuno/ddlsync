@@ -32,6 +32,8 @@ export class VDatabase {
   defaultSchema?: string
   private schemas = new Map<string, VSchema>()
   private collations = new Map<string, VCollation>()
+  private roles = new Map<string, VRole>()
+  private users = new Map<string, VUser>()
 
   constructor(
     public comparator = ((key: string) => key)
@@ -56,6 +58,26 @@ export class VDatabase {
 
   getCollation(name: string) {
     return this.collations.get(this.comparator(name))
+  }
+
+  addRole(name: string, system = false) {
+    const role = new VRole(name)
+    this.roles.set(this.comparator(name), role)
+    return role
+  }
+
+  getRole(name: string) {
+    return this.roles.get(this.comparator(name))
+  }
+
+  addUser(name: string, system = false) {
+    const user = new VUser(name)
+    this.users.set(this.comparator(name), user)
+    return user
+  }
+
+  getUser(name: string) {
+    return this.users.get(this.comparator(name))
   }
 }
 
@@ -86,6 +108,20 @@ export class VSchema {
 }
 
 export class VCollation {
+  constructor(
+    public name: string,
+  ) {
+  }
+}
+
+export class VRole {
+  constructor(
+    public name: string,
+  ) {
+  }
+}
+
+export class VUser {
   constructor(
     public name: string,
   ) {

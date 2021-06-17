@@ -80,3 +80,24 @@ export function sortBy(a: Array<{ [key:string]:any }>, key: string) {
 export function formatDateTime(date: number | Date, pattern: string) {
   return format(date, pattern)
 }
+
+export function eqSet(c1?: Array<any> | Set<any>, c2?: Array<any> | Set<any>) {
+  const c1Len = c1 instanceof Set ? c1.size : c1 ? c1.length : 0
+  const c2Len = c2 instanceof Set ? c2.size : c2 ? c2.length : 0
+
+  if (!c1 || c1Len === 0) {
+    return c2Len === 0
+  } else if (!c2 || c2Len === 0) {
+    return false
+  } else if (c1Len !== c2Len) {
+    return false
+  }
+
+  const c2Set = c2 instanceof Set ? c2 : new Set(c2)
+  for (const c1Val of c1) {
+    if (!c2Set.has(c1Val)) {
+      return false
+    }
+  }
+  return true
+}

@@ -1,3 +1,5 @@
+import { Expression, IValue } from "./mysql_models"
+
 export function backslashed(text: string) {
   return text.replace(/\\./g, (m, g1) => {
     switch (m) {
