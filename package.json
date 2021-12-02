@@ -24,30 +24,29 @@
     "node": ">=8.0.0"
   },
   "dependencies": {
-    "colorette": "^1.2.1",
-    "commander": "^7.2.0",
-    "date-fns": "^2.21.3",
-    "decimal.js": "^10.2.1",
-    "fast-glob": "^3.2.5",
+    "colorette": "^2.0.16",
+    "commander": "^8.3.0",
+    "date-fns": "^2.27.0",
+    "decimal.js": "^10.3.1",
+    "fast-glob": "^3.2.7",
     "interpret": "^2.2.0",
     "rechoir": "^0.7.0",
     "semver": "^7.3.5",
-    "tslib": "^2.2.0"
+    "tslib": "^2.3.1"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^5.4.1",
-    "@types/interpret": "^1.1.1",
-    "@types/jest": "^26.0.23",
-    "@types/node": "^15.0.2",
-    "@types/semver": "^7.3.5",
-    "@types/sqlite3": "^3.1.7",
-    "@typescript-eslint/eslint-plugin": "^4.22.1",
-    "@typescript-eslint/parser": "^4.22.1",
-    "eslint": "^7.25.0",
-    "jest": "^26.5.0",
-    "ts-jest": "^26.5.6",
-    "ts-node": "^9.1.1",
-    "typescript": "^4.2.4"
+    "@types/semver": "^7.3.9",
+    "@typescript-eslint/eslint-plugin": "^5.5.0",
+    "@typescript-eslint/parser": "^5.5.0",
+    "eslint": "^8.3.0",
+    "jest": "^27.4.3",
+    "ts-jest": "^27.0.7",
+    "ts-node": "^10.4.0",
+    "typescript": "^4.5.2"
+  },
+  "optionalDependencies": {
+    "better-sqlite3": "^7.4.5",
+    "mariadb": "^2.5.5"
   },
   "files": [
     "/lib"
@@ -58,9 +57,5 @@
   "jest": {
     "preset": "ts-jest",
     "testEnvironment": "node"
-  },
-  "optionalDependencies": {
-    "better-sqlite3": "^7.4.0",
-    "mariadb": "^2.5.3"
   }
 }
