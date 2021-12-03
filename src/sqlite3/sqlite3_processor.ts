@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from "path"
 import sqlite3 from "better-sqlite3"
-import { Statement, VDatabase, VObject, VSchema } from "../models"
+import { Statement, VDatabase } from "../models"
 import { Token } from "../parser"
 import { DdlSyncProcessor } from "../processor"
 import * as model from "./sqlite3_models";
@@ -378,7 +378,7 @@ export default class Sqlite3Processor extends DdlSyncProcessor {
 
     const stmt = this.con.prepare(`SELECT * FROM ${bquote(schemaName)}.${bquote(name)}`)
     await writeGzippedCsv(backupFileName, (async function* () {
-      yield stmt.columns().map(column => column.name);
+      yield stmt.columns().map((column: { name: any }) => column.name);
       yield* stmt.raw().iterate();
     })())
 

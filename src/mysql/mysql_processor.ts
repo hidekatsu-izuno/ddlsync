@@ -72,13 +72,13 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     vdb.addSchema("performance_schema", true)
     vdb.defaultSchema = await this.getCurrentSchema()
 
-    vdb.addUser("root\0localhost", true)
-    vdb.addUser("root\0127.0.0.1", true)
-    vdb.addUser("root\0::1", true)
-    vdb.addUser("root\0%", true)
+    vdb.addUser("root\x00localhost", true)
+    vdb.addUser("root\x00127.0.0.1", true)
+    vdb.addUser("root\x00::1", true)
+    vdb.addUser("root\x00%", true)
     const hostname = os.hostname()
-    if (hostname && !vdb.getUser(`root\0${hostname}`)) {
-      vdb.addUser(`root\0${hostname}`, true)
+    if (hostname && !vdb.getUser(`root\x00${hostname}`)) {
+      vdb.addUser(`root\x00${hostname}`, true)
     }
 
     const refs = []

@@ -8,7 +8,11 @@ import { AggregateParseError } from "./parser"
 (async () => {
   const program = new Command() as Command;
   program.name("ddlsync")
-    .version(`v0.0.1`)
+
+  const version = process.env.npm_package_version
+  if (version) {
+    program.version(`v${version}`)
+  }
 
   planCommand(program)
   applyCommand(program)
@@ -18,15 +22,14 @@ import { AggregateParseError } from "./parser"
     if (!program.args.length) {
       program.help()
     }
-  } catch (e) {
+  } catch (e: any) {
     if (e instanceof AggregateParseError) {
       for (const detail of e.errors) {
         console.log(colorette.red(detail.message))
       }
     }
-    //console.log(colorette.red(e.message))
-    //exit(1)
-    throw e
+    console.log(colorette.red(e.message))
+    exit(1)
   }
 })()
 
