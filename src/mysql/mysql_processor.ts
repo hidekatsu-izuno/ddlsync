@@ -148,7 +148,7 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     this.con?.destroy()
   }
 
-  async runCommandStatement(seq: number, stmt: model.CommandStatement) {
+  private async runCommandStatement(seq: number, stmt: model.CommandStatement) {
     if (stmt.name === "use") {
       await this.runScript(`USE ${stmt.args.join(" ")}`)
     } else {
@@ -156,7 +156,7 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     }
   }
 
-  async runCreateDatabaseStatement(seq: number, stmt: model.CreateDatabaseStatement) {
+  private async runCreateDatabaseStatement(seq: number, stmt: model.CreateDatabaseStatement) {
     let oldStmt
     let rows
     if ((rows = await this.con.query(`SHOW CREATE DATABASE ${bquote(stmt.name)}`) as any[]).length) {
@@ -212,7 +212,7 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     }
   }
 
-  async runCreateRoleStatement(seq: number, stmt: model.CreateRoleStatement) {
+  private async runCreateRoleStatement(seq: number, stmt: model.CreateRoleStatement) {
     const newRoles = new Array<string>()
     for (const [i, role] of stmt.roles.entries()) {
       let roleName = role.name.toString()
@@ -281,7 +281,7 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     }
   }
 
-  async runCreateUserStatement(seq: number, stmt: model.CreateUserStatement) {
+  private async runCreateUserStatement(seq: number, stmt: model.CreateUserStatement) {
     const newUsers = new Array<string>()
     for (const [i, user] of stmt.users.entries()) {
       let userName = user.name.toString()
@@ -443,7 +443,7 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     }
   }
 
-  async runCreateTablespaceStatement(seq: number, stmt: model.CreateTablespaceStatement) {
+  private async runCreateTablespaceStatement(seq: number, stmt: model.CreateTablespaceStatement) {
     const oldStmt = new model.CreateTablespaceStatement()
     let rows
     if ((rows = await this.con.query(
@@ -493,7 +493,7 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     }
   }
 
-  async runCreateServerStatement(seq: number, stmt: model.CreateServerStatement) {
+  private async runCreateServerStatement(seq: number, stmt: model.CreateServerStatement) {
     const oldStmt = new model.CreateServerStatement()
     let rows
     if ((rows = await this.con.query(
@@ -548,7 +548,7 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     }
   }
 
-  async runCreateResourceGroupStatement(seq: number, stmt: model.CreateResourceGroupStatement) {
+  private async runCreateResourceGroupStatement(seq: number, stmt: model.CreateResourceGroupStatement) {
     const oldStmt = new model.CreateResourceGroupStatement()
     let rows
     if ((rows = await this.con.query(
@@ -584,11 +584,39 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     }
   }
 
-  async runCreateLogfileGroupStatement(seq: number, stmt: model.CreateLogfileGroupStatement) {
-    //TODO
+  private async runCreateLogfileGroupStatement(seq: number, stmt: model.CreateLogfileGroupStatement) {
+    const oldStmt = new model.CreateLogfileGroupStatement()
+    let rows
+    if ((rows = await this.con.query(
+      `SELECT * FROM information_schema.FILES WHERE FILE_NAME = ${stmt.undofile}`
+    ) as any[]).length) {
+      if (rows[0].LOGFILE_GROUP_NAME != null) oldStmt.name = rows[0].LOGFILE_GROUP_NAME
+      if (rows[0].ENGINE != null) oldStmt.engine = rows[0].ENGINE
+      if (rows[0].FILE_TYPE === "UNDO FILE" && rows[0].FILE_NAME != null) {
+        oldStmt.undofile = new model.Text(rows[0].FILE_NAME, true)
+      }
+      if (rows[0].INITIAL_SIZE != null) oldStmt.initialSize = new model.Numeric(rows[0].INITIAL_SIZE)
+      if (rows[0].EXTRA != null) {
+        const extra = rows[0].EXTRA.toString()
+          .split(";")
+          .reduce((obj: { [x: string]: any }, str: string, index: any) => {
+            const pair = str.split("=");
+            if (pair[0] && pair[1]) {
+              obj[pair[0].trim()] = pair[1].trim()
+            }
+            return obj;
+          }, {})
+          if (extra.UNDO_BUFFER_SIZE != null) oldStmt.undoBufferSize = new model.Numeric(rows[0].UNDO_BUFFER_SIZE)
+      }
+    } else {
+      await this.runScript(Token.concat(stmt.tokens))
+      return
+    }
+
+    console.log(`-- skip: the spatial reference systems altering operation is unsupported`)
   }
 
-  async runCreateSpatialReferenceSystemStatement(seq: number, stmt: model.CreateSpatialReferenceSystemStatement) {
+  private async runCreateSpatialReferenceSystemStatement(seq: number, stmt: model.CreateSpatialReferenceSystemStatement) {
     const oldStmt = new model.CreateSpatialReferenceSystemStatement()
     let rows
     if ((rows = await this.con.query(
@@ -632,8 +660,8 @@ export default class MysqlProcessor extends DdlSyncProcessor {
     }
   }
 
-  async runCreateObjectStatement(seq: number, stmt: Statement, ref: VObject) {
-
+  private async runCreateObjectStatement(seq: number, stmt: Statement, ref: VObject) {
+    //TODO
   }
 
   private async runStatement(seq: number, stmt: Statement, type?: ResultType) {
