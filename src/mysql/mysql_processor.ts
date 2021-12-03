@@ -1,4 +1,5 @@
 import os from "os"
+import semver from "semver"
 import mariadb from "mariadb"
 import { Statement, VDatabase, VObject, VRole, VSchema, VUser } from "../models"
 import { DdlSyncProcessor } from "../processor"
@@ -81,9 +82,8 @@ export default class MysqlProcessor extends DdlSyncProcessor {
       vdb.addUser(`root\x00${hostname}`, true)
     }
 
-    const refs = []
     for (const [i, stmt] of stmts.entries()) {
-      refs[i] = stmt.process(vdb)
+      stmt.process(vdb)
     }
 
     for (const [i, stmt] of stmts.entries()) {
@@ -117,6 +117,8 @@ export default class MysqlProcessor extends DdlSyncProcessor {
           await this.runCreateSpatialReferenceSystemStatement(i, stmt as model.CreateSpatialReferenceSystemStatement)
           break
         case model.CreateTableStatement:
+          await this.runCreateTableStatement(i, stmt as model.CreateTableStatement)
+          break
         case model.CreateSequenceStatement:
         case model.CreateViewStatement:
         case model.CreatePackageStatement:
@@ -125,7 +127,7 @@ export default class MysqlProcessor extends DdlSyncProcessor {
         case model.CreateFunctionStatement:
         case model.CreateTriggerStatement:
         case model.CreateEventStatement:
-          await this.runCreateObjectStatement(i, stmt, refs[i] as VObject)
+          await this.runCreateObjectStatement(i, stmt)
           break
         case model.InsertStatement:
         case model.UpdateStatement:
@@ -659,8 +661,53 @@ export default class MysqlProcessor extends DdlSyncProcessor {
       console.log(`-- skip: the spatial reference systems altering operation is unsupported`)
     }
   }
+  
+  private async runCreateTableStatement(seq: number, stmt: model.CreateTableStatement) {
+    const oldStmt = new model.CreateTableStatement()
+    let rows
+    if ((rows = await this.con.query("SELECT * FROM information_schema.TABLES" + 
+      " WHERE" + (stmt.schema ? " TABLE_SCHEMA = ?" : "") + " AND TABLE_NAME = ?",
+      stmt.schema ? [ stmt.schema, stmt.name ] : [ stmt.name ]
+    ) as any[]).length) {
+      if (rows[0].TABLE_TYPE === "TABLE" && rows[0].TEMPORARY === "Y") {
+        await this.runScript(`DROP TABLE IF EXISTS ${rows[0].TABLE_SCHEMA}.${rows[0].TABLE_NAME}`)
+        await this.runScript(Token.concat(stmt.tokens))
+        return
+      } else if (rows[0].TABLE_TYPE === "VIEW") {
+        await this.runScript(`DROP VIEW IF EXISTS ${rows[0].TABLE_SCHEMA}.${rows[0].TABLE_NAME}`)
+        await this.runScript(Token.concat(stmt.tokens))
+        return
+      }
 
-  private async runCreateObjectStatement(seq: number, stmt: Statement, ref: VObject) {
+      if (rows[0].TABLE_COMMENT != null) oldStmt.tableOptions.push({ key: "COMMENT", value: new model.Text(rows[0].TABLE_COMMENT) })
+
+      // TODO
+    } else {
+     if ((rows = await this.con.query("SELECT ROUTINE_TYPE, ROUTINE_SCHEMA, ROUTINE_NAME FROM information_schema.ROUTINES" + 
+        " WHERE" + (stmt.schema ? " ROUTINE_SCHEMA = ?" : "") + " AND ROUTINE_NAME = ?",
+        stmt.schema ? [ stmt.schema, stmt.name ] : [ stmt.name ]
+      ) as any[]).length) {
+        await this.runScript(`DROP ${rows[0].ROUTINE_TYPE} IF EXISTS ${rows[0].EVENT_SCHEMA}.${rows[0].EVENT_NAME}`)
+      } else if ((rows = await this.con.query("SELECT TRIGGER_SCHEMA, TRIGGER_NAME FROM information_schema.TRIGGERS" + 
+        " WHERE" + (stmt.schema ? " TRIGGER_SCHEMA = ?" : "") + " AND TRIGGER_NAME = ?",
+        stmt.schema ? [ stmt.schema, stmt.name ] : [ stmt.name ]
+      ) as any[]).length) {
+        await this.runScript(`DROP TRIGGER IF EXISTS ${rows[0].TRIGGER_SCHEMA}.${rows[0].TRIGGER_NAME}`)
+      } else if ((rows = await this.con.query("SELECT EVENT_SCHEMA, EVENT_NAME FROM information_schema.EVENTS" + 
+        " WHERE" + (stmt.schema ? " EVENT_SCHEMA = ?" : "") + " AND EVENT_NAME = ?",
+        stmt.schema ? [ stmt.schema, stmt.name ] : [ stmt.name ]
+      ) as any[]).length) {
+        await this.runScript(`DROP EVENT IF EXISTS ${rows[0].EVENT_SCHEMA}.${rows[0].EVENT_NAME}`)
+      }
+
+      await this.runScript(Token.concat(stmt.tokens))
+      return
+    }
+
+    //TODO alter
+  }
+
+  private async runCreateObjectStatement(seq: number, stmt: Statement) {
     //TODO
   }
 
